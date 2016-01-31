@@ -480,4 +480,16 @@
 #endif
 //#define CONFIG_SYS_DCACHE_OFF
 
+// Make it actually useful.
+#define CONFIG_CMD_EXT4
+#define CONFIG_FAT_WRITE
+#undef CONFIG_ENV_IS_IN_SUNXI_FLASH
+#define CONFIG_ENV_IS_IN_FAT
+#define FAT_ENV_INTERFACE "mmc"
+#define FAT_ENV_DEVICE_AND_PART "0:1"
+#define FAT_ENV_FILE "uboot.env"
+#define CONFIG_SYS_REDUNDAND_ENVIRONMENT
+#undef CONFIG_MMC_LOGICAL_OFFSET
+#define CONFIG_MMC_LOGICAL_OFFSET 0
+
 #endif /* __CONFIG_H */
