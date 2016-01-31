@@ -854,7 +854,7 @@ u-boot.bin: u-boot FORCE
 
 u-boot-$(CONFIG_TARGET_NAME).bin:   u-boot.bin
 	@cp -v $<    $@
-	@cp -v $@ $(objtree)/../../tools/pack/chips/$(CONFIG_SYS_BOARD)/bin/$@
+	@#cp -v $@ $(objtree)/../../tools/pack/chips/$(CONFIG_TARGET_NAME)/bin/$@
 	@if [ -d nand_sunxi/$(SOC)/lib-nand ];  then \
 		cp -v  nand_sunxi/$(SOC)/lib-nand/built-in.o nand_sunxi/$(SOC)/libnand-$(SOC); \
 	fi
