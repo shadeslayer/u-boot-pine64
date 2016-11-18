@@ -279,7 +279,7 @@ static int sunxi_clk_factors_set_flat_facotrs(struct sunxi_clk_factors *pfactor 
 		reg = SET_BITS( config->nshift , config->nwidth , reg, values->factorn );
 
 	if( config->kwidth )
-		reg = SET_BITS( config->kshift , config->kwidth , reg, values->factork );		
+		reg = SET_BITS( config->kshift , config->kwidth , reg, values->factork );
 
 	factor_writel(factor,reg, factor->reg);
 	/* 4. do pair things for 2). decease factor m */
@@ -289,7 +289,7 @@ static int sunxi_clk_factors_set_flat_facotrs(struct sunxi_clk_factors *pfactor 
 		factor_writel(factor,reg, factor->reg);
 		if( factor->flags & CLK_RATE_FLAT_DELAY)
 			udelay(config->delay);
-	}	
+	}
 
 	/* 5. wait for PLL state stable */
 #ifdef CONFIG_EVB_PLATFORM
@@ -543,4 +543,3 @@ int sunxi_clk_com_ftr_sr(struct sunxi_clk_factors_config *f_config,
 
 	return 0;
 }
-
