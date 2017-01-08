@@ -94,13 +94,19 @@ static void  note_dram_log(int dram_init_flag)
 *
 ************************************************************************************************************
 */
+
+extern int debug_mode;
+
 int main(void)
 {
 	__s32 dram_size=0;
 
 	timer_init();
 	//serial init
+	debug_mode = 1;
 	sunxi_serial_init(fes1_head.prvt_head.uart_port, (void *)fes1_head.prvt_head.uart_ctrl, 2);
+	printf("HELLO! FES1 is starting %d!\n", main);
+
 	set_pll();
 
 	//enable gpio gate
@@ -112,15 +118,10 @@ int main(void)
 #else
 	dram_size = init_DRAM(0, (void *)fes1_head.prvt_head.dram_para);
 #endif
-	
-	if (dram_size)
-	{
-		note_dram_log(1);
-		printf("init dram ok\n");
-	}
-	else
-	{
-		note_dram_log(0);
+
+	if (dram_size) {
+    printf("init dram ok\n");
+	} else {
 		printf("init dram fail\n");
 	}
 

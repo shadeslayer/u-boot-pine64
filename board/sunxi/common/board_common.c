@@ -551,7 +551,15 @@ int board_late_init(void)
 #endif
 		return 0;
 	}
-
+  else if(uboot_spare_head.boot_data.work_mode == 0x55)
+  {
+    printf("Running USB mass storage\n");
+    setenv("bootcmd", "sunxi_ums");
+  }
+  else if(uboot_spare_head.boot_data.work_mode == 0x56)
+  {
+    printf("Running USB mass storage\n");
+    setenv("bootcmd", "efex");
+  }
 	return ret;
 }
-
