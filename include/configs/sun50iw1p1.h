@@ -198,8 +198,8 @@
 #define CONFIG_BOOT0_RET_ADDR            (CONFIG_SYS_SRAM_BASE)
 #define CONFIG_BOOT0_RUN_ADDR            (0x10000)
 
-#define CONFIG_FES1_RET_ADDR             (CONFIG_SYS_SRAM_BASE + 0x7210)
-#define CONFIG_FES1_RUN_ADDR             (0x18000)
+#define CONFIG_FES1_RET_ADDR             (CONFIG_SYS_SRAM_BASE)
+#define CONFIG_FES1_RUN_ADDR             (0x10000)
 
 #define CONFIG_TOC0_RET_ADDR             (0)
 #define CONFIG_TOC0_RUN_ADDR             (0x10480)

@@ -35,10 +35,10 @@
 extern char uboot_hash_value[64];
 
 
-const boot0_file_head_t  BT0_head = 
+const boot0_file_head_t  BT0_head =
 {
     {
-        /* jump_instruction */         
+        /* jump_instruction */
         ( 0xEA000000 | ( ( ( sizeof( boot0_file_head_t ) + sizeof(uboot_hash_value) + sizeof( int ) - 1 ) / sizeof( int ) - 2 ) & 0x00FFFFFF ) ),
         BOOT0_MAGIC,
         STAMP_VALUE,
@@ -60,32 +60,70 @@ const boot0_file_head_t  BT0_head =
     {
         //__u32 prvt_head_size;
         0,
-        //char prvt_head_vsn[4];      
-        0,
-        //unsigned int                dram_para[32] ; 
-        {0},
-        //__s32			     uart_port;   
-        0,
-        //normal_gpio_cfg       uart_ctrl[2];  
+        //char debug_mode
+        1,
+        //unsigned int                dram_para[32] ;
         {
-            { 2, 8, 4, 1, 1, 0, {0}},//PB8: 4--RX
-    		{ 2, 9, 4, 1, 1, 0, {0}},//PB9: 4--TX
+          0x0228, 0x03,
+          0x3b3bdd, 0x01, 0x10e410f4, 0x08001000,
+          0x1c70, 0x40, 0x18, 0x0,
+          0x47194f, 0x01c2414b, 0x061043, 0x050005dc,
+          0x0, 0x0, 0x0, 0x2a066198,
+          0x0, 0x0, 0x8808, 0x40a60066,
+          0x55550000, 0x04000903, 0x0, 0x0,
+          0x0, 0x0, 0x0, 0x0,
+          0x0, 0x0
         },
-        //__s32                         enable_jtag;  
+        //__s32			     uart_port;
         0,
-        //normal_gpio_cfg	      jtag_gpio[5];   
+        //normal_gpio_cfg       uart_ctrl[2];
+        {
+          { 2, 8, 4, 1, 1, 0, {0}},//PB8: 4--RX
+    		  { 2, 9, 4, 1, 1, 0, {0}},//PB9: 4--TX
+        },
+        //__s32                         enable_jtag;
+        0,
+        //normal_gpio_cfg	      jtag_gpio[5];
         {{0},{0},{0},{0},{0}},
-        //normal_gpio_cfg        storage_gpio[32]; 
+        //normal_gpio_cfg        storage_gpio[32];
         {
-          { 6, 0, 2, 1, 2, 0, {0}},//PF0-5: 2--SDC
-          { 6, 1, 2, 1, 2, 0, {0}},
-          { 6, 2, 2, 1, 2, 0, {0}},
-          { 6, 3, 2, 1, 2, 0, {0}},
-          { 6, 4, 2, 1, 2, 0, {0}},
-          { 6, 5, 2, 1, 2, 0, {0}},
+          { 6, 2, 2, 1, 2, -1, {0}}, // d0
+          { 6, 3, 2, 1, 2, -1, {0}}, // d1
+          { 6, 1, 2, 1, 2, -1, {0}}, // cmd
+          { 6, 0, 2, 1, 2, -1, {0}}, // clk
+          { 6, 5, 2, 1, 2, -1, {0}}, // d3
+          { 6, 4, 2, 1, 2, -1, {0}}, // d2
+
+          {0},{0},{0},{0},{0},{0},{0},{0},{0},{0},
+
+          { 3, 5, 3, 1, 3, -1, {0}},
+          { 3, 6, 3, 1, 3, -1, {0}},
+          { 3, 8, 3, 1, 3, -1, {0}},
+          { 3, 9, 3, 1, 3, -1, {0}},
+          { 3,10, 3, 1, 3, -1, {0}},
+          { 3,11, 3, 1, 3, -1, {0}},
+          { 3,12, 3, 1, 3, -1, {0}},
+          { 3,13, 3, 1, 3, -1, {0}},
+          { 3,14, 3, 1, 3, -1, {0}},
+          { 3,15, 3, 1, 3, -1, {0}},
         },
-        //char                             storage_data[512 - sizeof(normal_gpio_cfg) * 32]; 
-        {0}
+        //char                             storage_data[512 - sizeof(normal_gpio_cfg) * 32];
+        {
+          0,0,0,0, 0,0,0,0,
+          0,0,0,0, -1,-1,-1,-1, 2,0,0,0, -1,-1,-1,-1,
+          1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+          4,0,0,0, 0,0,0,0, 8,0,0,0, 0,0,0,0,
+
+          0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, // 230
+          0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, // 240
+          0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, // 250
+          0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, // 260
+          0,0,0,0, 0,0,0,0, -1,-1,-1,-1, -1,-1,-1,-1, // 270
+
+          0xff,0xff,0x2f,0xff, 0xff,0xff,0xff,0xff, 0xff,0xff,0x0d,0xff, 0xff,0xff,0xff,0xff, // 280
+          0xff,0xff,0x2f,0x0d, 0x0d,0x0b,0xff,0xff, 0xff,0xff,0xff,0xff, 0xff,0xff,0xff,0xff, // 290
+          0x00,0xff,0xff,0xff, 0xff,0x00,0x00,0x00, 0x00,0x00,0x00,0x08,
+        }
     }
 
 };
@@ -128,4 +166,3 @@ const boot0_file_head_t  BT0_head =
 *  | 0xEA000000                                组装成B指令
 *
 *******************************************************************************/
-

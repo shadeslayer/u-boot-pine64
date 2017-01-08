@@ -376,13 +376,13 @@ int sunxi_flash_handle_init(void)
 	int workmode = 0;
 	int storage_type = 0;
 	int state = 0;
-	
+
 	workmode     = uboot_spare_head.boot_data.work_mode;
 	storage_type = uboot_spare_head.boot_data.storage_type;
 
 	printf("workmode = %d,storage type = %d\n", workmode,storage_type);
 
-	if (workmode == WORK_MODE_BOOT || workmode == WORK_MODE_SPRITE_RECOVERY)
+	if (workmode == WORK_MODE_BOOT || workmode == WORK_MODE_SPRITE_RECOVERY || workmode == 0x55)
 	{
 		state = sunxi_flash_boot_handle(storage_type,workmode);
 	}
