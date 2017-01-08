@@ -639,6 +639,26 @@ int update_dram_para_for_ota(void)
 #endif
 }
 
+static void sunxi_set_boot_disk(void)
+{
+    switch(get_boot_storage_type())
+    {
+      case STORAGE_SD:
+        setenv("boot_disk", "0");
+        setenv("boot_part", "0:1");
+        break;
+
+      case STORAGE_EMMC:
+        setenv("boot_disk", "2");
+        setenv("boot_part", "2:1");
+        break;
+
+      default:
+        printf("storage not supported\n");
+        break;
+    }
+}
+
 int board_late_init(void)
 {
 	int ret  = 0;
@@ -646,10 +666,11 @@ int board_late_init(void)
 	{
 		sunxi_fastboot_init();
 		update_dram_para_for_ota();
+		sunxi_set_boot_disk();
 		update_bootcmd();
 		ret = update_fdt_para_for_kernel(working_fdt);
 #ifdef CONFIG_SUNXI_SERIAL
-                sunxi_set_serial_num();
+		sunxi_set_serial_num();
 #endif
 #ifdef CONFIG_PINE64_MODEL
 		pine64_set_model();
@@ -659,4 +680,3 @@ int board_late_init(void)
 
 	return ret;
 }
-
