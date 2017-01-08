@@ -33,7 +33,7 @@ static int do_sunxi_dma_test(cmd_tbl_t * cmdtp, int flag, int argc, char * const
 	cfg.cfg.dst_burst_length = DMAC_CFG_DEST_1_BURST;
 	cfg.cfg.dst_data_width   = DMAC_CFG_DEST_DATA_WIDTH_32BIT;
 	cfg.cfg.reserved1        = 0;
-	
+
 	if(argc < 3)
 	{
 		printf("parameters error\n");
@@ -58,7 +58,7 @@ static int do_sunxi_dma_test(cmd_tbl_t * cmdtp, int flag, int argc, char * const
 	sunxi_dma_start(hdma,src_addr,dst_addr,len);
 
 	while(sunxi_dma_request()){
-	
+
 	}
 	return 0;
 }

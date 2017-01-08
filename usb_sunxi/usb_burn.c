@@ -61,7 +61,7 @@ static  pburn_trans_set_t  trans_data;
 static  u8 *private_data_ext_buff_step = NULL;
 static u8 *private_data_ext_buff = NULL;
 
-static int burn_part_result_state = ERR_NO_SUCCESS; 
+static int burn_part_result_state = ERR_NO_SUCCESS;
 long long burn_part_bytes = 0;
 extern volatile int sunxi_usb_burn_from_boot_handshake;
 extern volatile int sunxi_usb_burn_from_boot_setup;
@@ -493,6 +493,7 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 			efuse_key_info.len = key_list->len;
 			efuse_key_info.key_data = (u8 *)key_list->key_data;
 
+#if 0
 			if(!strcmp(efuse_key_info.name, "rotpk"))
 			{
 				printf("ready to burn rootkey\n");
@@ -503,6 +504,7 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 					return -1;
 				}
 			}
+#endif
 
 			if(arm_svc_efuse_write(&efuse_key_info))
 			{
@@ -549,7 +551,7 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 					printf("write key to private failed\n");
 					return -1;
 				}
-				else if(ret == 1)	//烧写的key数据长度过大,无法存储在private分区 
+				else if(ret == 1)	//烧写的key数据长度过大,无法存储在private分区
 				{
 					printf("the fuck thing had happened\n");
 				}

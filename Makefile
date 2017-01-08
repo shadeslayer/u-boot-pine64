@@ -175,15 +175,13 @@ VPATH		:= $(srctree)$(if $(KBUILD_EXTMOD),:$(KBUILD_EXTMOD))
 export srctree objtree VPATH
 
 OBJTREE		:= $(if $(BUILD_DIR),$(BUILD_DIR),$(CURDIR))
-SPLTREE		:= $(OBJTREE)/spl
+SPLTREE		:= $(OBJTREE)/sunxi_spl
 SRCTREE		:= $(CURDIR)
 TOPDIR		:= $(SRCTREE)
 LNDIR		:= $(OBJTREE)
-SPLDIR		:= $(OBJTREE)/../../bootloader/uboot_2014_sunxi_spl/sunxi_spl
-SPLBASE		:= $(OBJTREE)/../../bootloader/uboot_2014_sunxi_spl
-SPLSUPPORT  := $(shell if [ -d $(SPLBASE) ] ; then echo "y"; else echo "n"; fi)
+SPLSUPPORT  := $(shell if [ -d $(SPLTREE) ] ; then echo "y"; else echo "n"; fi)
 
-export	TOPDIR SRCTREE OBJTREE SPLTREE SPLDIR SPLBASE
+export	TOPDIR SRCTREE OBJTREE SPLTREE
 
 MKCONFIG	:= $(srctree)/mkconfig
 export MKCONFIG
@@ -703,7 +701,7 @@ endif
 else
 PLATFORM_LIBGCC := -L $(shell dirname `$(CC) $(c_flags) -print-libgcc-file-name`) -lgcc
 endif
-PLATFORM_LIBS += $(PLATFORM_LIBGCC) 
+PLATFORM_LIBS += $(PLATFORM_LIBGCC)
 ifdef CONFIG_SUNXI_MODULE_NAND
 #if nand_sunxi/$(SOC)/lib-nand not exist ,then use the exist library
 PLATFORM_LIBS += $(shell if [ ! -d nand_sunxi/$(SOC)/lib-nand ];  then  echo "nand_sunxi/$(SOC)/libnand-$(SOC)";  fi )
@@ -786,7 +784,7 @@ endif
 
 LDFLAGS_u-boot += $(LDFLAGS_FINAL)
 ifneq ($(CONFIG_SYS_TEXT_BASE),)
-#LDFLAGS_u-boot += -Ttext $(CONFIG_SYS_TEXT_BASE)  
+#LDFLAGS_u-boot += -Ttext $(CONFIG_SYS_TEXT_BASE)
 endif
 
 quiet_cmd_objcopy = OBJCOPY $@
@@ -831,7 +829,7 @@ u-boot.hex u-boot.srec: u-boot FORCE
 
 OBJCOPYFLAGS_u-boot.bin := -O binary
 
-#0x600 is the size of uboot head data 
+#0x600 is the size of uboot head data
 binary_size_check: u-boot.bin System.map FORCE
 	@file_size=`stat -c %s u-boot.bin` ; \
 	map_size=$(shell cat System.map | \
