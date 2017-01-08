@@ -161,6 +161,10 @@ static int detect_other_boot_mode(void)
 	keyvalue = gd->key_pressd_value;
 	printf("key %d\n", keyvalue);
 
+	char buf[8];
+	sprintf(buf, "%d", keyvalue);
+	setenv("boot_key", buf);
+
 	ret1 = script_parser_fetch("recovery_key", "key_max", &key_high, 1);
 	ret2 = script_parser_fetch("recovery_key", "key_min", &key_low,  1);
 	if((ret1) || (ret2))
