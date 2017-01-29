@@ -726,6 +726,7 @@ struct disp_device {
 	s32 (*set_open_func)(struct disp_device* lcd, LCD_FUNC func, u32 delay);
 	s32 (*set_close_func)(struct disp_device* lcd, LCD_FUNC func, u32 delay);
 	int (*gpio_set_value)(struct disp_device* dispdev, unsigned int io_index, u32 value);
+	int (*gpio_get_value)(struct disp_device* dispdev, unsigned int io_index);
 	int (*gpio_set_direction)(struct disp_device* dispdev, unsigned int io_index, u32 direction);
 	int (*get_panel_info)(struct disp_device* dispdev, disp_panel_para *info);
 };

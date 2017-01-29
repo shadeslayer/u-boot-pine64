@@ -2113,6 +2113,7 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		lcd->get_open_flow = disp_lcd_get_open_flow;
 		lcd->get_close_flow  = disp_lcd_get_close_flow;
 		lcd->gpio_set_value = disp_lcd_gpio_set_value;
+		lcd->gpio_get_value = disp_lcd_gpio_get_value;
 		lcd->gpio_set_direction = disp_lcd_gpio_set_direction;
 		lcd->get_dimensions = disp_lcd_get_dimensions;
 		lcd->get_status = disp_lcd_get_status;

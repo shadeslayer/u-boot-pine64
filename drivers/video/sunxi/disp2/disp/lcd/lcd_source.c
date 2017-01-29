@@ -452,6 +452,15 @@ s32 sunxi_lcd_gpio_set_value(u32 screen_id, u32 io_index, u32 value)
 	return -1;
 }
 
+s32 sunxi_lcd_gpio_get_value(u32 screen_id, u32 io_index)
+{
+ if (g_lcd_drv.src_ops.sunxi_lcd_gpio_get_value) {
+   return g_lcd_drv.src_ops.sunxi_lcd_gpio_get_value(screen_id, io_index);
+ }
+
+ return -1;
+}
+
 /**
  * sunxi_lcd_gpio_set_direction
  * @screen_id: The index of screen.
