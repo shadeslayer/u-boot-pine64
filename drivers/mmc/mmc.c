@@ -3150,4 +3150,3 @@ int mmc_set_rst_n_function(struct mmc *mmc, u8 enable)
 			  enable);
 }
 #endif
-

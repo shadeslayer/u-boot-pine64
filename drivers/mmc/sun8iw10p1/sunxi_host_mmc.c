@@ -668,6 +668,14 @@ static void mmc_get_para_from_fex(int sdc_no)
 						memcpy(p, sdly, sizeof(struct tune_sdly));
 					else
 						MMCINFO("get sdly from uboot header fail\n");
+
+					for(i = 0; i < 10; ++i) {
+						sprintf(ctmp, "tm4_smx_fx_%d", i);
+						ret = fdt_getprop_u32(working_fdt,nodeoffset,ctmp, (uint32_t*)(&rval));
+						if (ret >= 0) {
+							p[i] = rval;
+						}
+					}
 				}
 			} else if (rval == 1) {  /* maual sample point from fex */
 				cfg->platform_caps.sample_mode = MAUNAL_SAMPLE_MODE;
