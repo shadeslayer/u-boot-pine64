@@ -178,7 +178,6 @@ s32 sunxi_lcd_set_panel_funs(char *name, disp_lcd_panel_fun * lcd_cfg);
  * @value: value of gpio to be set
  */
 s32 sunxi_lcd_gpio_set_value(u32 screen_id, u32 io_index, u32 value);
-s32 sunxi_lcd_gpio_get_value(u32 screen_id, u32 io_index);
 
 /**
  * sunxi_lcd_gpio_set_direction

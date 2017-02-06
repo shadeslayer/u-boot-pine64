@@ -445,7 +445,6 @@ int sunxi_disp_get_source_ops(struct sunxi_disp_source_ops *src_ops)
 	src_ops->sunxi_lcd_tcon_disable = bsp_disp_lcd_tcon_disable;
 	src_ops->sunxi_lcd_pin_cfg = bsp_disp_lcd_pin_cfg;
 	src_ops->sunxi_lcd_gpio_set_value = bsp_disp_lcd_gpio_set_value;
-	src_ops->sunxi_lcd_gpio_get_value = bsp_disp_lcd_gpio_get_value;
 	src_ops->sunxi_lcd_gpio_set_direction = bsp_disp_lcd_gpio_set_direction;
 #ifdef SUPPORT_DSI
 	src_ops->sunxi_lcd_dsi_dcs_write = dsi_dcs_wr;

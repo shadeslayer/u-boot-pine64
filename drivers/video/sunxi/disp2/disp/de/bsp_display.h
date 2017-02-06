@@ -24,7 +24,6 @@ struct sunxi_disp_source_ops
 	int (*sunxi_lcd_set_panel_funs)(char *drv_name, disp_lcd_panel_fun * lcd_cfg);
 	int (*sunxi_lcd_pin_cfg)(unsigned int screen_id, unsigned int bon);
 	int (*sunxi_lcd_gpio_set_value)(unsigned int screen_id, unsigned int io_index, u32 value);
-	int (*sunxi_lcd_gpio_get_value)(unsigned int screen_id, unsigned int io_index);
 	int (*sunxi_lcd_gpio_set_direction)(unsigned int screen_id, unsigned int io_index, u32 direction);
 };
 
@@ -72,7 +71,6 @@ s32 bsp_disp_lcd_tcon_enable(u32 disp);
 s32 bsp_disp_lcd_tcon_disable(u32 disp);
 s32 bsp_disp_lcd_pin_cfg(u32 disp, u32 en);
 s32 bsp_disp_lcd_gpio_set_value(u32 disp, u32 io_index, u32 value);
-s32 bsp_disp_lcd_gpio_get_value(u32 disp, u32 io_index);
 s32 bsp_disp_lcd_gpio_set_direction(u32 disp, unsigned int io_index, u32 direction);
 disp_lcd_flow * bsp_disp_lcd_get_open_flow(u32 disp);
 disp_lcd_flow * bsp_disp_lcd_get_close_flow(u32 disp);

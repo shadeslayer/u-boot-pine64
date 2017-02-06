@@ -1197,18 +1197,6 @@ s32 bsp_disp_lcd_gpio_set_value(u32 disp, u32 io_index, u32 value)
 	return ret;
 }
 
-s32 bsp_disp_lcd_gpio_get_value(u32 disp, u32 io_index)
-{
-	int ret = -1;
-	struct disp_device *lcd;
-
-	lcd = disp_get_lcd(disp);
-	if (lcd && lcd->gpio_get_value)
-		ret = lcd->gpio_get_value(lcd, io_index);
-
-	return ret;
-}
-
 s32 bsp_disp_lcd_gpio_set_direction(u32 disp, unsigned int io_index, u32 direction)
 {
 	int ret = -1;

@@ -85,7 +85,6 @@ s32 bsp_disp_lcd_tcon_enable(u32 disp);
 s32 bsp_disp_lcd_tcon_disable(u32 disp);
 s32 bsp_disp_lcd_pin_cfg(u32 disp, u32 en);
 s32 bsp_disp_lcd_gpio_set_value(u32 disp, u32 io_index, u32 value);
-s32 bsp_disp_lcd_gpio_get_value(u32 disp, u32 io_index);
 s32 bsp_disp_lcd_gpio_set_direction(u32 disp, unsigned int io_index, u32 direction);
 disp_lcd_flow * bsp_disp_lcd_get_open_flow(u32 disp);
 disp_lcd_flow * bsp_disp_lcd_get_close_flow(u32 disp);
