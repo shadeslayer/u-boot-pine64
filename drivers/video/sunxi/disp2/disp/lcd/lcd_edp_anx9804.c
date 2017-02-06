@@ -1,83 +1,38 @@
 #include "lcd_edp_anx9804.h"
 #include "panels.h"
 #include "../de/disp_lcd.h"
-#include <asm/arch/gpio.h>
-#include <linux/gpio.h>
-
-static int gpio_request(unsigned gpio, const char *label)
-{
-  return 0;
-}
-
-static int gpio_free(unsigned gpio)
-{
-  return 0;
-}
-
-static int gpio_direction_input(unsigned gpio)
-{
-  int port = gpio >> 5;
-  int port_num = gpio & 0x1f;
-  int port_num_pull = (port_num >> 4);
-
-  volatile __u32 *tmp_group_func_addr = PIO_REG_CFG(port, port_num_func);
-}
-
-static int gpio_direction_output(unsigned gpio, int value)
-{
-
-}
-
-static int gpio_get_value(unsigned gpio)
-{
-
-}
 
 //---------------------------------------------------------
 
-static int scl_pin = 360;
-static int sda_pin = 361;
+#define LCD_GPIO_SCLB 0
+#define LCD_GPIO_SDAB 1
 
 inline void IIC_SCLB_LOW(void)
 {
-	int r = gpio_direction_output(scl_pin, 0);
-  if(r < 0) {
-    printf("failed to set GPIO low SCL: %d\n", r);
-  }
+	sunxi_lcd_gpio_set_direction(0, LCD_GPIO_SCLB, 1);
+	sunxi_lcd_gpio_set_value(0, LCD_GPIO_SCLB, 0);
 }
 
 inline void IIC_SCLB_HIGH(void)
 {
-	int r = gpio_direction_input(scl_pin);
-  if(r < 0) {
-    printf("failed to set GPIO HIGH SCL: %d\n", r);
-  }
+	sunxi_lcd_gpio_set_direction(0, LCD_GPIO_SCLB, 0);
 }
 
 inline void IIC_SDAB_LOW(void)
 {
-	int r = gpio_direction_output(sda_pin, 0);
-  if(r < 0) {
-    printf("failed to set GPIO low SDA: %d\n", r);
-  }
+	sunxi_lcd_gpio_set_direction(0, LCD_GPIO_SDAB, 1);
+	sunxi_lcd_gpio_set_value(0, LCD_GPIO_SDAB, 0);
 }
 
 inline void IIC_SDAB_HIGH(void)
 {
-	int r = gpio_direction_input(sda_pin);
-  if(r < 0) {
-    printf("failed to set GPIO HIGH SDA: %d\n", r);
-  }
+	sunxi_lcd_gpio_set_direction(0, LCD_GPIO_SDAB, 0);
 }
 
 inline __u32 CHECK_SDAB_HIGH(void)
 {
-	int r = gpio_direction_input(sda_pin);
-  int r2 = gpio_get_value(sda_pin);
-  if(r < 0 || r2 < 0) {
-    printf("failed to read GPIO SDA: %d|%d\n", r, r2);
-  }
-  return r2;
+	sunxi_lcd_gpio_set_direction(0, LCD_GPIO_SDAB, 0);
+	return sunxi_lcd_gpio_get_value(0, LCD_GPIO_SDAB);
 }
 
 static int i2cB_clock( void )
@@ -251,7 +206,6 @@ static void LCD_bl_close(__u32 sel);
 
 static void LCD_panel_init(__u32 sel);
 static void LCD_panel_exit(__u32 sel);
-
 void anx9804_init(disp_panel_para *info)
 {
 	__u8 c;
@@ -273,14 +227,14 @@ void anx9804_init(disp_panel_para *info)
 
 	//HW reset
 	sunxi_lcd_iic_write(0x72, DP_TX_RST_CTRL_REG, DP_TX_RST_HW_RST);
-	udelay(10);
+	sunxi_lcd_delay_us(10);
 	sunxi_lcd_iic_write(0x72, DP_TX_RST_CTRL_REG, 0x00);
 	//Power on total and select DP mode
 	sunxi_lcd_iic_write(0x72, DP_POWERD_CTRL_REG, 0x00 );
 
 	//get chip ID. Make sure I2C is OK
-	sunxi_lcd_iic_read(0x72, 0x1, &c);
-	if(c==0xaa) {
+	sunxi_lcd_iic_read(0x72, DP_TX_DEV_IDH_REG , &c);
+	if(c==0x98) {
 		printf("ANX9804 Chip found\n");
 	}	else {
 		printf("ANX9804 Chip not found\n");
@@ -560,9 +514,9 @@ static void LCD_cfg_panel_info(panel_extend_para * info)
 
 static __s32 LCD_open_flow(__u32 sel)
 {
-  LCD_OPEN_FUNC(sel, sunxi_lcd_tcon_enable, 20);     //open lcd controller, and delay 50ms
-	LCD_OPEN_FUNC(sel, LCD_power_on, 100);   //open lcd power, and delay 0ms
-	LCD_OPEN_FUNC(sel, LCD_panel_init, 150);   //open lcd power, than delay 10ms
+	LCD_OPEN_FUNC(sel, LCD_power_on, 0);   //open lcd power, and delay 0ms
+	LCD_OPEN_FUNC(sel, LCD_panel_init, 10);   //open lcd power, than delay 10ms
+	LCD_OPEN_FUNC(sel, sunxi_lcd_tcon_enable, 50);     //open lcd controller, and delay 50ms
 	LCD_OPEN_FUNC(sel, LCD_bl_open, 0);     //open lcd backlight, and delay 0ms
 
 	return 0;
@@ -570,38 +524,26 @@ static __s32 LCD_open_flow(__u32 sel)
 
 static __s32 LCD_close_flow(__u32 sel)
 {
-  LCD_CLOSE_FUNC(sel, sunxi_lcd_tcon_disable, 0);         //close lcd controller, and delay 0ms
 	LCD_CLOSE_FUNC(sel, LCD_bl_close, 0);       //close lcd backlight, and delay 0ms
-	LCD_CLOSE_FUNC(sel, LCD_panel_exit,	200);   //open lcd power, than delay 200ms
-	LCD_CLOSE_FUNC(sel, LCD_power_off, 500);   //close lcd power, and delay 500ms
+	LCD_CLOSE_FUNC(sel, sunxi_lcd_tcon_disable, 0);         //close lcd controller, and delay 0ms
+	LCD_CLOSE_FUNC(sel, LCD_panel_exit,	100);   //open lcd power, than delay 200ms
+	LCD_CLOSE_FUNC(sel, LCD_power_off, 100);   //close lcd power, and delay 500ms
+
 	return 0;
 }
 
 static void LCD_power_on(__u32 sel)
 {
-  sunxi_lcd_gpio_set_value(sel, 0, 0);//pwr_en, active low
-	sunxi_lcd_power_enable(sel, 1);//config lcd_power pin to open lcd power0
-  sunxi_lcd_delay_ms(5);
+	sunxi_lcd_power_enable(sel, 0);//config lcd_power pin to open lcd power0
+  sunxi_lcd_power_enable(sel, 1);//config lcd_power pin to open lcd power0
   sunxi_lcd_power_enable(sel, 2);//config lcd_power pin to open lcd power0
-  sunxi_lcd_delay_ms(10);
-  sunxi_lcd_power_enable(sel, 0);//config lcd_power pin to open lcd power0
-  sunxi_lcd_delay_ms(5);
-  sunxi_lcd_gpio_set_value(sel, 0, 1);//pwr_en, active low
-  sunxi_lcd_delay_ms(10);
-  sunxi_lcd_pin_cfg(sel, 1);
+	sunxi_lcd_pin_cfg(sel, 1);
 }
 
 static void LCD_power_off(__u32 sel)
 {
 	sunxi_lcd_pin_cfg(sel, 0);
-  sunxi_lcd_delay_ms(5);
-	sunxi_lcd_gpio_set_value(sel, 0, 0);//pwr_en, active low
-  sunxi_lcd_delay_ms(5);
 	sunxi_lcd_power_disable(sel, 0);//config lcd_power pin to close lcd power0
-  sunxi_lcd_delay_ms(5);
-	sunxi_lcd_power_disable(sel, 2);//config lcd_power pin to close lcd power0
-  sunxi_lcd_delay_ms(5);
-	sunxi_lcd_power_disable(sel, 1);//config lcd_power pin to close lcd power0
 }
 
 static void LCD_bl_open(__u32 sel)
@@ -620,32 +562,11 @@ extern s32 bsp_disp_get_panel_info(u32 screen_id, disp_panel_para *info);
 
 static void LCD_panel_init(__u32 sel)
 {
-  int ret = 0;
-
 	disp_panel_para *panel_info = kmalloc(sizeof(disp_panel_para), GFP_KERNEL | __GFP_ZERO);
-  if(!panel_info) {
-    return -5
-  }
-
-	ret = gpio_request(sda_pin, "anx9804_sda");
-	if (ret) {
-		goto err_request_sda;
-	}
-	ret = gpio_request(scl_pin, "anx9804_scl");
-	if (ret) {
-		goto err_request_scl;
-	}
-
-  gpio_direction_input(sda_pin);
-  gpio_direction_input(scl_pin);
 
 	bsp_disp_get_panel_info(sel, panel_info);
 	anx9804_init(panel_info);
 
-  gpio_free(scl_pin);
-err_request_scl:
-	gpio_free(sda_pin);
-err_request_sda:
 	kfree(panel_info);
 	return;
 }
