@@ -64,7 +64,7 @@ void arch_lmb_reserve(struct lmb *lmb)
 		    gd->bd->bi_dram[0].start + gd->bd->bi_dram[0].size - sp);
 }
 
-#if 0
+#if 1
 /**
  * announce_and_cleanup() - Print message and prepare for kernel boot
  *
