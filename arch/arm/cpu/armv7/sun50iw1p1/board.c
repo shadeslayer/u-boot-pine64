@@ -239,17 +239,17 @@ int sunxi_probe_securemode(void)
 */
 int sunxi_set_secure_mode(void)
 {
-	int mode;
-
-	if((gd->securemode == SUNXI_NORMAL_MODE) && (gd->bootfile_mode = SUNXI_BOOT_FILE_TOC))
-	{
-		mode = sid_probe_security_mode();
-		if(!mode)
-		{
-			sid_set_security_mode();
-			gd->bootfile_mode = SUNXI_BOOT_FILE_TOC;
-		}
-	}
+	// int mode;
+  //
+	// if((gd->securemode == SUNXI_NORMAL_MODE) && (gd->bootfile_mode = SUNXI_BOOT_FILE_TOC))
+	// {
+	// 	mode = sid_probe_security_mode();
+	// 	if(!mode)
+	// 	{
+	// 		sid_set_security_mode();
+	// 		gd->bootfile_mode = SUNXI_BOOT_FILE_TOC;
+	// 	}
+	// }
 
 	return 0;
 }
@@ -278,5 +278,3 @@ int sunxi_probe_secure_monitor(void)
 {
 	return uboot_spare_head.boot_data.secureos_exist == SUNXI_SECURE_MODE_USE_SEC_MONITOR?1:0;
 }
-
-

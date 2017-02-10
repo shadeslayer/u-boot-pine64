@@ -43,8 +43,8 @@
 
 #define IS_SD(x) (x->version & SD_VERSION_SD)
 
-#define MMC_DATA_READ		(1U<<0)
-#define MMC_DATA_WRITE		(1U<<1)
+#define MMC_DATA_READ		1
+#define MMC_DATA_WRITE		2
 
 #define NO_CARD_ERR		-16 /* No SD/MMC card inserted */
 #define UNUSABLE_ERR		-17 /* Unusable Card */
@@ -209,7 +209,6 @@
 #define PART_ACCESS_MASK	(0x7)
 #define PART_SUPPORT		(0x1)
 
-/*
 struct mmc_cid {
 	unsigned long psn;
 	unsigned short oid;
@@ -218,7 +217,6 @@ struct mmc_cid {
 	unsigned char mdt;
 	char pnm[7];
 };
-*/
 
 /*
  * WARNING!
@@ -310,7 +308,7 @@ struct tune_sdly {
 	u32 tm4_sm4_f3210;
 	u32 tm4_sm4_f7654;
 */
-	u32 tm4_smx_fx[12];
+	u32 tm4_smx_fx[10];
 };
 
 struct boot_mmc_cfg {
@@ -354,9 +352,9 @@ struct mmc {
 	unsigned scr[2];
 	unsigned csd[4];
 	unsigned cid[4];
-	unsigned rca; //unsigned short rca;
-	unsigned part_config; //char part_config;
-	unsigned part_num; //char part_num;
+	unsigned short rca;
+	char part_config;
+	char part_num;
 	unsigned tran_speed;
 	unsigned read_bl_len;
 	unsigned write_bl_len;
@@ -367,11 +365,15 @@ struct mmc {
 	void (*set_ios)(struct mmc *mmc);
 	int (*init)(struct mmc *mmc);
 	int (*update_phase)(struct mmc *mmc);
+#if 0
+	struct tuning_sdly sdly_tuning;
+#else
 	struct tune_sdly tune_sdly;
+#endif
 	unsigned b_max;
     unsigned lba;        /* number of blocks */
     unsigned blksz;      /* block size */
-	char revision[8+8]; //char revision[8+1];	 /* CID:  PRV */
+	char revision[8+1];	/* CID:  PRV */
 
     uint speed_mode;
 };

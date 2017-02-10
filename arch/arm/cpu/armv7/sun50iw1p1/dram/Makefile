@@ -1,5 +1,6 @@
+
 #
-# (C) Copyright 2000-2003
+# (C) Copyright 2000, 2001, 2002
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
 #
 # See file CREDITS for list of people who contributed to this
@@ -21,33 +22,29 @@
 # MA 02111-1307 USA
 #
 
-include $(SPLDIR)/config.mk
-LIB	=  $(obj)libsource_spl.o
+include $(TOPDIR)/config.mk
 
-COBJS	+= rtc_region.o
-COBJS	+= timer_spl.o
-COBJS	+= gpio_spl.o
-COBJS	+= serial_spl.o
-COBJS	+= clock_spl.o
-COBJS	+= fip_common.o
-COBJS 	+= jmp.o
+all:
+ifeq ($(notdir $(shell find ./ -name lib-dram)), lib-dram)
+	make -C lib-dram
+else
+	@echo "libdram exist"
+endif
 
-#COBJS-$(CONFIG_XXXX)	+= xxxx.o
+ifeq ($(notdir $(shell find ./ -name lib-chipid)), lib-chipid)
+	make -C lib-chipid
+else
+	@echo "lib-chipid exist"
+endif
 
-SRCS	:= $(COBJS:.o=.c)
-OBJS	:= $(addprefix $(obj),$(COBJS))
-
-
-
-all:	$(obj).depend $(LIB)
-
-$(LIB):	$(OBJS)
-	$(call cmd_link_o_target, $(OBJS))
+	cp ./libdram ./libdram.o
+	cp ./libchipid ./libchipid.o
 
 #########################################################################
 
-depend:	$(obj).depend
-.PHONY: depend
-
 # defines $(obj).depend target
 include $(SRCTREE)/rules.mk
+
+sinclude $(obj).depend
+
+#########################################################################

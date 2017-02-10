@@ -33,6 +33,13 @@
 #include "private_uboot.h"
 #include <asm/arch/mmc_boot0.h>
 
+#ifndef CONFIG_SUNXI_SECURE_SYSTEM
+#define UBOOT_START_SECTOR_IN_SDMMC             (38192)
+#else
+#define UBOOT_START_SECTOR_IN_SDMMC             (32800)
+#define UBOOT_START_SECTOR_PRE_IN_SDMMC         (38192)
+#endif
+
 extern __s32 check_magic( __u32 *mem_base, const char *magic );
 extern __s32 check_sum( __u32 *mem_base, __u32 size );
 
