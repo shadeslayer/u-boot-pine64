@@ -355,17 +355,7 @@ static int setup_fdt(void)
 #elif defined(CONFIG_SUNXI)
 	if(uboot_spare_head.boot_data.dtb_offset != 0)
 	{
-		void *fdt = NULL;
-		int     fdt_len ;
-
-		//gd->mon_len > dtb_offset, so bss and fdt will use the same memory, move fdt to other place
-		fdt = (void*)(ulong)(uboot_spare_head.boot_data.dtb_offset+CONFIG_SYS_TEXT_BASE);
-		fdt_len = fdt_totalsize(fdt);
-		gd->fdt_blob =(void*)CONFIG_SUNXI_FDT_ADDR;
-		//memcpy((void*)gd->fdt_blob,  fdt, fdt_totalsize(fdt));
-		memcpy((void*)gd->fdt_blob,  fdt, 2 * fdt_len);
-		gd->fdtfast_blob = (void *)((char *)gd->fdt_blob + ((fdt_len + 16) & (~15)));
-		gd->fdtfast_size = fdt_len;
+		gd->fdt_blob = (void*)(ulong)(uboot_spare_head.boot_data.dtb_offset+CONFIG_SYS_TEXT_BASE);
 		//axp will use this fdt file,set address here
 		set_working_fdt_addr((void*)gd->fdt_blob);
 	}
