@@ -27,7 +27,7 @@
 
 #define AW_IRQ_GIC_START    (32)
 
-#ifndef CONFIG_A81_FPGA	//chip irq mapping
+#ifndef CONFIG_FPGA	//chip irq mapping
 
 #define AW_IRQ_UART0		(AW_IRQ_GIC_START + 0)		/*	UART0		*/
 #define AW_IRQ_UART1		(AW_IRQ_GIC_START + 1)		/*	UART1		*/

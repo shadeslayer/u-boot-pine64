@@ -7,6 +7,8 @@
 include $(SPLDIR)/config.mk
 LIB	:= $(obj)libmmc.o
 
+COBJS-y += mmc_host_0_3_v4px.o
+COBJS-y += mmc_host_2_v5p1.o
 COBJS-y += mmc_bsp.o
 COBJS-y += mmc.o
 

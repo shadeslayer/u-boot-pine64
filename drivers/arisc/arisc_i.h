@@ -34,6 +34,7 @@
 #include <asm/errno.h>
 
 #define ARISC_DVFS_VF_TABLE_MAX         (16)
+#define IR_NUM_KEY_SUP 16
 
 /*
  * debug level define,
@@ -103,13 +104,24 @@ typedef struct dev_cfg_64
 	int status;
 } dev_cfg_64_t;
 
+typedef struct ir_code
+{
+	uint32_t key_code;
+	uint32_t addr_code;
+} ir_code_t;
+
+typedef struct ir_key
+{
+	uint32_t num;
+	ir_code_t ir_code[IR_NUM_KEY_SUP];
+} ir_key_t;
+
 typedef struct cir_cfg
 {
 	phys_addr_t base;
 	size_t size;
 	u32 irq;
-	u32 power_key_code;
-	u32 addr_code;
+	ir_key_t ir_key;
 	int status;
 } cir_cfg_t;
 
@@ -118,8 +130,7 @@ typedef struct cir_cfg_64
 	u64 base;
 	u64 size;
 	u32 irq;
-	u32 power_key_code;
-	u32 addr_code;
+	ir_key_t ir_key;
 	int status;
 } cir_cfg_64_t;
 
@@ -130,6 +141,17 @@ typedef struct pmu_cfg
 	u32 pmu_pwroff_vol;
 	u32 power_start;
 } pmu_cfg_t;
+
+typedef struct box_start_os_cfg
+{
+	u32 used;
+	u32 start_type;
+	u32 irkey_used;
+	u32 pmukey_used;
+	u32 pmukey_num;
+	u32 led_power;
+	u32 led_state;
+} box_start_os_cfg_t;
 
 typedef struct power_cfg
 {
@@ -242,10 +264,15 @@ typedef struct dts_cfg
 	struct dev_cfg msgbox;
 	struct dev_cfg hwspinlock;
 	struct dev_cfg s_uart;
+#if defined CONFIG_ARCH_SUN50IW2P1
+	struct dev_cfg s_twi;
+#else
 	struct dev_cfg s_rsb;
+#endif
 	struct dev_cfg s_jtag;
 	struct cir_cfg s_cir;
 	struct pmu_cfg pmu;
+	struct box_start_os_cfg start_os;
 	struct power_cfg power;
 } dts_cfg_t;
 
@@ -260,10 +287,15 @@ typedef struct dts_cfg_64
 	struct dev_cfg_64 msgbox;
 	struct dev_cfg_64 hwspinlock;
 	struct dev_cfg_64 s_uart;
+#if defined CONFIG_ARCH_SUN50IW2P1
+	struct dev_cfg_64 s_twi;
+#else
 	struct dev_cfg_64 s_rsb;
+#endif
 	struct dev_cfg_64 s_jtag;
 	struct cir_cfg_64 s_cir;
 	struct pmu_cfg pmu;
+	struct box_start_os_cfg start_os;
 	struct power_cfg power;
 } dts_cfg_64_t;
 

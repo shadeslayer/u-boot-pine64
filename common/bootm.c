@@ -203,6 +203,7 @@ static int bootm_find_ramdisk(int flag, int argc, char * const argv[])
 #if defined(CONFIG_OF_LIBFDT)
 static int bootm_find_fdt(int flag, int argc, char * const argv[])
 {
+#if 0   // by wangwei
 	int ret;
 
 	/* find flattened device tree */
@@ -214,6 +215,22 @@ static int bootm_find_fdt(int flag, int argc, char * const argv[])
 	}
 
 	set_working_fdt_addr(images.ft_addr);
+#endif
+	void *dtb_base =NULL;
+
+#ifdef CONFIG_SUNXI_FDT_ADDR
+	//copy fdt to the config addr
+	dtb_base = (void*)CONFIG_SUNXI_FDT_ADDR;
+	memcpy((void*)dtb_base, gd->fdt_blob,gd->fdt_size);
+#else
+	dtb_base =gd->fdt_blob;
+#endif
+
+	//set this env variable for  function boot_relocate_fdt
+	setenv("fdt_high","0xffffffff");
+
+	images.ft_addr = (void*)dtb_base;
+	images.ft_len = gd->fdt_size;
 
 	return 0;
 }

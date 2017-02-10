@@ -444,27 +444,56 @@ void putc(const char c)
 	}
 }
 
+/* get  irq state */
+int  mode_is_svc(void)
+{
+	unsigned long temp = 0;
+	__asm__ __volatile__("mrs %0, cpsr\n"
+			     : "=r" (temp)
+			     :
+			     : "memory");
+	if((temp&0x1f) == 0x13)
+	{
+		return 1;
+	}
+	return 0;
+}
+
+
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+__attribute__((section(".data")))
+static unsigned pt_spin_lock;
+#endif
+
 void puts(const char *s)
 {
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	if(mode_is_svc())
+		cpu_spin_lock(&pt_spin_lock);
+#endif
+
 #ifdef CONFIG_SANDBOX
 	if (!gd) {
 		os_puts(s);
-		return;
+		goto __END;
 	}
 #endif
 
 #ifdef CONFIG_SILENT_CONSOLE
 	if (gd->flags & GD_FLG_SILENT)
-		return;
+		goto __END;
 #endif
 
 #ifdef CONFIG_DISABLE_CONSOLE
 	if (gd->flags & GD_FLG_DISABLE_CONSOLE)
-		return;
+		goto __END;
 #endif
 
 	if (!gd->have_console)
-		return pre_console_puts(s);
+	{
+		pre_console_puts(s);
+		goto __END;
+	}
 
 	if (gd->flags & GD_FLG_DEVINIT) {
 		/* Send to the standard output */
@@ -473,13 +502,23 @@ void puts(const char *s)
 		/* Send directly to the handler */
 		serial_puts(s);
 	}
+__END:
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	if(mode_is_svc())
+		cpu_spin_unlock(&pt_spin_lock);
+#endif
+	return;
 }
+
+extern int get_core_pos(void);
 
 int printf(const char *fmt, ...)
 {
 	va_list args;
 	uint i;
 	char printbuffer[CONFIG_SYS_PBSIZE];
+	char printbuffer_with_cpuinfo[CONFIG_SYS_PBSIZE];
+	int cpu = get_core_pos();
 
 	if(!gd->debug_mode)
 		return 0;
@@ -497,8 +536,17 @@ int printf(const char *fmt, ...)
 	i = vscnprintf(printbuffer, sizeof(printbuffer), fmt, args);
 	va_end(args);
 
-	/* Print the string */
-	puts(printbuffer);
+	if(cpu)
+	{
+		sprintf(printbuffer_with_cpuinfo,"[cpu%d]%s",cpu,printbuffer);
+		puts(printbuffer_with_cpuinfo);
+	}
+	else
+	{
+		/* Print the string */
+		puts(printbuffer);
+	}
+
 	return i;
 }
 

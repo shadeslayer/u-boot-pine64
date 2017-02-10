@@ -21,14 +21,14 @@
 #include <common.h>
 #include <asm/io.h>
 #include <asm/arch/ccmu.h>
-#include <asm/arch/cpu.h>
+#include <asm/arch/platform.h>
 #include <asm/arch/timer.h>
 
 int timer_init(void)
 {
 	struct sunxi_timer_reg *timer_reg = (struct sunxi_timer_reg *)SUNXI_TIMER_BASE;
 
-	writel(readl(CCMU_AVS_SCLK_CTRL) | (1U << 31), CCMU_AVS_SCLK_CTRL);
+	writel(readl(CCMU_AVS_CLK_REG) | (1U << 31), CCMU_AVS_CLK_REG);
 
 	timer_reg->tirqen  = 0;
 	timer_reg->tirqsta |= 0x03f;

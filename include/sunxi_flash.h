@@ -71,6 +71,6 @@ extern int sunxi_sprite_setdata_finish(void);
 
 extern int nand_force_download_uboot(uint length,void *buffer);
 extern uint add_sum(void *buffer, uint length);
-
+extern int sunxi_flash_update_boot0(void);
 
 #endif  /* __SUNXI_FLASH_H__ */

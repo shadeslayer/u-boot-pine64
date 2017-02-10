@@ -62,4 +62,7 @@ extern ulong script_parser_subkey( script_main_key_t* main_name,char *subkey_nam
 
 extern int script_parser_patch_all(char *main_name, void *str, uint data_count);
 
+extern int script_parser_offset(char *main_name);
+extern int script_parser_fetch_by_offset(int offset, char *sub_name, uint32_t value[]);
+
 #endif

@@ -59,16 +59,28 @@
 #define SUNXI_VBUS_NOT_EXIST                    (2)
 
 #define BOOT0_SDMMC_START_ADDR                  (16)
-#ifndef CONFIG_SUNXI_SECURE_SYSTEM
-#define UBOOT_START_SECTOR_IN_SDMMC             (38192)
-#else
+#define BOOT0_SDMMC_BACKUP_START_ADDR           (256)
+
+#define BOOT0_EMMC3_START_ADDR                  (384)
+#define BOOT0_EMMC3_BACKUP_START_ADDR           (512)
+
+
 #define UBOOT_START_SECTOR_IN_SDMMC             (32800)
-#define UBOOT_START_SECTOR_PRE_IN_SDMMC         (38192)
-#endif
 
 #define SUNXI_NORMAL_MODE                            0
 #define SUNXI_SECURE_MODE_WITH_SECUREOS              1
 #define SUNXI_SECURE_MODE_NO_SECUREOS                2
+
+typedef enum _SUNXI_BOOT_FILE_MODE
+{
+	SUNXI_BOOT_FILE_NORMAL =0,
+	SUNXI_BOOT_FILE_TOC = 1,
+	SUNXI_BOOT_FILE_RES0 = 2,
+	SUNXI_BOOT_FILE_RES1 = 3,
+	SUNXI_BOOT_FILE_PKG = 4
+}SUNXI_BOOT_FILE_MODE;
+
+
 
 #define   BOOT_FROM_SD0     0
 #define   BOOT_FROM_SD2     2
@@ -87,6 +99,7 @@
 #define	TOC_ITEM_ENTRY_TYPE_KEY_CERTIF			0x01
 #define	TOC_ITEM_ENTRY_TYPE_BIN_CERTIF			0x02
 #define	TOC_ITEM_ENTRY_TYPE_BIN     			0x03
+#define TOC_ITEM_ENTRY_TYPE_LOGO                0x04
 
 typedef struct _normal_gpio_cfg
 {
@@ -122,7 +135,8 @@ typedef enum
 	STORAGE_NAND =0,
 	STORAGE_SD,
 	STORAGE_EMMC,
-	STORAGE_NOR
+	STORAGE_NOR,
+        STORAGE_EMMC3
 }SUNXI_BOOT_STORAGE;
 
 #endif

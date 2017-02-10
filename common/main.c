@@ -80,8 +80,9 @@ void main_loop(void)
 #endif /* CONFIG_UPDATE_TFTP */
 
 	s = bootdelay_process();
-	if (cli_process_fdt(&s))
-		cli_secure_boot_cmd(s);
+
+	//if (cli_process_fdt(&s))
+	//	cli_secure_boot_cmd(s);
 
 	autoboot_command(s);
 

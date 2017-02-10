@@ -4,7 +4,9 @@
 
 #define HDMI_IO_NUM 5
 #define __CLK_SUPPORT__
-//#define __CLK_OF__
+#if defined(CONFIG_ARCH_SUN50IW2P1)
+#define __CLK_OF__
+#endif
 static bool hdmi_io_used[HDMI_IO_NUM]={0};
 static disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
 static u32 io_enable_count = 0;
@@ -91,7 +93,7 @@ static int hdmi_parse_io_config(void)
 
 static int hdmi_io_config(u32 bon)
 {
-	int hdl,i;
+	int i;
 
 	for (i=0; i<HDMI_IO_NUM; i++)	{
 		if (hdmi_io_used[i]) {
@@ -101,8 +103,7 @@ static int hdmi_io_config(u32 bon)
 			if (!bon) {
 				gpio_info->mul_sel = 7;
 			}
-			hdl = disp_sys_gpio_request(gpio_info, 1);
-			disp_sys_gpio_release(hdl, 2);
+			disp_sys_gpio_request_simple(gpio_info, 1);
 		}
 	}
 	return 0;
@@ -547,6 +548,9 @@ s32 hdmi_init(void)
 	int ret = 0;
 	uintptr_t reg_base;
 	int value;
+#if defined(__CLK_OF__)
+	int node_offset = 0;
+#endif
 
 	hdmi_used = 0;
 	b_hdmi_suspend_pre = b_hdmi_suspend = false;
@@ -578,14 +582,16 @@ s32 hdmi_init(void)
 	hdmi_core_set_base_addr(reg_base);
 
 #if defined(__CLK_OF__)
+	node_offset = disp_fdt_nodeoffset("hdmi");
+	of_periph_clk_config_setup(node_offset);
 	/* get clk */
-	hdmi_clk = of_clk_get(pdev->dev.of_node, 0);
+	hdmi_clk = of_clk_get(node_offset, 0);
 	if (IS_ERR(hdmi_clk)) {
 		__wrn("fail to get clk for hdmi\n");
 		goto err_clk_get;
 	}
 	clk_enable_count = hdmi_clk->enable_count;
-	hdmi_ddc_clk = of_clk_get(pdev->dev.of_node, 1);
+	hdmi_ddc_clk = of_clk_get(node_offset, 1);
 	if (IS_ERR(hdmi_ddc_clk)) {
 		__wrn("fail to get clk for hdmi ddc\n");
 		goto err_clk_get;

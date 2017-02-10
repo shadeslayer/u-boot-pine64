@@ -43,8 +43,7 @@ extern int sunxi_sprite_deal_boot0(int production_media);
 
 extern int card_download_uboot(uint length, void *buffer);
 
-extern int card_download_boot0(uint length, void *buffer);
-extern int card_upload_boot0(uint length, void *buffer);
+extern int card_download_boot0(uint length, void *buffer,uint storage_type);
 
 extern int card_download_standard_mbr(void *buffer);
 #ifdef CONFIG_SUNXI_SPINOR

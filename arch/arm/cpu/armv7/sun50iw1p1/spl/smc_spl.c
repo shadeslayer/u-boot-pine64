@@ -84,7 +84,7 @@ int sunxi_smc_config(uint dram_size, uint secure_region_size)
 	//设置fullmemory访问属性
 	writel(permission | region_size | 1 , SMC_REGIN_ATTRIBUTE_REG(1));
 
-	//设置顶端16M起始地址
+	//设置顶端Secure RAM起始地址
 	region_size = (__tzasc_calc_2_power(secure_region_size*1024/32) + 0b001110)<<1;
 	permission  = 0b1100<<28;	//设置只允许安全模式访问
 
@@ -124,8 +124,19 @@ int sunxi_smc_config(uint dram_size, uint secure_region_size)
 *
 ************************************************************************************************************
 */
-int sunxi_drm_config(u32 drm_start, u32 dram_size)
+int sunxi_drm_config(u32 dram_end, u32 secure_region_size)
 {
+	if(dram_end < secure_region_size)
+	{
+		writel(0, SMC_LOW_SADDR_REG);
+		writel(0, SMC_LOW_EADDR_REG);
+
+		return -1;
+	}
+
+	writel(dram_end - secure_region_size, SMC_LOW_SADDR_REG);
+	writel(dram_end, SMC_LOW_EADDR_REG);
+
 	return 0;
 }
 

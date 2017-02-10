@@ -3,29 +3,8 @@
 
 #include <asm/arch/mmc.h>
 
-struct sunxi_mmc_des {
-	u32             :1,
-		dic         :1, /* disable interrupt on completion */
-		last_des    :1, /* 1-this data buffer is the last buffer */
-		first_des   :1, /* 1-data buffer is the first buffer,
-						   0-data buffer contained in the next descriptor is 1st buffer */
-		des_chain   :1, /* 1-the 2nd address in the descriptor is the next descriptor address */
-		end_of_ring :1, /* 1-last descriptor flag when using dual data buffer in descriptor */
-					:24,
-		card_err_sum:1, /* transfer error flag */
-		own			:1; /* des owner:1-idma owns it, 0-host owns it */
-			
-#define SDXC_DES_NUM_SHIFT 12
-#define SDXC_DES_BUFFER_MAX_LEN	(1 << SDXC_DES_NUM_SHIFT)
-	u32 data_buf1_sz:16,
-	    data_buf2_sz:16;
-
-	u32	buf_addr_ptr1;
-	u32	buf_addr_ptr2;
-};
-
 struct sunxi_mmc_host {
-	struct sunxi_mmc *reg;
+	void *reg; //struct sunxi_mmc *reg;
 	u32  mmc_no;
 	//u32  mclk;
 	u32  hclkrst;
@@ -34,7 +13,7 @@ struct sunxi_mmc_host {
 	u32  database;
 	u32	 commreg;
 	u32  fatal_err;
-	struct sunxi_mmc_des *pdes;
+	void *pdes; //struct sunxi_mmc_des *pdes;
 
 	/*sample delay and output deley setting*/
 	u32 timing_mode;
@@ -43,7 +22,6 @@ struct sunxi_mmc_host {
 	u32 clock;
 
 };
-
 
 struct mmc_cmd {
 	unsigned cmdidx;
@@ -100,6 +78,15 @@ struct tuning_sdly{
 #define SUNXI_MMC_TIMING_MODE_1 1U
 #define SUNXI_MMC_TIMING_MODE_3 3U
 #define SUNXI_MMC_TIMING_MODE_4 4U
+
+
+void dumphex32(char* name, char* base, int len);
+void dumpmmcreg(u32 smc_no, void *reg);
+
+int mmc_clk_io_onoff(int sdc_no, int onoff, const normal_gpio_cfg *gpio_info, int offset);
+int mmc_set_mclk(struct sunxi_mmc_host* mmchost, u32 clk_hz);
+unsigned mmc_get_mclk(struct sunxi_mmc_host* mmchost);
+int mmc_resource_init(int sdc_no);	
 
 
 #endif /* _MMC_BSP_H_ */

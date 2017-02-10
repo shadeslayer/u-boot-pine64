@@ -41,6 +41,12 @@ extern int nand_download_boot0(uint length, void *buffer);
 extern int nand_download_uboot(uint length, void *buffer);
 
 extern int nand_force_download_uboot(uint length ,void *buffer);
+
+//for boot stage
+extern int nand_write_boot0(void *buffer,uint length);
+extern int nand_read_boot0(void *buffer,uint length);
+
+
 extern int nand_uboot_erase(int user_erase);
 
 extern uint nand_uboot_get_flash_info(void *buffer, uint length);
@@ -53,9 +59,6 @@ extern int nand_uboot_flush(void);
 
 extern int NAND_Uboot_Force_Erase(void);
 
-uint nand_upload_boot0(uint length, void *buf);
-
-int nand_download_boot0_simple(uint length, void *buffer);
 
 #endif
 

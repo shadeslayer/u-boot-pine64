@@ -65,6 +65,8 @@ const unsigned char pburn_RequestSense[20] = {0x07,0x00,0x02,0x00,0x00,0x00,0x00
 #define  SUNXI_USB_PBURN_STATUS					 (4)
 #define  SUNXI_USB_PBURN_EXIT                    (5)
 #define  SUNXI_USB_PBURN_RECEIVE_NULL			 (6)
+#define  SUNXI_USB_PBURN_RECEIVE_PART_INFO		 (7)
+#define  SUNXI_USB_PBURN_RECEIVE_PART_VERIFY	 (8)
 
 
 typedef struct
@@ -94,6 +96,24 @@ __usb_handshake_t;
 
 typedef struct
 {
+	char magic[16];				//特征字符串，固定是 "usbburnpart"，不足的填空
+	char name[16];				//烧写的分区名称
+	unsigned int lenhi;			//分区数据大小高32位,单位字节
+	unsigned int lenlo;			//分区数据大小低32位,单位字节
+	char reserved[1024-40]; 	//数据共1024 byte
+}__attribute__ ((packed))pburn_partition_set_t;
+
+typedef struct
+{
+	char magic[16];					//特征字符串，固定是 "usbburnpart"，不足的填空
+	char name[16];					//烧写的分区名称
+	unsigned int check_sum;			//pc端计算的分区数据校验和
+	char reserved[1024-36]; 		//数据共1024 byte
+}__attribute__ ((packed))pburn_verify_part_set_t;
+
+
+typedef struct
+{
 	char  magic[32];       	//特征字符串，固定是 "usbhandshake"，不足的填空
 }
 __usb_handshake_sec_t;
@@ -111,10 +131,34 @@ typedef struct
     //以下信息重复，表示每个key的信息
     char  name[64];    //key的名称
     u32 len;           //key数据段的总长度
+    u32 res;
 	u8  *key_data;   //这是一个数组，存放key的全部信息，数据长度由len指定
 }
 sunxi_efuse_key_info_t;
 
+//　　　0：没有错误
+//　　　1：下载数据(key)，校验错误
+//　　　2：指定key位置，已有数据，已经要求不运行重复
+//　　　3：数据(key)写入失败
+//　　　4：分区不存在
+//　　　5：分区数据太太或者为零
+//　　　6：分区数据校验失败
+//		7: 分区信息magic校验失败
+#define ERR_NO_SUCCESS					0
+#define ERR_NO_KEY_VERIFY_ERR			1
+#define ERR_NO_KEY_HASEXIST				2
+#define ERR_NO_WRITE_ERR				3
+
+#define ERR_NO_PART_NOEXIST				4
+#define ERR_NO_PART_SIZE_ERR			5
+#define ERR_NO_PART_VERIFY_ERR			6
+#define ERR_NO_PART_MAGIC_ERR			7
+
+#define ERR_NO_ERASE_KEY_FAILED			8
+#define ERR_NO_KEY_NOEXIST				9
+
+#define ERR_NO_READ_KEY_NOEXIST			10
+#define ERR_NO_READ_KEY_FAILED			11
 
 typedef struct
 {

@@ -53,7 +53,7 @@ static int   last_rate;
 */
 int sprite_cartoon_screen_set(void)
 {
-
+#ifndef CONFIG_BOOT_GUI
 	/* 初始化图形参数 */
 	sprite_source.screen_width  = borad_display_get_screen_width(); 
 	sprite_source.screen_height = borad_display_get_screen_height();
@@ -80,6 +80,32 @@ int sprite_cartoon_screen_set(void)
 	layer_para = (struct disp_layer_config *)gd->layer_para;
 	layer_para->info.alpha_mode = 0;
 	board_display_layer_para_set();
+
+#else
+
+	struct canvas *cv = NULL;
+	cv = fb_lock(FB_ID_0);
+	if (NULL == cv) {
+		printf("fb lock for sprite cartoon fail\n");
+		return -1;
+	}
+	sprite_source.screen_width	= cv->width;
+	sprite_source.screen_height = cv->height;
+
+	if ((sprite_source.screen_width < 40) || (sprite_source.screen_height < 40))	{
+		printf("sunxi cartoon error: invalid screen width or height\n");
+		return -1;
+	}
+	sprite_source.screen_size = sprite_source.screen_width * sprite_source.screen_height * 4;
+	sprite_source.screen_buf = (char *)cv->base;
+	sprite_source.color = SPRITE_CARTOON_GUI_GREEN;
+	fb_unlock(FB_ID_0, NULL, 1);
+
+	if (!sprite_source.screen_buf)
+		return -1;
+	memset(sprite_source.screen_buf, 0, sprite_source.screen_size);
+
+#endif
 
 	__msdelay(5);
 	return 0;
@@ -110,11 +136,26 @@ int sprite_cartoon_test(void)
 	int screen_width, screen_height;
 	int x1, x2, y1, y2;
 
+#ifndef CONFIG_BOOT_GUI
 	sprite_cartoon_screen_set();
 	board_display_show_until_lcd_open(0);
 
 	screen_width  = borad_display_get_screen_width();
 	screen_height = borad_display_get_screen_height();
+
+#else
+	struct canvas *cv = NULL;
+
+	sprite_cartoon_screen_set();
+
+	cv = fb_lock(FB_ID_0);
+	if (NULL == cv) {
+		return 0;
+	}
+	screen_width  = cv->width;
+	screen_height = cv->height;
+	fb_unlock(FB_ID_0, NULL, 0);
+#endif
 
 	printf("screen_width = %d\n", screen_width);
 	printf("screen_height = %d\n", screen_height);
@@ -190,8 +231,19 @@ uint sprite_cartoon_create(void)
 	}
 	board_display_show_until_lcd_open(0);
 
+#ifndef CONFIG_BOOT_GUI
 	screen_width  = borad_display_get_screen_width();;
 	screen_height = borad_display_get_screen_height();;
+#else
+	struct canvas *cv = NULL;
+	cv = fb_lock(FB_ID_0);
+	if (NULL == cv) {
+		return 0;
+	}
+	screen_width  = cv->width;
+	screen_height = cv->height;
+	fb_unlock(FB_ID_0, NULL, 0);
+#endif
 
 	printf("screen_width = %d\n", screen_width);
 	printf("screen_height = %d\n", screen_height);

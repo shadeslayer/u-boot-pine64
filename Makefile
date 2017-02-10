@@ -179,8 +179,11 @@ SPLTREE		:= $(OBJTREE)/spl
 SRCTREE		:= $(CURDIR)
 TOPDIR		:= $(SRCTREE)
 LNDIR		:= $(OBJTREE)
-export	TOPDIR SRCTREE OBJTREE SPLTREE
+SPLDIR		:= $(OBJTREE)/../../bootloader/uboot_2014_sunxi_spl/sunxi_spl
+SPLBASE		:= $(OBJTREE)/../../bootloader/uboot_2014_sunxi_spl
+SPLSUPPORT  := $(shell if [ -d $(SPLBASE) ] ; then echo "y"; else echo "n"; fi)
 
+export	TOPDIR SRCTREE OBJTREE SPLTREE SPLDIR SPLBASE
 
 MKCONFIG	:= $(srctree)/mkconfig
 export MKCONFIG
@@ -580,7 +583,8 @@ KBUILD_CFLAGS += $(KCFLAGS)
 UBOOTINCLUDE    := \
 		-Iinclude \
 		$(if $(KBUILD_SRC), -I$(srctree)/include) \
-		-I$(srctree)/arch/$(ARCH)/include
+		-I$(srctree)/arch/$(ARCH)/include		  \
+		-I$(srctree)/include/openssl
 
 NOSTDINC_FLAGS += -nostdinc -isystem $(shell $(CC) -print-file-name=include)
 CHECKFLAGS     += $(NOSTDINC_FLAGS)
@@ -602,6 +606,7 @@ HAVE_VENDOR_COMMON_LIB = $(if $(wildcard $(srctree)/board/$(VENDOR)/common/Makef
 libs-y += lib/
 libs-$(HAVE_VENDOR_COMMON_LIB) += board/$(VENDOR)/common/
 libs-y += $(CPUDIR)/
+libs-y += $(CPUDIR)/sunxi-common/
 ifdef SOC
 libs-y += $(CPUDIR)/$(SOC)/
 endif
@@ -616,7 +621,6 @@ libs-y += drivers/dma/
 libs-y += drivers/gpio/
 libs-y += drivers/i2c/
 libs-y += drivers/input/
-libs-y += drivers/mmc/
 libs-y += drivers/mtd/
 libs-$(CONFIG_CMD_NAND) += drivers/mtd/nand/
 libs-y += drivers/mtd/onenand/
@@ -641,11 +645,17 @@ libs-y += drivers/usb/musb/
 libs-y += drivers/usb/musb-new/
 libs-y += drivers/usb/phy/
 libs-y += drivers/usb/ulpi/
+libs-$(CONFIG_USB_SUNXI_UDC0) += drivers/usb/sunxi_usb/
 libs-y += drivers/sunxi_flash/
 libs-y += drivers/rsb/
 libs-y += drivers/smc/
 libs-y += drivers/pwm/
 libs-y += drivers/clk/
+libs-y += drivers/gic/
+libs-y += drivers/key/
+libs-y += drivers/timer/
+libs-y += drivers/sunxi_usb/
+libs-y += drivers/sunxi_crypto/
 libs-y += common/
 libs-y += lib/libfdt/
 libs-$(CONFIG_API) += api/
@@ -653,9 +663,11 @@ libs-$(CONFIG_HAS_POST) += post/
 libs-y += test/
 libs-y += test/dm/
 libs-$(CONFIG_DM_DEMO) += drivers/demo/
-libs-y += usb_sunxi/
-libs-y += sprite/
-libs-y += nand_sunxi/
+libs-$(CONFIG_SUNXI_MODULE_USB) += usb_sunxi/
+libs-$(CONFIG_SUNXI_MODULE_SPRITE) += sprite/
+libs-$(CONFIG_SUNXI_MODULE_NAND) += nand_sunxi/
+libs-${CONFIG_SUNXI_MODULE_SDMMC} += drivers/mmc/
+libs-$(CONFIG_SUNXI_SECURE_SYSTEM) += lib/openssl/
 libs-$(CONFIG_SUNXI_DISPLAY) += board/sunxi/cartoon/
 
 libs-$(CONFIG_CMD_SUNXI_MEMTEST) += memtest/
@@ -692,9 +704,10 @@ else
 PLATFORM_LIBGCC := -L $(shell dirname `$(CC) $(c_flags) -print-libgcc-file-name`) -lgcc
 endif
 PLATFORM_LIBS += $(PLATFORM_LIBGCC) 
-
+ifdef CONFIG_SUNXI_MODULE_NAND
 #if nand_sunxi/$(SOC)/lib-nand not exist ,then use the exist library
 PLATFORM_LIBS += $(shell if [ ! -d nand_sunxi/$(SOC)/lib-nand ];  then  echo "nand_sunxi/$(SOC)/libnand-$(SOC)";  fi )
+endif
 
 export PLATFORM_LIBS
 export PLATFORM_LIBGCC
@@ -841,7 +854,7 @@ u-boot.bin: u-boot FORCE
 
 u-boot-$(CONFIG_TARGET_NAME).bin:   u-boot.bin
 	@cp -v $<    $@
-	@cp -v $@ $(objtree)/../../tools/pack/chips/$(CONFIG_TARGET_NAME)/bin/$@
+	@cp -v $@ $(objtree)/../../tools/pack/chips/$(CONFIG_SYS_BOARD)/bin/$@
 	@if [ -d nand_sunxi/$(SOC)/lib-nand ];  then \
 		cp -v  nand_sunxi/$(SOC)/lib-nand/built-in.o nand_sunxi/$(SOC)/libnand-$(SOC); \
 	fi
@@ -858,17 +871,15 @@ OBJCOPYFLAGS_u-boot.ldr.srec := -I binary -O srec
 u-boot.ldr.hex u-boot.ldr.srec: u-boot.ldr FORCE
 	$(call if_changed,objcopy)
 
+ifeq ($(SPLSUPPORT), y)
 boot0:
 	make -f spl_make boot0
 fes:
 	make -f spl_make fes
 sboot:
 	make -f spl_make sboot
-
-ifeq ($(CONFIG_SUNXI_SECURE_SYSTEM),y)
-spl:    fes boot0 sboot
-else
-spl:    fes boot0
+spl:
+	make -f spl_make spl
 endif
 
 #
@@ -1309,9 +1320,19 @@ clean: $(clean-dirs)
 		-o -name '*.ko.*' -o -name '*.su' -o -name '*.cfgtmp' \
 		-o -name '.*.d' -o -name '.*.tmp' -o -name '*.mod.c' \
 		-o -name '*.depend' \
+		-o -name '*.bin' \
 		-o -name '*.symtypes' -o -name 'modules.order' \
 		-o -name modules.builtin -o -name '.tmp_*.o.*' \
 		-o -name '*.gcno' \) -type f -print | xargs rm -f
+ifeq ($(SPLSUPPORT), y)
+	@find $(SPLDIR) -type f \
+		\( -name 'core' -o -name '*.bak' -o -name '*~' \
+		-o -name '*.o'	-o -name '*.exe' -o -name '*.axf' \
+		-o -name '*.depend' \
+		-o -name '*.bin' \
+		-o -name '*.map' \) -print \
+		| xargs rm -f
+endif
 
 # clobber
 #

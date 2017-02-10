@@ -20,6 +20,7 @@
 *.bin
 *.patch
 *.cfgtmp
+*.log
 
 # host programs on Cygwin
 *.exe
@@ -88,3 +89,5 @@ GTAGS
 *.orig
 *~
 \#*#
+
+sunxi_spl/

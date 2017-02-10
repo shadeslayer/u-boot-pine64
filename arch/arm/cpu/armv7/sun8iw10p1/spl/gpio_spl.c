@@ -21,7 +21,7 @@
 #include <common.h>
 #include <asm/io.h>
 #include <spare_head.h>
-#include <asm/arch/cpu.h>
+#include <asm/arch/platform.h>
 #include <asm/arch/gpio.h>
 #include <sys_config_old.h>
 /*

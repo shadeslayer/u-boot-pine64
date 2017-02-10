@@ -28,8 +28,6 @@
 #include <asm/arch/platform.h>
 #include <sunxi_board.h>
 
-#if 0
-
 struct sunxi_rsb_slave_set
 {
 	u8 *m_slave_name;
@@ -38,28 +36,17 @@ struct sunxi_rsb_slave_set
 	u32 chip_id;
 };
 
-#define  SUNXI_RSB_SLAVE_MAX      13
-
+#define  SUNXI_RSB_SLAVE_MAX      2
 #undef rsb_reg_writel
 #undef rsb_reg_readl
-#define rsb_reg_writel	            smc_writel
-#define rsb_reg_readl		    smc_readl
-
-
-DECLARE_GLOBAL_DATA_PTR;
-
-static s32 sunxi_rsb_config_secos(u32 slave_id, u32 rsb_addr);
-static s32 sunxi_rsb_read_secos(u32 slave_id, u32 daddr, u8 *data, u32 len);
-static s32 sunxi_rsb_write_secos(u32 slave_id, u32 daddr, u8 *data, u32 len);
-static s32 sunxi_rsb_config_null(u32 slave_id, u32 rsb_addr);
-static s32 sunxi_rsb_io_null(u32 slave_id, u32 daddr, u8 *data, u32 len);
-
-
+#define rsb_reg_writel	            writel
+#define rsb_reg_readl		    readl
+#undef rsb_printk
+#define rsb_printk(format,arg...)
 
 static struct rsb_info rsbc = {1, 1, 1};
 static struct sunxi_rsb_slave_set rsb_slave[SUNXI_RSB_SLAVE_MAX]={{NULL, 1, 1, 1}};
-static int    sunxi_rsb_rtsaddr[16] = {0x2d, 0x3a, 0x4e, 0x59, 0x63, 0x74, 0x8b, 0x9c, 0xa6, 0xb1, 0xc5, 0xd2, 0xe8, 0xff};
-
+static int    sunxi_rsb_rtsaddr[16] = {0x2d, 0x3a, 0x3e, 0x59, 0x63, 0x74, 0x8b, 0x9c, 0xa6, 0xb1, 0xc5, 0xd2, 0xe8, 0xff};
 
 #if (defined FPGA_PLATFORM)
 static void rsb_cfg_io(void)
@@ -101,13 +88,11 @@ static void rsb_cfg_io(void)
 	val = rsb_reg_readl(reg)  & (~0xff);
 	val |= 0x22;
 	rsb_reg_writel(val,reg);
-
 	//PL0,PL1 pull up 1
 	reg = SUNXI_RPIO_BASE+0x1c;
 	val = rsb_reg_readl(reg)  & (~0xf);
 	val |= 0x5;
 	rsb_reg_writel(val,reg);
-
 	//PL0,PL1 drv 2
 	reg = SUNXI_RPIO_BASE+0x14;
 	val = rsb_reg_readl(reg)  & (~0xf);
@@ -116,6 +101,7 @@ static void rsb_cfg_io(void)
 #endif
 }
 #endif
+
 
 
 static void rsb_module_reset(void)
@@ -560,48 +546,21 @@ static s32 rsb_read(u32 rtsaddr,u32 daddr, u8 *data, u32 len)
 //}
 
 
-s32 (* sunxi_rsb_config_pt)(u32 slave_id, u32 rsb_addr) = sunxi_rsb_config_null;
-s32 (* sunxi_rsb_read_pt)(u32 slave_id, u32 daddr, u8 *data, u32 len) = sunxi_rsb_io_null;
-s32 (* sunxi_rsb_write_pt)(u32 slave_id, u32 daddr, u8 *data, u32 len) = sunxi_rsb_io_null;
-
-
-static s32 sunxi_rsb_config_null(u32 slave_id, u32 rsb_addr)
-{
-	return -1;
-}
-
-static s32 sunxi_rsb_io_null(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return -1;
-}
-
 s32 sunxi_rsb_init(u32 slave_id)
 {
-	if(sunxi_probe_secure_monitor())
-	{
-		printf("rsb: secure monitor exist\n");
-		memset(rsb_slave, 0, SUNXI_RSB_SLAVE_MAX * sizeof(struct sunxi_rsb_slave_set));
-		rsb_init();
-		rsb_send_initseq(0x00, 0x3e, 0x7c);
-
-		sunxi_rsb_config_pt = sunxi_rsb_config_secos;
-		sunxi_rsb_read_pt  = sunxi_rsb_read_secos;
-		sunxi_rsb_write_pt = sunxi_rsb_write_secos;
-	}
-	else
-	{
-		printf("without secure monitor\n");
-	}
-	return 0;
+	int ret;
+	memset(rsb_slave, 0, SUNXI_RSB_SLAVE_MAX * sizeof(struct sunxi_rsb_slave_set));
+        rsb_init();
+        // rsb clk = 400Khz
+        rsb_set_clk(400000);
+        ret = rsb_send_initseq(0x00, 0x3e, 0x7c);
+        // rsb clk = 3Mhz
+        rsb_set_clk(RSB_SCK);
+        printf("rsb_send_initseq: rsb clk 400Khz -> 3Mhz\n");
+        return ret;
 }
 
-s32 sunxi_rsb_exit(u32 slave_id)
-{
-	return 0;
-}
-
-
-static s32 sunxi_rsb_config_secos(u32 slave_id, u32 rsb_addr)
+s32 sunxi_rsb_config(u32 slave_id, u32 rsb_addr)
 {
 	u32 rtaddr 		= 0;
     int i;
@@ -623,8 +582,12 @@ static s32 sunxi_rsb_config_secos(u32 slave_id, u32 rsb_addr)
     return -1;
 }
 
+s32 sunxi_rsb_exit(u32 slave_id)
+{
+	return 0;
+}
 
-static s32 sunxi_rsb_read_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
+s32 sunxi_rsb_read(u32 slave_id, u32 daddr, u8 *data, u32 len)
 {
 	u32 rtaddr 	= 0;
 	u32 tmp_slave_id;
@@ -637,7 +600,7 @@ static s32 sunxi_rsb_read_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
         {
             break;
         }
-        else if(!tmp_slave_id)
+        else if (!tmp_slave_id)
         {
             rsb_printk("sunxi_rsb_read err: bad id\n");
 		    return -1;
@@ -651,7 +614,7 @@ static s32 sunxi_rsb_read_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
 }
 
 
-static s32 sunxi_rsb_write_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
+s32 sunxi_rsb_write(u32 slave_id, u32 daddr, u8 *data, u32 len)
 {
 	u32 rtaddr 	= 0;
 	u32 tmp_slave_id;
@@ -664,8 +627,7 @@ static s32 sunxi_rsb_write_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
         {
             break;
         }
-        else if(!tmp_slave_id)
-        {
+        else if(!tmp_slave_id) {
             rsb_printk("sunxi_rsb_write err: bad id\n");
 		    return -1;
         }
@@ -677,83 +639,17 @@ static s32 sunxi_rsb_write_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
 	return rsb_write(rtaddr,daddr, data,len);
 }
 
-int sunxi_rsb_config(u32 slave_id, u32 rsb_addr)
+int axp_i2c_read(unsigned char chip, unsigned char addr, unsigned char *buffer)
 {
-	return sunxi_rsb_config_pt(slave_id, rsb_addr);
+
+	return sunxi_rsb_read(chip, addr, buffer, 1);
+
 }
 
-int sunxi_rsb_read(u32 slave_id, u32 daddr, u8 *data, u32 len)
+int axp_i2c_write(unsigned char chip, unsigned char addr, unsigned char data)
 {
-	return sunxi_rsb_read_pt(slave_id, daddr, data, len);
-}
+	return sunxi_rsb_write(chip, addr, &data, 1);
 
-int sunxi_rsb_write(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return sunxi_rsb_write_pt(slave_id, daddr, data, len);
-}
-
-#endif
-
-
-static s32 sunxi_rsb_io_null(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return -1;
-}
-
-s32 (* sunxi_rsb_read_pt)(u32 slave_id, u32 daddr, u8 *data, u32 len) = sunxi_rsb_io_null;
-s32 (* sunxi_rsb_write_pt)(u32 slave_id, u32 daddr, u8 *data, u32 len) = sunxi_rsb_io_null;
-
-
-
-
-static s32 sunxi_rsb_read_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	int ret = 0;
-	ret = (u8)(arm_svc_arisc_read_pmu((ulong)daddr));
-	if(ret < 0 )
-	{
-		return -1;
-	}
-	*data = ret&0xff;
-	return 0;
-}
-
-static s32 sunxi_rsb_write_secos(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return arm_svc_arisc_write_pmu((ulong)daddr,(u32)(*data));
-}
-
-
-
-int sunxi_rsb_read(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return sunxi_rsb_read_pt(slave_id, daddr, data, len);
-}
-
-int sunxi_rsb_write(u32 slave_id, u32 daddr, u8 *data, u32 len)
-{
-	return sunxi_rsb_write_pt(slave_id, daddr, data, len);
-}
-
-int sunxi_rsb_config(u32 slave_id, u32 rsb_addr)
-{
-	return 0;
-}
-
-
-s32 sunxi_rsb_init(u32 slave_id)
-{
-	if(sunxi_probe_secure_monitor())
-	{
-		printf("rsb: secure monitor exist\n");
-		sunxi_rsb_read_pt  = sunxi_rsb_read_secos;
-		sunxi_rsb_write_pt = sunxi_rsb_write_secos;
-	}
-	else
-	{
-		printf("without secure monitor\n");
-	}
-	return 0;
 }
 
 

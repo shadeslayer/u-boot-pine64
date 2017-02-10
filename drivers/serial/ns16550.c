@@ -112,8 +112,13 @@ void NS16550_reinit(NS16550_t com_port, int baud_divisor)
 
 void NS16550_putc(NS16550_t com_port, char c)
 {
+#ifndef CONFIG_NS16550_FIFO_ENABLE
 	while ((serial_in(&com_port->lsr) & UART_LSR_THRE) == 0)
 		;
+#else
+	while (!(readl((ulong)com_port + UART_USR) & UART_USR_TFNF))
+		;
+#endif
 	serial_out(c, &com_port->thr);
 
 	/*

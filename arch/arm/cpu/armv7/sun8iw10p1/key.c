@@ -24,37 +24,67 @@
 
 #include <common.h>
 #include <asm/io.h>
-#include <asm/arch/cpu.h>
 #include <asm/arch/key.h>
+#include <asm/arch/ccmu.h>
 #include <asm/arch/sys_proto.h>
+#include <sys_config.h>
 #include <power/sunxi/pmu.h>
+#include <fdt_support.h>
+
+__attribute__((section(".data")))
+static uint32_t keyen_flag = 1;
 
 int sunxi_key_init(void)
 {
-	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_LRADC_BASE;
-    uint reg_val;
+	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
+	uint reg_val = 0,i=0;
+	int nodeoffset;
+
+	//reset
+	reg_val = readl(CCMU_BUS_SOFT_RST_REG2);
+	reg_val &= ~(1<<9);
+	writel(reg_val, CCMU_BUS_SOFT_RST_REG2);
+	for( i = 0; i < 100; i++ );
+	reg_val |=  (1<<9);
+	writel(reg_val, CCMU_BUS_SOFT_RST_REG2);
+
+	//enable KEYADC gating
+	reg_val = readl(CCMU_BUS_CLK_GATING_REG2);
+	reg_val |= (1<<9);
+	writel(reg_val, CCMU_BUS_CLK_GATING_REG2);
 
 	reg_val = sunxi_key_base->ctrl;
-    reg_val &= ~((7<<1) | (0xffU << 24));
+	reg_val &= ~((7<<1) | (0xffU << 24));
 	reg_val |=  LRADC_HOLD_EN;
 	reg_val |=  LRADC_EN;
-    sunxi_key_base->ctrl = reg_val;
+	sunxi_key_base->ctrl = reg_val;
 
 	/* disable all key irq */
 	sunxi_key_base->intc = 0;
 	sunxi_key_base->ints = 0x1f1f;
 
+	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_KEY_DETECT);
+	if(nodeoffset > 0)
+	{
+		fdt_getprop_u32(working_fdt,nodeoffset,"keyen_flag",&keyen_flag);
+	}
 	return 0;
 }
 
 int sunxi_key_exit(void)
 {
-	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_LRADC_BASE;
+	uint reg_val = 0;
+	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
 
-    sunxi_key_base->ctrl = 0;
+	sunxi_key_base->ctrl = 0;
 	/* disable all key irq */
 	sunxi_key_base->intc = 0;
 	sunxi_key_base->ints = 0x1f1f;
+
+	//disable KEYADC gating
+	reg_val = readl(CCMU_BUS_CLK_GATING_REG2);
+	reg_val &= ~(1<<9);
+	writel(reg_val, CCMU_BUS_CLK_GATING_REG2);
 
 	return 0;
 }
@@ -64,7 +94,12 @@ int sunxi_key_read(void)
 {
 	u32 ints;
 	int key = -1;
-    struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_LRADC_BASE;
+	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
+
+	if(!keyen_flag)
+	{
+		return -1;
+	}
 
 	ints = sunxi_key_base->ints;
 	/* clear the pending data */
@@ -90,28 +125,39 @@ int sunxi_key_read(void)
 			key = -1;
 		}
 	}
-//#ifdef DEBUG
+
 	if(key > 0)
+	{
 		printf("key pressed value=0x%x\n", key);
-//#endif
+	}
+
 
 	return key;
 }
 
 int do_key_test(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
-	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_LRADC_BASE;
-	int power_key;
+	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
+	u32 power_key = 0;
+	int nodeoffset;
 
-	puts("press a key:\n");
+	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_KEY_DETECT);
+	if(nodeoffset > 0)
+	{
+		fdt_getprop_u32(working_fdt,nodeoffset,"keyen_flag",&keyen_flag);
+	}
+	if(!keyen_flag)
+	{
+		puts("warnning: not support,please set keyen_flag=1 in sys_config.fex\n");
+		return -1;
+	}
+	puts(" press a key:\n");
 	sunxi_key_base->ints = 0x1f1f;
-
-    while(!ctrlc())
-    {
+	while(!ctrlc())
+	{
 		sunxi_key_read();
 		power_key = axp_probe_key();
-		if(power_key > 0)
-		{
+		if(power_key > 0) {
 			break;
 		}
 	}

@@ -77,12 +77,12 @@ sunxi_dma_channal_set;
 
 typedef struct sunxi_dma_source_t
 {
-	unsigned int      		used;
-	unsigned int            channal_count;
-	sunxi_dma_channal_set	*channal;
-	unsigned int			reserved;
-	sunxi_dma_start_t       *config;
-	struct dma_irq_handler  dma_func;
+	volatile unsigned int      		used;
+	volatile unsigned int            channal_count;
+	volatile sunxi_dma_channal_set	*channal;
+	volatile unsigned int			reserved;
+	volatile sunxi_dma_start_t       *config;
+	volatile struct dma_irq_handler  dma_func;
 }
 sunxi_dma_source;
 
@@ -187,10 +187,11 @@ void sunxi_dma_init(void)
 
 #if 1
         //auto MCLK gating  disable
-        reg_val = *(volatile unsigned int *)(SUNXI_DMA_BASE + 0x20);
+        //reg_val = *(volatile unsigned int *)(SUNXI_DMA_BASE + 0x20);
+        reg_val = *(volatile unsigned int *)(DMA_AUTO_GATE_REG);
         reg_val &= ~7;
         reg_val |= 4;
-        *(volatile unsigned int *)(SUNXI_DMA_BASE + 0x20) = reg_val;
+        *(volatile unsigned int *)(DMA_AUTO_GATE_REG) = reg_val;
 
 #endif
 	return ;
@@ -337,9 +338,9 @@ int sunxi_dma_setting(ulong hdma, sunxi_dma_setting_t *cfg)
 	uint   *config_addr;
 	uint   commit_para;
 	sunxi_dma_setting_t   		*dma_set     = cfg;
-	struct sunxi_dma_source_t  	*dma_channal = (struct sunxi_dma_source_t *)hdma;
+	struct sunxi_dma_source_t  	*dma_source = (struct sunxi_dma_source_t *)hdma;
 
-	if(!dma_channal->used)
+	if(!dma_source->used)
 	{
 		return -1;
 	}
@@ -347,17 +348,17 @@ int sunxi_dma_setting(ulong hdma, sunxi_dma_setting_t *cfg)
 	config_addr = (uint *)&(dma_set->cfg);
 	if(dma_set->loop_mode)
 	{
-		dma_channal->config->link = (uint)(ulong )(dma_channal->config);
+		dma_source->config->link = (uint)(ulong )(dma_source->config);
  	}
 	else
 	{
-		dma_channal->config->link = SUNXI_DMA_LINK_NULL;
+		dma_source->config->link = SUNXI_DMA_LINK_NULL;
 	}
 
 	commit_para  = (dma_set->wait_cyc & 0xff);
 	commit_para |= (dma_set->data_block_size & 0xff ) << 8;
-	dma_channal->config->commit_para = commit_para;
-	dma_channal->config->config = *config_addr;
+	dma_source->config->commit_para = commit_para;
+	dma_source->config->config = *config_addr;
 
     return 0;
 }
@@ -380,24 +381,24 @@ int sunxi_dma_setting(ulong hdma, sunxi_dma_setting_t *cfg)
 */
 int sunxi_dma_start(ulong hdma, uint saddr, uint daddr, uint bytes)
 {
-	struct sunxi_dma_source_t  	*dma_channal = (struct sunxi_dma_source_t *)hdma;
+	struct sunxi_dma_source_t  	*dma_source = (struct sunxi_dma_source_t *)hdma;
 
-	if(!dma_channal->used)
+	if(!dma_source->used)
 	{
 		return -1;
 	}
 
- 	dma_channal->config->source_addr = saddr;
- 	dma_channal->config->dest_addr   = daddr;
- 	dma_channal->config->byte_count  = bytes;
+	dma_source->config->source_addr = saddr;
+	dma_source->config->dest_addr   = daddr;
+	dma_source->config->byte_count  = bytes;
 
-	dma_channal->channal->start_addr = (uint)(ulong)(dma_channal->config);
+	dma_source->channal->start_addr = (uint)(ulong)(dma_source->config);
 
 	//guarantee pre data access opration was fisnished here
 	asm volatile("dmb sy");
 	//flush_cache((uint)&(dma_channal->config), sizeof(sunxi_dma_start_t));
 
-	dma_channal->channal->enable = 1;
+	dma_source->channal->enable = 1;
 
     return 0;
 }
@@ -541,10 +542,9 @@ int sunxi_dma_enable_int(ulong hdma)
 	channal_count = dma_channal->channal_count;
 	if(channal_count < 8)
 	{
-	    if(dma_status->irq_en0 & (DMA_PKG_END_INT << channal_count*4))
-	    {
-	    	printf("dma 0x%lx int is avaible already\n", hdma);
-
+		if(dma_status->irq_en0 & (DMA_PKG_END_INT << channal_count*4))
+		{
+			printf("dma 0x%lx int is avaible already\n", hdma);
 			return 0;
 		}
 		dma_status->irq_en0 |= (DMA_PKG_END_INT << channal_count*4);
@@ -552,9 +552,8 @@ int sunxi_dma_enable_int(ulong hdma)
 	else
 	{
 		if(dma_status->irq_en1 & (DMA_PKG_END_INT << (channal_count - 8)*4))
-	    {
-	    	printf("dma 0x%lx int is avaible already\n", hdma);
-
+		{
+			printf("dma 0x%lx int is avaible already\n", hdma);
 			return 0;
 		}
 		dma_status->irq_en1 |= (DMA_PKG_END_INT << (channal_count - 8)*4);
@@ -598,10 +597,9 @@ int sunxi_dma_disable_int(ulong hdma)
 	channal_count = dma_channal->channal_count;
 	if(channal_count < 8)
 	{
-	    if(!(dma_status->irq_en0 & (DMA_PKG_END_INT << channal_count*4)))
-	    {
-	    	printf("dma 0x%lx int is not used yet\n", hdma);
-
+		if(!(dma_status->irq_en0 & (DMA_PKG_END_INT << channal_count*4)))
+		{
+			debug("dma 0x%lx int is not used yet\n", hdma);
 			return 0;
 		}
 		dma_status->irq_en0 &= ~(DMA_PKG_END_INT << channal_count*4);
@@ -609,9 +607,8 @@ int sunxi_dma_disable_int(ulong hdma)
 	else
 	{
 		if(!(dma_status->irq_en1 & (DMA_PKG_END_INT << (channal_count - 8)*4)))
-	    {
-	    	printf("dma 0x%lx int is not used yet\n", hdma);
-
+		{
+			debug("dma 0x%lx int is not used yet\n", hdma);
 			return 0;
 		}
 		dma_status->irq_en1 &= ~(DMA_PKG_END_INT << (channal_count - 8)*4);
@@ -672,8 +669,7 @@ int sunxi_dma_free_int(ulong hdma)
 	}
 	else
 	{
-		printf("dma 0x%lx int is free, you do not need to free it again\n", hdma);
-
+		debug("dma 0x%lx int is free, you do not need to free it again\n", hdma);
 		return -1;
 	}
 

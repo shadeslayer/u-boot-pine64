@@ -16,6 +16,18 @@
 #include <fdt_support.h>
 #include <exports.h>
 
+__attribute__((section(".data")))
+struct fdt_header *working_fdt = NULL;
+
+void set_working_fdt_addr(void *addr)
+{
+	void *buf;
+
+	buf = map_sysmem((ulong)addr, 0);
+	working_fdt = buf;
+	setenv_addr("fdtaddr", addr);
+}
+
 /*
  * Get cells len in bytes
  *     if #NNNN-cells property is 2 then len is 8
@@ -135,7 +147,7 @@ int fdt_getprop_u64(const void *fdt, int nodeoffset,
 	const fdt64_t* data=NULL;
 
 	data = fdt_getprop(fdt,nodeoffset,name,&len);
-	if((data == NULL) || (len ==0) || (len % 4 != 0))
+	if((data == NULL) || (len ==0) || (len % 8 != 0))
 	{
 		return -FDT_ERR_INTERNAL;
 	}
@@ -144,13 +156,13 @@ int fdt_getprop_u64(const void *fdt, int nodeoffset,
 	{
 		const uint64_t *p = data;
 		int j ;
-		for (j = 0, p = data; j < len/4; j++)
+		for (j = 0, p = data; j < len/8; j++)
 		{
 			*val = fdt64_to_cpu(p[j]);
 			val++;
 		}
 	}
-	return len/4;
+	return len/8;
 }
 
 /**

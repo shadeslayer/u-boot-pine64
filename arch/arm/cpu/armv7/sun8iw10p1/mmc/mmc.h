@@ -43,8 +43,8 @@
 
 #define IS_SD(x) (x->version & SD_VERSION_SD)
 
-#define MMC_DATA_READ		1
-#define MMC_DATA_WRITE		2
+#define MMC_DATA_READ		(1U<<0)
+#define MMC_DATA_WRITE		(1U<<1) 
 
 #define NO_CARD_ERR		-16 /* No SD/MMC card inserted */
 #define UNUSABLE_ERR		-17 /* Unusable Card */

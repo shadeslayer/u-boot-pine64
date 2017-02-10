@@ -143,6 +143,20 @@ ENTRY(cpu_init_cp15)
 #endif
 	mcr	p15, 0, r0, c1, c0, 0
 
+#ifdef CONFIG_ARM_A53
+	/*
+	 *clear AFE,TRE bit in sctrl
+	 *non-secure: reset value is unknow
+	 *secure    : default value is 0
+	 *notice    : we must set the TRE bit to enable the memory
+	 *            arttribute configuration from the section table.
+	 */
+	MRC     p15, 0, r0, c1, c0, 0   @Read SCTLR
+	BIC     r0, r0, #(1<<28)        @clr TRE bit
+	BIC     r0, r0, #(1<<29)        @clr AEF bit
+	MCR     p15, 0, r0, c1, c0, 0   @Write SCTLR
+#endif
+
 #ifdef CONFIG_ARM_ERRATA_716044
 	mrc	p15, 0, r0, c1, c0, 0	@ read system control register
 	orr	r0, r0, #1 << 11	@ set bit #11
@@ -194,3 +208,249 @@ ENTRY(cpu_init_crit)
 	b	lowlevel_init		@ go setup pll,mux,memory
 ENDPROC(cpu_init_crit)
 #endif
+
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+/*************************************************************************
+ *
+ * secondary cpu init
+ *
+ * setup important registers
+ *
+ *
+ *************************************************************************/
+
+	.globl  get_core_pos
+	.globl  secondary_cpu_start
+	.globl  third_cpu_start
+	.globl  disable_smp
+
+ENTRY(secondary_cpu_start)
+
+	mrs	r0, cpsr
+	bic	r0, r0, #0x1f		@ clear all mode bits
+	orr	r0, r0, #0x13		@ set SVC mode
+	orr	r0, r0, #(0x40 | 0x80)@ disable FIQ & IRQ
+	bic r0, r0, #(1<<9)     @ set little-endian
+	msr	cpsr,r0
+
+	mrc	p15, 0, r0, c1, c0, 0
+#ifdef CONFIG_ARCH_SUN8IW10P1
+	orr	r0, r0, #0x00002000	@ set bits 13 (--V-)
+#else
+	bic	r0, r0, #0x00002000	@ clear bits 13 (--V-)
+#endif
+	bic	r0, r0, #0x00000007	@ clear bits 2:0 (-CAM)
+	orr	r0, r0, #0x00000800	@ set bit 11 (Z---) BTB
+	orr	r0, r0, #0x00001000	@ clear bit 12 (I) I-cache
+	mcr	p15, 0, r0, c1, c0, 0
+
+	/* Set vector address in CP15 VBAR register */
+	ldr     r0, =_start
+	mcr     p15, 0, r0, c12, c0, 0  @Set VBAR
+
+	/*
+	 *clear AFE,TRE bit in sctrl
+	 *non-secure: reset value is unknow
+	 *secure    : default value is 0
+	 *notice    : we must set the TRE bit to enable the memory
+	 *            arttribute configuration from the section table.
+	 */
+	MRC     p15, 0, r0, c1, c0, 0   @Read SCTLR
+#ifdef CONFIG_ARM_A53
+	BIC     r0, r0, #(1<<28)        @clr TRE bit
+	BIC     r0, r0, #(1<<29)        @clr AEF bit
+#endif
+	bic	    r0, #CR_V		        @ V = 0
+	MCR     p15, 0, r0, c1, c0, 0   @Write SCTLR
+
+	@ set sp
+	ldr r0, =secondary_cpu_svc_stack
+	ldr sp, [r0, #0x4]
+
+	@ set r9
+	ldr r0, =secondary_cpu_data_groups
+	ldr r9, [r0, #0x4]
+
+	@ set tlb addr
+	ldr r0, =secondary_cpu_data_groups
+	ldr r1, [r0, #0]
+	orr r1, r1, #(1 << 0) | (1 << 1) | (2 << 3)
+	mcr p15, 0, r1, c2, c0, 0
+	mcr p15, 0, r1, c2, c0, 1
+
+	ldr r0, =0xffffffff
+	mcr p15, 0, r0, c3, c0, 0
+
+	mov r0, #0
+	mcr p15, 0, r0, c8, c7, 0
+
+	isb
+
+	mrc p15, 0, r0, c1, c0, 0
+	orr r0, #((1<<0) | (1<<2))
+	mcr p15, 0, r0, c1, c0, 0
+
+	b  sunxi_secendary_cpu_task
+ENDPROC(secondary_cpu_start)
+
+
+/*************************************************************************
+ *
+ * secondary cpu init
+ *
+ * setup important registers
+ *
+ *
+ *************************************************************************/
+
+ENTRY(third_cpu_start)
+
+	mrs	r0, cpsr
+	bic	r0, r0, #0x1f		@ clear all mode bits
+	orr	r0, r0, #0x13		@ set SVC mode
+	orr	r0, r0, #(0x40 | 0x80)@ disable FIQ & IRQ
+	bic r0, r0, #(1<<9)     @ set little-endian
+	msr	cpsr,r0
+
+	mrc	p15, 0, r0, c1, c0, 0
+#ifdef CONFIG_ARCH_SUN8IW10P1
+	orr	r0, r0, #0x00002000	@ set bits 13 (--V-)
+#else
+	bic	r0, r0, #0x00002000	@ clear bits 13 (--V-)
+#endif
+	bic	r0, r0, #0x00000007	@ clear bits 2:0 (-CAM)
+	orr	r0, r0, #0x00000800	@ set bit 11 (Z---) BTB
+	orr	r0, r0, #0x00001000	@ clear bit 12 (I) I-cache
+	mcr	p15, 0, r0, c1, c0, 0
+
+	/* Set vector address in CP15 VBAR register */
+	ldr     r0, =_start
+	mcr     p15, 0, r0, c12, c0, 0  @Set VBAR
+
+	/*
+	 *clear AFE,TRE bit in sctrl
+	 *non-secure: reset value is unknow
+	 *secure    : default value is 0
+	 *notice    : we must set the TRE bit to enable the memory
+	 *            arttribute configuration from the section table.
+	 */
+	MRC     p15, 0, r0, c1, c0, 0   @Read SCTLR
+#ifdef CONFIG_ARM_A53
+	BIC     r0, r0, #(1<<28)        @clr TRE bit
+	BIC     r0, r0, #(1<<29)        @clr AEF bit
+#endif
+	bic	    r0, #CR_V		        @ V = 0
+	MCR     p15, 0, r0, c1, c0, 0   @Write SCTLR
+
+#ifndef CONFIG_ARM_A53
+	mrc	p15, 0, r0, c1, c0, 0	@ Read CP15 SCTRL Register
+	bic	r0, #CR_V		@ V = 0
+	mcr	p15, 0, r0, c1, c0, 0	@ Write CP15 SCTRL Register
+#endif
+
+	@ set sp
+	ldr r0, =secondary_cpu_svc_stack
+	ldr sp, [r0, #0x8]
+
+	@ set r9
+	ldr r0, =secondary_cpu_data_groups
+	ldr r9, [r0, #0x4]
+
+	@ set tlb addr
+	ldr r0, =secondary_cpu_data_groups
+	ldr r1, [r0, #0]
+	orr r1, r1, #(1 << 0) | (1 << 1) | (2 << 3)
+	mcr p15, 0, r1, c2, c0, 0
+	mcr p15, 0, r1, c2, c0, 1
+
+	ldr r0, =0xffffffff
+	mcr p15, 0, r0, c3, c0, 0
+
+	mov r0, #0
+	mcr p15, 0, r0, c8, c7, 0
+
+	isb
+
+	mrc p15, 0, r0, c1, c0, 0
+	orr r0, #((1<<0) | (1<<2))
+	mcr p15, 0, r0, c1, c0, 0
+
+	b  sunxi_third_cpu_task
+ENDPROC(third_cpu_start)
+
+
+ENTRY(get_core_pos)
+
+	mrc	p15, 0, r0, c0, c0, 5
+	and	r1, r0, #0xff
+	and	r0, r0, #0xff00
+	/*
+	 * Number of cores in cluster is 2,
+	 * we should have the following mapping:
+	 * MPIDR     core_pos
+	 * 0x0000 -> 0
+	 * 0x0001 -> 1
+	 * 0x0100 -> 2
+	 * 0x0101 -> 3
+	 */
+	add	r0, r1, r0, LSR #7
+	bx	lr
+ENDPROC(get_core_pos)
+
+ENTRY(disable_smp)
+
+	mrrc p15, 1, r0, r1, c15   @read CPUECTLR
+	bic  r0, r0, #(1<<6)
+	mcrr p15, 1, r0, r1, c15   @write CPUECTLR
+
+	isb
+	dsb
+
+ENDPROC(disable_smp)
+
+/* void cpu_spin_lock(lock address) - lock mutex */
+ENTRY(cpu_spin_lock)
+    mov r2, #SPINLOCK_LOCK
+_spinlock_loop:
+    ldrex r1, [r0]
+    cmp r1, #SPINLOCK_UNLOCK
+    wfene
+    bne _spinlock_loop
+    strex r1, r2, [r0]
+    cmp r1, #0
+    wfene
+    bne _spinlock_loop
+    dmb
+    bx lr
+ENDPROC(cpu_spin_lock)
+
+/* int cpu_spin_trylock(lock address) - return 0 on success */
+ENTRY(cpu_spin_trylock)
+    mov r2, #SPINLOCK_LOCK
+    mov r1, r0
+_trylock_loop:
+    ldrex r0, [r1]
+    cmp r0, #0
+    bne _trylock_out
+    strex r0, r2, [r1]
+    cmp r0, #0
+    bne _trylock_loop
+    dmb
+    bx lr
+_trylock_out:
+    clrex
+    dmb
+    bx lr
+ENDPROC(cpu_spin_trylock)
+
+/* void cpu_spin_unlock(lock address) - unlock mutex */
+ENTRY(cpu_spin_unlock)
+    dmb
+    mov r1, #SPINLOCK_UNLOCK
+    str r1, [r0]
+    dsb
+    sev
+    bx lr
+ENDPROC(cpu_spin_unlock)
+#endif
+

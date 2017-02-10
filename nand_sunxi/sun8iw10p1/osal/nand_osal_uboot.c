@@ -32,8 +32,8 @@
 //#define get_wvalue(addr)	(*((volatile unsigned long  *)(addr)))
 //#define put_wvalue(addr, v)	(*((volatile unsigned long  *)(addr)) = (unsigned long)(v))
 #define  NAND_DRV_VERSION_0		0x2
-#define  NAND_DRV_VERSION_1		0x24
-#define  NAND_DRV_DATE			0x20150402
+#define  NAND_DRV_VERSION_1		0x25
+#define  NAND_DRV_DATE			0x20150611
 #define  NAND_DRV_TIME			0x1122
 
 
@@ -191,7 +191,7 @@ __u32 _Getpll6Clk(void)
 	factor_k = ((reg_val >> 4) & 0x3) + 1;
 	//div_m = ((reg_val >> 0) & 0x3) + 1;
 
-	clock = 24000000 * factor_n * factor_k/2;
+	clock = 24000000 * factor_n * factor_k;
 	//NAND_Print("pll6 clock is %d Hz\n", clock);
 	//if(clock != 600000000)
 		//printf("pll6 clock rate error, %d!!!!!!!\n", clock);
@@ -223,7 +223,7 @@ __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk)
 	sclk_pre_ratio_n = (reg_val>>16) & 0x3;;
 	sclk_ratio_m     = (reg_val) & 0xf;
 	if (sclk_src_sel == 0)
-		sclk_src = 24;
+		sclk_src = 26;
 	else
 		sclk_src = _Getpll6Clk()/1000000;
 	sclk0 = (sclk_src >> sclk_pre_ratio_n) / (sclk_ratio_m+1);
@@ -271,7 +271,7 @@ __s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk)
 
 	if(sclk0_src_sel == 0x0) {
 		//osc pll
-        sclk0_src = 24;
+        sclk0_src = 26;
 	} else {
 		//pll6 for ndfc version 1
 		sclk0_src = _Getpll6Clk()/1000000;
@@ -435,11 +435,13 @@ __s32 _cfg_ndfc_gpio_v1(__u32 nand_index)
 	if (nand_index == 0) {
 		*(volatile __u32 *)(0x01c20800 + 0x48) = 0x22222222;
 		*(volatile __u32 *)(0x01c20800 + 0x4c) = 0x22222222;
-		*(volatile __u32 *)(0x01c20800 + 0x50) = 0x222;
+		//*(volatile __u32 *)(0x01c20800 + 0x50) = 0x222;
+		*(volatile __u32 *)(0x01c20800 + 0x5c) = 0x15555555;
+		*(volatile __u32 *)(0x01c20800 + 0x64) = 0x00000440;
 		NAND_Print("NAND_PIORequest, nand_index: 0x%x\n", nand_index);
 		NAND_Print("Reg 0x01c20848: 0x%x\n", *(volatile __u32 *)(0x01c20848));
 		NAND_Print("Reg 0x01c2084c: 0x%x\n", *(volatile __u32 *)(0x01c2084c));
-		NAND_Print("Reg 0x01c20850: 0x%x\n", *(volatile __u32 *)(0x01c20850));
+		//NAND_Print("Reg 0x01c20850: 0x%x\n", *(volatile __u32 *)(0x01c20850));
 	} else {
 		printf("_cfg_ndfc_gpio_v1, wrong nand index %d\n", nand_index);
 		return -1;
@@ -935,7 +937,8 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 		return 0xffffffff;
     }
 
-	ret = nand_para = 0;
+	ret = 0;
+	nand_para = 0;
 	ret = fdt_getprop_u32(working_fdt, nand_nodeoffset,str, (uint32_t*)&nand_para);
 	if(ret < 0)
 	{

@@ -25,121 +25,137 @@ SUNXI_CLK_FACTORS(			pll_de,     8,  7,  0,  0,  0,  4,  0,  0,  0,   0,   0,   
 
 static int get_factors_pll_video0(u32 rate, u32 parent_rate, struct clk_factors_value *factor)
 {
-    unsigned long long tmp_rate;
-    int index;
-    if(!factor)
-        return -1;
+	u64 tmp_rate;
+	int index;
 
-    tmp_rate = rate>pllvideo0_max ? pllvideo0_max : rate;
-    do_div(tmp_rate, 1000000);
+	if(!factor)
+		return -1;
 
-    index = tmp_rate;
- 		if(sunxi_clk_get_common_factors_search(&sunxi_clk_factor_pll_video0,factor, factor_pllvideo0_tbl,index,sizeof(factor_pllvideo0_tbl)/sizeof(struct sunxi_clk_factor_freq)))
- 			return -1;
-    if(rate == 297000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 1;
-        factor->factorm = 0;
-    }
-    else if(rate == 270000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 0;
-        factor->factorm = 0;
-    } else {
-        factor->frac_mode = 1;
-        factor->frac_freq = 0;
-    }
+	tmp_rate = rate>pllvideo0_max ? pllvideo0_max : rate;
+	do_div(tmp_rate, 1000000);
+	index = tmp_rate;
 
-    return 0;
+	if (sunxi_clk_com_ftr_sr(&sunxi_clk_factor_pll_video0, factor,
+				factor_pllvideo0_tbl, index,
+				sizeof(factor_pllvideo0_tbl)
+				/ sizeof(struct sunxi_clk_factor_freq)))
+		return -1;
+
+	if (rate == 297000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 1;
+		factor->factorm = 0;
+	} else if (rate == 270000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 0;
+		factor->factorm = 0;
+	} else {
+		factor->frac_mode = 1;
+		factor->frac_freq = 0;
+	}
+
+	return 0;
 }
 
 static int get_factors_pll_video1(u32 rate, u32 parent_rate, struct clk_factors_value *factor)
 {
-    unsigned long long tmp_rate;
-    int index;
-    if(!factor)
-        return -1;
+	u64 tmp_rate;
+	int index;
 
-    tmp_rate = rate>pllvideo1_max ? pllvideo1_max : rate;
-    do_div(tmp_rate, 1000000);
-    index = tmp_rate;
- 	if(sunxi_clk_get_common_factors_search(&sunxi_clk_factor_pll_video1,factor, factor_pllvideo1_tbl,index,sizeof(factor_pllvideo1_tbl)/sizeof(struct sunxi_clk_factor_freq)))
- 		return -1;
-    if(rate == 297000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 1;
-        factor->factorm = 0;
-    }
-    else if(rate == 270000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 0;
-        factor->factorm = 0;
-    } else {
-        factor->frac_mode = 1;
-        factor->frac_freq = 0;
-    }
+	if(!factor)
+		return -1;
 
-    return 0;
+	tmp_rate = rate>pllvideo1_max ? pllvideo1_max : rate;
+	do_div(tmp_rate, 1000000);
+	index = tmp_rate;
+
+	if (sunxi_clk_com_ftr_sr(&sunxi_clk_factor_pll_video1, factor,
+				factor_pllvideo1_tbl, index,
+				sizeof(factor_pllvideo1_tbl)
+				/ sizeof(struct sunxi_clk_factor_freq)))
+		return -1;
+
+	if (rate == 297000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 1;
+		factor->factorm = 0;
+	} else if (rate == 270000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 0;
+		factor->factorm = 0;
+	} else {
+		factor->frac_mode = 1;
+		factor->frac_freq = 0;
+	}
+
+	return 0;
 }
 
 static int get_factors_pll_mipi(u32 rate, u32 parent_rate, struct clk_factors_value *factor)
 {
 
-    unsigned long long tmp_rate;
-    u32 delta1,delta2,want_rate,new_rate,save_rate=0;
-    int n,k,m;
-    if(!factor)
-        return -1;
-    tmp_rate = rate>1440000000 ? 1440000000 : rate;
-    do_div(tmp_rate, 1000000);
-    want_rate = tmp_rate;
-    for(m=1;			m <=16;	m++)
-		for(k=2;			k <=4;	k++)
-            for(n=1;			n <=16;	n++)
-            {
-                new_rate = (parent_rate/1000000)*k*n/m;
-                delta1 = (new_rate > want_rate)?(new_rate - want_rate):(want_rate - new_rate);
-                delta2 =  (save_rate > want_rate)?(save_rate - want_rate):(want_rate - save_rate);
-                if(delta1 < delta2)
-                {
-                    factor->factorn = n-1;
-                    factor->factork = k-1;
-                    factor->factorm = m-1;
-                    save_rate = new_rate;
-                }
-            }
+	u64 tmp_rate;
+	u32 delta1,delta2,want_rate,new_rate,save_rate=0;
+	int n,k,m;
 
-    return 0;
+	if(!factor)
+		return -1;
+	tmp_rate = rate>1440000000 ? 1440000000 : rate;
+	do_div(tmp_rate, 1000000);
+	want_rate = tmp_rate;
+	for(m=1; m <=16; m++) {
+		for(k=2; k <=4; k++) {
+			for(n=1; n <=16; n++) {
+				new_rate = (parent_rate/1000000)*k*n/m;
+				delta1 = (new_rate > want_rate)?(new_rate - want_rate):(want_rate - new_rate);
+				delta2 =  (save_rate > want_rate)?(save_rate - want_rate):(want_rate - save_rate);
+				if(delta1 < delta2) {
+					factor->factorn = n-1;
+					factor->factork = k-1;
+					factor->factorm = m-1;
+					save_rate = new_rate;
+				}
+			}
+		}
+	}
+
+	return 0;
 }
 
 static int get_factors_pll_de(u32 rate, u32 parent_rate, struct clk_factors_value *factor)
 {
-    unsigned long long tmp_rate;
-    int index;
-    if(!factor)
-        return -1;
+	u64 tmp_rate;
+	int index;
 
-    tmp_rate = rate>pllde_max ? pllde_max : rate;
-    do_div(tmp_rate, 1000000);
-    index = tmp_rate;
-    if(sunxi_clk_get_common_factors_search(&sunxi_clk_factor_pll_de,factor, factor_pllde_tbl,index,sizeof(factor_pllde_tbl)/sizeof(struct sunxi_clk_factor_freq)))
- 			return -1;
-    if(rate == 297000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 1;
-        factor->factorm = 0;
-    }
-    else if(rate == 270000000) {
-        factor->frac_mode = 0;
-        factor->frac_freq = 0;
-        factor->factorm = 0;
-    } else {
-        factor->frac_mode = 1;
-        factor->frac_freq = 0;
-    }
+	if (!factor)
+		return -1;
 
-    return 0;
+	tmp_rate = rate>pllde_max ? pllde_max : rate;
+	do_div(tmp_rate, 1000000);
+	index = tmp_rate;
+
+	if (sunxi_clk_com_ftr_sr(&sunxi_clk_factor_pll_de, factor,
+				factor_pllde_tbl, index,
+				sizeof(factor_pllde_tbl)
+				/ sizeof(struct sunxi_clk_factor_freq)))
+		return -1;
+
+	if (rate == 297000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 1;
+		factor->factorm = 0;
+	} else if (rate == 270000000) {
+		factor->frac_mode = 0;
+		factor->frac_freq = 0;
+		factor->factorm = 0;
+	} else {
+		factor->frac_mode = 1;
+		factor->frac_freq = 0;
+	}
+
+	return 0;
 }
+
 
 /*	pll_video0:24*N/M	*/
 static unsigned long calc_rate_media(u32 parent_rate, struct clk_factors_value *factor)
@@ -470,23 +486,15 @@ static void clk_disable_pll_mipi(struct clk_hw *hw)
 
 static const char *mipi_parents[] = {"pll_video0",""};
 static const char *hosc_parents[] = {"hosc"};
+__attribute__((section(".data")))
 struct clk_ops pll_mipi_ops;
 
 struct factor_init_data sunxi_factos[] = {
-     /* name         parent        parent_num, flags       reg       	lock_reg     lock_bit    config                          get_factors          		calc_rate       priv_ops*/
-    //{"pll_cpu",     hosc_parents, 1,CLK_GET_RATE_NOCACHE, PLL_CPU,    PLL_CPU,     LOCKBIT(28),&sunxi_clk_factor_pll_cpu,    	&get_factors_pll_cpu,    &calc_rate_pll_cpu     ,(struct clk_ops*)NULL},
-    //{"pll_audio",   hosc_parents, 1,          0,          PLL_AUDIO,  PLL_AUDIO,   LOCKBIT(28),&sunxi_clk_factor_pll_audio,  	&get_factors_pll_audio,  &calc_rate_pll_audio   ,(struct clk_ops*)NULL},
-    {"pll_video0",  hosc_parents, 1,          0,          PLL_VIDEO0, PLL_VIDEO0,  LOCKBIT(28),&sunxi_clk_factor_pll_video0,  	&get_factors_pll_video0, &calc_rate_media       ,(struct clk_ops*)NULL},
-    //{"pll_ve",      hosc_parents, 1,          0,          PLL_VE,     PLL_VE,      LOCKBIT(28),&sunxi_clk_factor_pll_ve,     	&get_factors_pll_ve,     &calc_rate_media       ,(struct clk_ops*)NULL},
-    //{"pll_ddr0",    hosc_parents, 1,CLK_GET_RATE_NOCACHE, PLL_DDR0,   PLL_DDR0,    LOCKBIT(28),&sunxi_clk_factor_pll_ddr0,   	&get_factors_pll_ddr0,   &calc_rate_pll_ddr0    ,(struct clk_ops*)NULL},
-    //{"pll_periph0", hosc_parents, 1,          0,          PLL_PERIPH0,PLL_PERIPH0, LOCKBIT(28),&sunxi_clk_factor_pll_periph0,	&get_factors_pll_periph0,&calc_rate_pll_periph  ,(struct clk_ops*)NULL},
-    //{"pll_periph1", hosc_parents, 1,          0,          PLL_PERIPH1,PLL_PERIPH1, LOCKBIT(28),&sunxi_clk_factor_pll_periph1,	&get_factors_pll_periph1,&calc_rate_pll_periph  ,(struct clk_ops*)NULL},
-    {"pll_video1",  hosc_parents, 1,          0,          PLL_VIDEO1, PLL_VIDEO1,  LOCKBIT(28),&sunxi_clk_factor_pll_video1,  	&get_factors_pll_video1, &calc_rate_media       ,(struct clk_ops*)NULL},
-    //{"pll_gpu",     hosc_parents, 1,          0,          PLL_GPU,    PLL_GPU,     LOCKBIT(28),&sunxi_clk_factor_pll_gpu,   	&get_factors_pll_gpu,    &calc_rate_media     	,(struct clk_ops*)NULL},
-    {"pll_mipi",    mipi_parents, 2,          0,          MIPI_PLL,   MIPI_PLL,    LOCKBIT(28),&sunxi_clk_factor_pll_mipi,  	&get_factors_pll_mipi,   &calc_rate_pll_mipi  	,&pll_mipi_ops},
-    //{"pll_hsic",    hosc_parents, 1,          0,          PLL_HSIC,   PLL_HSIC,    LOCKBIT(28),&sunxi_clk_factor_pll_hsic,  	&get_factors_pll_hsic,   &calc_rate_media     	,(struct clk_ops*)NULL},
-	{"pll_de",      hosc_parents, 1,          0,          PLL_DE,     PLL_DE,      LOCKBIT(28),&sunxi_clk_factor_pll_de,    	&get_factors_pll_de,     &calc_rate_media       ,(struct clk_ops*)NULL},
-    //{"pll_ddr1",    hosc_parents, 1,CLK_GET_RATE_NOCACHE, PLL_DDR1,   PLL_DDR1,    LOCKBIT(28),&sunxi_clk_factor_pll_ddr1,   	&get_factors_pll_ddr1,   &calc_rate_pll_ddr1    ,(struct clk_ops*)NULL},
+	/* name         parent        parent_num, flags                                      reg          lock_reg     lock_bit     pll_lock_ctrl_reg lock_en_bit lock_mode           config                         get_factors               calc_rate              priv_ops*/
+	{"pll_video0",  hosc_parents, 1,          CLK_IGNORE_DISABLE,                        PLL_VIDEO0,  PLL_VIDEO0,  LOCKBIT(28), PLL_CLK_CTRL,     2,          PLL_LOCK_NONE_MODE, &sunxi_clk_factor_pll_video0,  &get_factors_pll_video0,  &calc_rate_media,      (struct clk_ops*)NULL},
+	{"pll_video1",  hosc_parents, 1,          CLK_IGNORE_DISABLE,                        PLL_VIDEO1,  PLL_VIDEO1,  LOCKBIT(28), PLL_CLK_CTRL,     6,          PLL_LOCK_NONE_MODE, &sunxi_clk_factor_pll_video1,  &get_factors_pll_video1,  &calc_rate_media,      (struct clk_ops*)NULL},
+	{"pll_mipi",    mipi_parents, 2,          CLK_IGNORE_DISABLE,                        MIPI_PLL,    MIPI_PLL,    LOCKBIT(28), PLL_CLK_CTRL,     8,          PLL_LOCK_NONE_MODE, &sunxi_clk_factor_pll_mipi,    &get_factors_pll_mipi,    &calc_rate_pll_mipi,   &pll_mipi_ops        },
+	{"pll_de",      hosc_parents, 1,          CLK_IGNORE_DISABLE,                        PLL_DE,      PLL_DE,      LOCKBIT(28), PLL_CLK_CTRL,     10,         PLL_LOCK_NONE_MODE, &sunxi_clk_factor_pll_de,      &get_factors_pll_de,      &calc_rate_media,      (struct clk_ops*)NULL},
 };
 
 static const char *de_parents[] = {"pll_periph0x2", "pll_de", "", "", "", "","",""};
@@ -547,6 +555,7 @@ struct sunxi_clk_comgate com_gates[]={
 {"usbhci0",   0,  0x3,    RST_GATE_SHARE|MBUS_GATE_SHARE, 0},
 };
 
+__attribute__((section(".data")))
 static int clk_lock = 0;
 /*
 SUNXI_CLK_PERIPH(name,    mux_reg,    mux_shift, mux_width, div_reg,    div_mshift, div_mwidth, div_nshift, div_nwidth, gate_flags, enable_reg, reset_reg, bus_gate_reg, drm_gate_reg, enable_shift, reset_shift, bus_gate_shift, dram_gate_shift, lock,com_gate,com_gate_off)
@@ -650,11 +659,12 @@ struct periph_init_data sunxi_periphs_init[] = {
 	{"mipidsi",  0,       				mipidsi_parents,  ARRAY_SIZE(mipidsi_parents),  &sunxi_clk_periph_mipidsi},
 };
 
+__attribute__((section(".data")))
 static void  *sunxi_clk_base = NULL;
 
 void  init_clocks(void)
 {
-    int     i;
+    int i;
     //struct clk *clk;
     struct factor_init_data *factor;
     struct periph_init_data *periph;
@@ -682,8 +692,7 @@ void  init_clocks(void)
     for(i=0; i<ARRAY_SIZE(sunxi_periphs_init); i++) {
         periph = &sunxi_periphs_init[i];
         periph->periph->priv_regops = NULL;
-		sunxi_clk_register_periph(periph->name, periph->parent_names,
-					periph->num_parents,periph->flags, sunxi_clk_base, periph->periph);
+		sunxi_clk_register_periph(periph, sunxi_clk_base);
     }
 	printf("%s: finish init_clocks.\n",__func__);
 }

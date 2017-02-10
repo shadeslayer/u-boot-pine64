@@ -33,6 +33,7 @@
 #include <asm/io.h>
 #include <fdt_support.h>
 #include "efex_queue.h"
+#include <sys_config_old.h>
 
 #ifndef CONFIG_SUNXI_SPINOR
 #define _EFEX_USE_BUF_QUEUE_
@@ -1126,8 +1127,14 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 			{
 				uint *storage_type = (uint *)trans_data.base_send_buffer;
 
-				*storage_type = uboot_spare_head.boot_data.storage_type;
-
+                                if(uboot_spare_head.boot_data.storage_type == STORAGE_EMMC3)
+                                {
+                                        *storage_type = STORAGE_EMMC;
+                                }
+                                else
+                                {
+				        *storage_type = uboot_spare_head.boot_data.storage_type;
+                                }
 				trans_data.act_send_buffer   = trans_data.base_send_buffer;
 				trans_data.send_size         = 4;
 				trans_data.last_err          = 0;
@@ -1194,14 +1201,10 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 				{
 					if(!fes_work->next_mode)
 					{
-						int nodeoffset=0,fdt_ret=0;
-						nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_PLATFORM);
-						if(nodeoffset >0)
-						{
-							fdt_ret= fdt_getprop_u32(working_fdt, nodeoffset,"next_work", (uint32_t*)&sunxi_efex_next_action);
-						}
-						//if get next_work fail
-						if(nodeoffset < 0 || fdt_ret < 0)
+						int ret=0;
+
+						ret = script_parser_fetch("platform", "next_work", (int *)&sunxi_efex_next_action, 1);
+						if (ret < 0)
 						{
 							sunxi_efex_next_action = SUNXI_UPDATE_NEXT_ACTION_NORMAL;
 						}
@@ -1331,11 +1334,11 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 
 		case FEX_CMD_fes_query_secure:
 			{
-				uint *secure_type = (uint *)trans_data.base_send_buffer;
+				uint *bootfile_mode = (uint *)trans_data.base_send_buffer;
 
-				*secure_type = gd->securemode;
+				*bootfile_mode = gd->bootfile_mode;
 
-				printf("securemode=%ld\n", gd->securemode);
+				printf("bootfile_mode=%ld\n", gd->bootfile_mode);
 				trans_data.act_send_buffer   = trans_data.base_send_buffer;
 				trans_data.send_size         = 4;
 				trans_data.last_err          = 0;
@@ -1414,7 +1417,6 @@ static void dram_data_recv_finish(uint data_type)
 	else if(data_type == SUNXI_EFEX_ERASE_TAG)
 	{
 		uint erase_flag;
-		int nodeoffset;
 
 		printf("SUNXI_EFEX_ERASE_TAG\n");
 		erase_flag = *(uint *)trans_data.base_recv_buffer;
@@ -1423,13 +1425,7 @@ static void dram_data_recv_finish(uint data_type)
 		    erase_flag = 1;
 		}
 		printf("erase_flag = 0x%x\n", erase_flag);
-		nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_PLATFORM);
-		if(nodeoffset > 0)
-		{
-			fdt_setprop_u32(working_fdt,nodeoffset,"eraseflag",erase_flag);
-		}
-		//script_parser_patch("platform", "eraseflag", &erase_flag , 1);
-		
+		script_parser_patch("platform", "eraseflag", &erase_flag , 1);
 	}
 	else if(data_type == SUNXI_EFEX_PMU_SET)
 	{

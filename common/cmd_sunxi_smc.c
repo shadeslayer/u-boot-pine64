@@ -84,3 +84,69 @@ U_BOOT_CMD(
 	"sunxi_smc fid [para1,para2]"
 );
 
+extern void sunxi_dump(void *addr, unsigned int size);
+int do_sunxi_aes(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+	char in_buff[256] = {0};
+	char out_buff[256] = {0};
+	char aes_key[256] = {0};
+	int i = 0 ;
+	int len = sizeof(in_buff);
+	for(i =0; i < sizeof(in_buff); i++)
+		in_buff[i] = i;
+
+	if(smc_tee_ssk_encrypt(out_buff, in_buff, len))
+	{
+		printf("aes ssk encrypt fail\n");
+		return -1;
+	}
+	printf("ssk encrypt data:\n");
+	sunxi_dump(out_buff,len);
+	memset(in_buff, 0, len);
+
+#ifdef DEBUG
+	if(smc_aes_bssk_decrypt_to_keysram(out_buff,len))
+	{
+		printf("aes ssk decrypt to sram fail\n");
+		return -1;
+	}
+#endif
+
+	if(smc_tee_ssk_decrypt(in_buff, out_buff, len))
+	{
+		printf("aes ssk decrypt fail\n");
+		return -1;
+	}
+
+	printf("ssk decrypt data:\n");
+	sunxi_dump(in_buff,len);
+
+	for(i =0; i < sizeof(in_buff); i++)
+		in_buff[i] = i;
+	memset(out_buff, 0, len);
+	memcpy(aes_key, in_buff+10, 128/8);
+	if(smc_aes_algorithm(out_buff, in_buff, len, aes_key,0, 0))
+	{
+		printf("aes cbc encrypt fail\n");
+		return -1;
+	}
+	printf("aes cbc encrypt data:\n");
+	sunxi_dump(out_buff,len);
+
+	memset(in_buff, 0, len);
+	if(smc_aes_algorithm(in_buff, out_buff, len, aes_key,0, 1))
+	{
+		printf("aes cbc decrypt fail\n");
+		return -1;
+	}
+	printf("aes cbc decrypt data:\n");
+	sunxi_dump(in_buff,len);
+
+	return 0;
+}
+
+U_BOOT_CMD(
+	sunxi_aes, 5, 0, do_sunxi_aes,
+	"do a aes test",
+	"sunxi_aes "
+);

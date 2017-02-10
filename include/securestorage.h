@@ -34,15 +34,30 @@ extern int sunxi_secure_storage_read(const char *item_name, char *buffer, int le
 
 extern int sunxi_secure_storage_write(const char *item_name, char *buffer, int length);
 extern int sunxi_secure_storage_erase(const char *item_name);
+extern int sunxi_secure_storage_erase_all(void);
+extern int sunxi_secure_storage_erase_data_only(const char *item_name);
 
-extern int sunxi_secure_object_write(const char *item_name, char *buffer, int length);
-extern int sunxi_secure_object_read(const char *item_name, char *buffer, int buffer_len, int *data_len);
+extern int sunxi_secure_object_down( const char *name , char *buf, int len, int encrypt, int write_protect);
+extern int sunxi_secure_object_up(const char *name);
 
-extern int smc_load_sst_decrypt(char *name, char *in, unsigned int len);
+
 
 extern int smc_load_sst_encrypt(
 		char *name,
 		char *in, unsigned int len,
 		char *out, unsigned int *outLen);
+
+typedef struct
+{
+    //以下信息重复，表示每个key的信息
+    char     name[64];      //key的名称
+	uint32_t len;           //长度
+	uint32_t encrypted;     //判断是否经过加密，需要解密
+	uint32_t write_protect; //判断是否允许覆盖
+    char    key_data[4096 - 64 - 4 - 4 - 4];//这是一个数组，存放key的全部信息，数据长度由len指定
+                            //注意，传入的数据中，这个位置存放的直接就是数据，而不是地址
+}
+sunxi_secure_storage_info_t;
+
 
 #endif

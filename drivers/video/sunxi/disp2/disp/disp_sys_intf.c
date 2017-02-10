@@ -236,10 +236,19 @@ typedef struct __disp_node_map
 
 static disp_fdt_node_map_t g_disp_fdt_node_map[] ={
 	{FDT_DISP_PATH, -1},
+#ifdef SUPPORT_HDMI
 	{FDT_HDMI_PATH, -1},
+#endif
 	{FDT_LCD0_PATH, -1},
 	{FDT_LCD1_PATH, -1},
+#ifdef CONFIG_USE_AC200
+	{FDT_AC200_PATH, -1},
+#endif
 	{FDT_BOOT_DISP_PATH, -1},
+#ifdef SUPPORT_TV
+	{FDT_TV0_PATH, -1},
+	{FDT_TV1_PATH, -1},
+#endif
 	{"",-1}
 };
 
@@ -306,7 +315,7 @@ int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int t
 		}
 	} else if (3 == type) {
 		if(fdt_get_one_gpio_by_offset(node, sub_name, &gpio_info) < 0)
-			__wrn("fdt_get_one_gpio %s.%s fail\n", main_name, sub_name);
+			__inf("fdt_get_one_gpio %s.%s fail\n", main_name, sub_name);
 		else {
 			gpio_list = (disp_gpio_set_t  *)value;
 			gpio_list->port = gpio_info.port;
@@ -358,8 +367,20 @@ EXPORT_SYMBOL(disp_sys_gpio_request);
 
 int disp_sys_gpio_request_simple(disp_gpio_set_t *gpio_list, u32 group_count_max)
 {
+	int ret = 0;
+	user_gpio_set_t gpio_info;
+	gpio_info.port = gpio_list->port;
+	gpio_info.port_num = gpio_list->port_num;
+	gpio_info.mul_sel = gpio_list->mul_sel;
+	gpio_info.drv_level = gpio_list->drv_level;
+	gpio_info.data = gpio_list->data;
 
-	return 0;
+	__inf("OSAL_GPIO_Request, port:%d, port_num:%d, mul_sel:%d, "\
+		"pull:%d, drv_level:%d, data:%d\n",
+		gpio_list->port, gpio_list->port_num, gpio_list->mul_sel,
+		gpio_list->pull, gpio_list->drv_level, gpio_list->data);
+	ret = gpio_request_early(&gpio_info, group_count_max,1);
+	return ret;
 }
 int disp_sys_gpio_release(int p_handler, s32 if_release_to_default_status)
 {
@@ -408,6 +429,7 @@ int disp_sys_pin_set_state(char *dev_name, char *name)
 	nodeoffset = disp_fdt_nodeoffset(compat);
 	if(nodeoffset < 0)
 	{
+		printf("nodeoffset is wrong!\n");
 		return ret;
 	}
 	ret = fdt_set_all_pin_by_offset(nodeoffset, (1 == state)?"pinctrl-0":"pinctrl-1");
@@ -443,9 +465,7 @@ EXPORT_SYMBOL(disp_sys_power_disable);
 
 uintptr_t disp_sys_pwm_request(u32 pwm_id)
 {
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	pwm_request(pwm_id, "lcd");
-#endif
 	return (pwm_id + 0x100);
 }
 
@@ -459,12 +479,7 @@ int disp_sys_pwm_enable(uintptr_t p_handler)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_enable(pwm_id);
-#else
-	ret = sunxi_pwm_enable(pwm_id);
-#endif
-
 	return ret;
 
 }
@@ -474,12 +489,7 @@ int disp_sys_pwm_disable(uintptr_t p_handler)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	pwm_disable(pwm_id);
-#else
-	sunxi_pwm_disable(pwm_id);
-#endif
-
 	return ret;
 }
 
@@ -488,11 +498,7 @@ int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_config(pwm_id, duty_ns, period_ns);
-#else
-	ret = sunxi_pwm_config(pwm_id, duty_ns, period_ns);
-#endif
 	return ret;
 }
 
@@ -501,12 +507,7 @@ int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_set_polarity(pwm_id, polarity);
-#else
-	ret = sunxi_pwm_set_polarity(pwm_id, polarity);
-#endif
-
 	return ret;
 }
 

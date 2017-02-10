@@ -111,53 +111,23 @@ void dram_init_banksize(void)
 */
 int dram_init(void)
 {
-	uint *addr = NULL; 
-	addr = (uint *)uboot_spare_head.boot_data.dram_para;
-
-	if(addr[4])
+	uint dram_size = 0;
+	dram_size = uboot_spare_head.boot_data.dram_scan_size;
+	if(dram_size)
 	{
-		gd->ram_size = (addr[4] & 0xffff) * 1024 * 1024;
+		gd->ram_size = dram_size * 1024 * 1024;
 	}
 	else
 	{
 		gd->ram_size = get_ram_size((long *)PHYS_SDRAM_1, PHYS_SDRAM_1_SIZE);
 	}
 	//reserve trusted dram
-	gd->ram_size -= PLAT_TRUSTED_DRAM_SIZE;
-	
+	if(gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS)
+		gd->ram_size -= 64 * 1024 * 1024;
+
 	print_size(gd->ram_size, "");
 	putc('\n');
-	#if 0
-	puts("dram_para_set start\n");
-	script_parser_patch("dram_para", "dram_clk", &addr[0], 1);
-	script_parser_patch("dram_para", "dram_type", &addr[1], 1);
-	script_parser_patch("dram_para", "dram_zq", &addr[2], 1);
-	script_parser_patch("dram_para", "dram_odt_en", &addr[3], 1);
-	
-	script_parser_patch("dram_para", "dram_para1", &addr[4], 1);
-	script_parser_patch("dram_para", "dram_para2", &addr[5], 1);
-	
-	script_parser_patch("dram_para", "dram_mr0", &addr[6], 1);
-	script_parser_patch("dram_para", "dram_mr1", &addr[7], 1);
-	script_parser_patch("dram_para", "dram_mr2", &addr[8], 1);
-	script_parser_patch("dram_para", "dram_mr3", &addr[9], 1);
-	
-	script_parser_patch("dram_para", "dram_tpr0", &addr[10], 1);
-	script_parser_patch("dram_para", "dram_tpr1", &addr[11], 1);
-	script_parser_patch("dram_para", "dram_tpr2", &addr[12], 1);
-	script_parser_patch("dram_para", "dram_tpr3", &addr[13], 1);
-	script_parser_patch("dram_para", "dram_tpr4", &addr[14], 1);
-	script_parser_patch("dram_para", "dram_tpr5", &addr[15], 1);
-	script_parser_patch("dram_para", "dram_tpr6", &addr[16], 1);
-	script_parser_patch("dram_para", "dram_tpr7", &addr[17], 1);
-	script_parser_patch("dram_para", "dram_tpr8", &addr[18], 1);
-	script_parser_patch("dram_para", "dram_tpr9", &addr[19], 1);
-	script_parser_patch("dram_para", "dram_tpr10", &addr[20], 1);
-	script_parser_patch("dram_para", "dram_tpr11", &addr[21], 1);
-	script_parser_patch("dram_para", "dram_tpr12", &addr[22], 1);
-	script_parser_patch("dram_para", "dram_tpr13", &addr[23], 1);
-	puts("dram_para_set end\n");
-	#endif
+
 	return 0;
 }
 
@@ -167,6 +137,13 @@ extern int sunxi_mmc_init(int sdc_no);
 
 int board_mmc_init(bd_t *bis)
 {
+    int storage_type = uboot_spare_head.boot_data.storage_type;
+    if(storage_type == STORAGE_SD)
+    {
+        tick_printf("mmc init start to delay\n");
+        __msdelay(500);
+        tick_printf("mmc init end to delay\n");
+    }
 	sunxi_mmc_init(bis->bi_card_num);
 
 	return 0;
@@ -238,7 +215,7 @@ int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int max_dev)
 	tick_printf("PMU: AXP81X found\n");
 
 	sunxi_axp_dev_pt[0] = &sunxi_axp_81;
-	sunxi_axp_dev_pt[PMU_TYPE_81X] = &sunxi_axp_81;
+	//sunxi_axp_dev_pt[PMU_TYPE_81X] = &sunxi_axp_81;
 	//find one axp
 	return 1;
 
@@ -250,4 +227,102 @@ char* board_hardware_info(void)
 	return hardware_info;
 }
 
+#ifdef CONFIG_CMD_NET
+#ifdef CONFIG_USB_ETHER
+extern int sunxi_udc_probe(void);
+#ifdef CONFIG_SUNXI_SERIAL
+extern int get_serial_num_from_chipid(char* serial);
 
+static int sunxi_serial_num_is_zero(char *serial)
+{
+	int i = 0;
+
+	get_serial_num_from_chipid(serial);
+	while(i < 20) {
+		if (serial[i] != '0')
+			break;
+		i++;
+	}
+	if (i == 20)
+		return 0;
+	else
+		return 1;
+}
+#endif
+
+static void sunxi_random_ether_addr(void)
+{
+	int i = 0;
+	char serial[128] = {0};
+	ulong tmp = 0;
+	char tmp_s[5] = "";
+	unsigned long long rand = 0;
+	uchar usb_net_addr[6];
+	char mac[18] = "";
+	char tmp_mac = 0;
+	int ret = 0;
+
+	/*
+	 * get random mac address from serial num if it's not zero, or from timer.
+	 */
+#ifdef CONFIG_SUNXI_SERIAL
+	ret = sunxi_serial_num_is_zero(serial);
+#endif
+	if (ret == 1) {
+		for(i = 0; i < 6; i++) {
+			if(i == 0)
+				strncpy(tmp_s, serial+16, 4);
+			else if ((i == 1) || (i == 4))
+				strncpy(tmp_s, serial+12, 4);
+			else if (i == 2)
+				strncpy(tmp_s, serial+8, 4);
+			else
+				strncpy(tmp_s,serial+4,4);
+
+			tmp = simple_strtoul(tmp_s, NULL, 16);
+			rand = (tmp) * 0xfedf4fd;
+
+			rand = rand * 0xd263f967 + 0xea6f22ad8235;
+			usb_net_addr[i] = (uchar)(rand % 0x100);
+		}
+	} else {
+		for(i = 0; i < 6; i++) {
+			rand = get_timer_masked() * 0xfedf4fd;
+			rand = rand * 0xd263f967 + 0xea6f22ad8235;
+			usb_net_addr[i] = (uchar)(rand % 0x100);
+		}
+	}
+
+	/*
+	 * usbnet_hostaddr, usb_net_addr[0] = 0xxx xx10
+	 */
+	tmp_mac = usb_net_addr[0] & 0x7e;
+	tmp_mac = tmp_mac | 0x02;
+	sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x", tmp_mac, usb_net_addr[1],usb_net_addr[2],
+		usb_net_addr[3],usb_net_addr[4],usb_net_addr[5]);
+	setenv("usbnet_hostaddr", mac);
+
+	/*
+	 * usbnet_devaddr, usb_net_addr[0] = 1xxx xx10
+	 */
+	tmp_mac = usb_net_addr[0] & 0xfe;
+	tmp_mac = tmp_mac | 0x82;
+	sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x", tmp_mac, usb_net_addr[1],usb_net_addr[2],
+		usb_net_addr[3],usb_net_addr[4],usb_net_addr[5]);
+	setenv("usbnet_devaddr", mac);
+}
+#endif
+
+int board_eth_init(bd_t *bis)
+{
+	int rc = 0;
+
+#if defined(CONFIG_USB_ETHER)
+	sunxi_random_ether_addr();
+	sunxi_udc_probe();
+	usb_eth_initialize(bis);
+#endif
+
+	return rc;
+}
+#endif

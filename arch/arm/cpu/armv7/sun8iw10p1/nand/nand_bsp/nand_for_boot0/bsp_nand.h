@@ -156,8 +156,6 @@ extern __s32 NFC_LSBExit(__u32 read_retry_type);
 */
 extern __s32 NAND_SetDrqCbMethod(__u32 used);
 
-extern int printf(const char *fmt, ...);
-#define NAND_Print(fmt, args...) printf(fmt,##args)
 
 #endif  //ifndef __NAND_LOGIC_H__
 

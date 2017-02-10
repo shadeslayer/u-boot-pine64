@@ -22,8 +22,6 @@
 #
 
 
-
-ifndef CONFIG_SUNXI_SPINOR_PLATFORM
 obj-y	+= queue.o
 obj-y += sprite_queue.o
 obj-y += sprite_card.o
@@ -44,6 +42,4 @@ obj-y += sprite_storage_crypt.o
 
 obj-$(CONFIG_SUNXI_SECURE_STORAGE) += sprite_secstorage.o
 obj-$(CONFIG_SUNXI_SECURE_STORAGE) += sprite_secure_object.o
-obj-$(CONFIG_SUNXI_SECURE_SYSTEM) += sprite_storage_crypt.o
 
-endif

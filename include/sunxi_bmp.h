@@ -35,6 +35,8 @@ typedef struct
 }sunxi_bmp_store_t;
 
 extern int sunxi_bmp_decode(unsigned long addr, sunxi_bmp_store_t *bmp_info);
+extern int sunxi_bmp_dipslay_screen(sunxi_bmp_store_t bmp_info);
+extern int sunxi_bmp_display_mem(unsigned char *source, sunxi_bmp_store_t *bmp_info);
 
 #endif  /* __SUNXI_BAT_H__ */
 

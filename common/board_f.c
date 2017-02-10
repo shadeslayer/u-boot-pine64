@@ -355,7 +355,12 @@ static int setup_fdt(void)
 #elif defined(CONFIG_SUNXI)
 	if(uboot_spare_head.boot_data.dtb_offset != 0)
 	{
-		gd->fdt_blob = (void*)(ulong)(uboot_spare_head.boot_data.dtb_offset+CONFIG_SYS_TEXT_BASE);
+		void *fdt = NULL;
+		//gd->mon_len > dtb_offset, so bss and fdt will use the same memory, move fdt to other place
+		fdt = (void*)(ulong)(uboot_spare_head.boot_data.dtb_offset+CONFIG_SYS_TEXT_BASE);
+		gd->fdt_blob =(void*)CONFIG_SUNXI_FDT_ADDR;
+		memcpy((void*)gd->fdt_blob,  fdt, fdt_totalsize(fdt));
+
 		//axp will use this fdt file,set address here
 		set_working_fdt_addr((void*)gd->fdt_blob);
 	}
@@ -531,7 +536,7 @@ static int reserve_uboot(void)
 /* reserve memory for malloc() area */
 static int reserve_malloc(void)
 {
-	
+
 	gd->start_addr_sp = gd->start_addr_sp - TOTAL_MALLOC_LEN;
 	debug("Reserving %dk for malloc() at: %08lx\n",
 			TOTAL_MALLOC_LEN >> 10, gd->start_addr_sp);
@@ -588,7 +593,7 @@ static int reserve_sysconfig(void)
 
 	gd->start_addr_sp -= sys_config_size;
 
-	//syscfg addr after reloc 
+	//syscfg addr after reloc
 	gd->script_reloc_buf  = gd->start_addr_sp;
 	gd->script_reloc_size = sys_config_size;  //align size
 	debug("Reserving %ldk for SYS_CONFIG at: %08lx\n", sys_config_size >> 10,gd->relocaddr);
@@ -785,7 +790,7 @@ static int reloc_fdt(void)
 
 static int reloc_sysconfig(void)
 {
-#ifdef CONFIG_RELOCATE_SYSCONIFG	
+#ifdef CONFIG_RELOCATE_SYSCONIFG
 	ulong syscfg_offset = uboot_spare_head.boot_head.uboot_length;
 	ulong syscfg_length = uboot_spare_head.boot_head.length - uboot_spare_head.boot_head.uboot_length;
 	//copy sys_config data to reloc address
@@ -796,7 +801,7 @@ static int reloc_sysconfig(void)
 
 static int setup_reloc(void)
 {
-	//set code relocaddr to start of the code section  
+	//set code relocaddr to start of the code section
 	gd->reloc_off = gd->relocaddr - CONFIG_SYS_TEXT_BASE;
 	memcpy(gd->new_gd, (char *)gd, sizeof(gd_t));
 
@@ -845,6 +850,7 @@ static int mark_bootstage(void)
 	return 0;
 }
 extern s32 sunxi_rsb_init(u32 slave_id);
+extern void i2c_init_cpus(int speed, int slaveaddr);
 
 static int init_func_pmubus(void)
 {
@@ -853,7 +859,11 @@ static int init_func_pmubus(void)
 #if defined(CONFIG_AXP_USE_RSB)
 	ret = sunxi_rsb_init(0);
 #elif defined (CONFIG_AXP_USE_I2C)
-
+	#ifdef CONFIG_CPUS_I2C
+		i2c_init_cpus(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
+	#else
+		i2c_init(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
+	#endif
 #else
 
 #endif
@@ -883,7 +893,6 @@ static init_fnc_t init_sequence_f[] = {
 	probecpu,
 #endif
 	arch_cpu_init,		/* basic arch cpu dependent setup */
-	sunxi_probe_securemode,
 #ifdef CONFIG_X86
 	cpu_init_f,		/* TODO(sjg@chromium.org): remove */
 # ifdef CONFIG_OF_CONTROL
@@ -942,6 +951,7 @@ static init_fnc_t init_sequence_f[] = {
 	get_debugmode_flag,
 	display_options,	/* say that we are here */
 	display_text_info,	/* show debugging info if required */
+	sunxi_probe_securemode,
 #if defined(CONFIG_MPC8260)
 	prt_8260_rsr,
 	prt_8260_clks,

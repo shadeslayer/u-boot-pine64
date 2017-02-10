@@ -21,6 +21,8 @@
 #include <asm/cache.h>
 #include <asm/armv7.h>
 #include <linux/compiler.h>
+#include <asm/io.h>
+#include <asm/arch/timer.h>
 
 void __weak cpu_cache_initialization(void){}
 
@@ -65,6 +67,29 @@ int cleanup_before_linux(void)
 	 * Some CPU need more cache attention before starting the kernel.
 	 */
 	cpu_cache_initialization();
+
+	return 0;
+}
+
+void disable_smp(void);
+
+int cleanup_before_powerdown(void)
+{
+	uint32_t reg;
+	/*
+	 * Turn off I-cache and invalidate it
+	 */
+	icache_disable();
+	invalidate_icache_all();
+
+	reg = get_cr();
+	__msdelay(10);
+	set_cr(reg & ~CR_C);
+
+	__msdelay(10);
+	flush_dcache_all();
+
+	__asm volatile("clrex");
 
 	return 0;
 }

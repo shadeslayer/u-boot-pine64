@@ -54,10 +54,10 @@ int get_serial_num_from_chipid(char* serial)
 	u32 sunxi_soc_chipid[4];
 	u32 sunxi_serial[3];
 
-	sunxi_soc_chipid[0] = arm_svc_read_sec_reg(SUNXI_SID_BASE + 0x200);
-	sunxi_soc_chipid[1] = arm_svc_read_sec_reg(SUNXI_SID_BASE + 0x200 + 0x4);
-	sunxi_soc_chipid[2] = arm_svc_read_sec_reg(SUNXI_SID_BASE + 0x200 + 0x8);
-	sunxi_soc_chipid[3] = arm_svc_read_sec_reg(SUNXI_SID_BASE + 0x200 + 0xc);
+	sunxi_soc_chipid[0] = smc_readl(SUNXI_SID_BASE + 0x200);
+	sunxi_soc_chipid[1] = smc_readl(SUNXI_SID_BASE + 0x200 + 0x4);
+	sunxi_soc_chipid[2] = smc_readl(SUNXI_SID_BASE + 0x200 + 0x8);
+	sunxi_soc_chipid[3] = smc_readl(SUNXI_SID_BASE + 0x200 + 0xc);
 
 	sunxi_serial[0] = sunxi_soc_chipid[3];
 	sunxi_serial[1] = sunxi_soc_chipid[2];

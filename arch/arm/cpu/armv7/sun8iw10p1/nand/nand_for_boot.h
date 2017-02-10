@@ -32,7 +32,7 @@
 #define __BSP_FOR_BOOT1_H__
 
 
-
+#include <asm/arch/nand_bsp.h>
 
 
 #define SUCCESS	0
@@ -198,6 +198,21 @@ extern int mbr2disks(struct nand_disk* disk_array);
 */
 extern __s32 NAND_SetDrqCbMethod(__u32 used);
 
+
+extern __s32 NFB_PhyInit(void);
+extern __s32 NFB_PhyExit(void);
+extern __s32 NFB_PhyRead (struct boot_physical_param *readop);
+extern __s32 NFB_GetFlashInfo(boot_flash_info_t *param);
+
+extern __u32 g_mod( __u32 dividend, __u32 divisor, __u32 *quot_p );
+extern __u8  *get_page_buf( void );
+extern int BOOT_NandGetPara(void *param, uint size);
+
+extern __u32 NAND_Getlsbpage_type(void);
+
+extern int verify_addsum( void *mem_base, __u32 size );
+
+extern __u32 NAND_GetLsbblksize(void);
 
 #endif  //ifndef __NAND_LOGIC_H__
 

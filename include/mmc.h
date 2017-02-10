@@ -33,6 +33,7 @@
 #define MMC_VERSION_4_5		(MMC_VERSION_MMC | 0x405)
 #define MMC_VERSION_5_0		(MMC_VERSION_MMC | 0x500)
 #define MMC_VERSION_5_1		(MMC_VERSION_MMC | 0x501)
+#define MMC_VERSION_NEW_VER 	(MMC_VERSION_MMC | 0xFFF)
 
 #define MMC_MODE_HS		    (1 << 0) /* can run at 26MHz -- DS26_SDR12*/
 #define MMC_MODE_HS_52MHz	(1 << 1) /* can run at 52MHz with SDR mode -- HSSDR52_SDR25 */
@@ -544,7 +545,8 @@ struct mmc_platform_caps {
 	u8 tm4_tune_r_cycle;
 	u8 tm4_tune_hs200_max_freq;
 	u8 tm4_tune_hs400_max_freq;
-	u8 res[2];
+	u8 tune_limit_kernel_timing;
+	u8 res[1];
 
 	/* bit31: valid; bit23~16: speed mode; bit15~8: freq id; bit7:0 freq value */
 #define MAX_EXT_FREQ_POINT_NUM (4)
@@ -822,7 +824,10 @@ int mmc_send_manual_stop(struct mmc *mmc);
 int sunxi_need_rty(struct mmc *mmc);
 int sunxi_write_tuning(struct mmc *mmc);
 int sunxi_bus_tuning(struct mmc *mmc);
+unsigned int sunxi_select_freq(struct mmc *mmc, int speed_md, int freq_index);
 int sunxi_switch_to_best_bus(struct mmc *mmc);
+int sunxi_mmc_tuning_init(void);
+int sunxi_mmc_tuning_exit(void);
 int mmc_init_product(struct mmc *mmc);
 int mmc_exit(void);
 

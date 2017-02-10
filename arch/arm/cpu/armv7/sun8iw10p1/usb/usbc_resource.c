@@ -145,7 +145,8 @@ int usb_probe_vbus_type(void)
 	reg_val |= (1 << 16) | (1 << 17);
 	writel(reg_val, SUNXI_USBOTG_BASE + USBC_REG_o_ISCR);
 
- 	__msdelay(10);
+	__msdelay(2);
+	//Confirm vbus_pc are online.
 	for(i=0;i<6;i++)
 	{
 		reg_val = readl(SUNXI_USBOTG_BASE + USBC_REG_o_ISCR);
@@ -155,7 +156,7 @@ int usb_probe_vbus_type(void)
  	 	dpdm_det[i] = (dp << 1) | dm;
  	 	dpdm_ret += dpdm_det[i];
 
- 	 	__msdelay(10);
+		__msdelay(1);
 	}
 	writel(base_reg_val, SUNXI_USBOTG_BASE + USBC_REG_o_ISCR);
 

@@ -16,7 +16,7 @@
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 65535
 #endif
 
-extern const boot0_file_head_t BT0_head;
+extern int mmc_config_addr; /*extern const boot0_file_head_t BT0_head;*/
 static struct mmc* mmc_devices[MAX_MMC_NUM];
 
 int mmc_send_cmd(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
@@ -569,6 +569,9 @@ int mmc_send_ext_csd(struct mmc *mmc, char *ext_csd)
 
 int mmc_update_phase(struct mmc *mmc)
 {
+	if(mmc->update_phase == NULL)
+		return 0;
+	
 	return mmc->update_phase(mmc);
 }
 
@@ -621,7 +624,6 @@ int mmc_change_freq(struct mmc *mmc)
 		return 0;
 
 	mmc->card_caps |= MMC_MODE_4BIT|MMC_MODE_8BIT;
-
 	err = mmc_send_ext_csd(mmc, ext_csd);
 
 	if (err){
@@ -1038,7 +1040,6 @@ int mmc_startup(struct mmc *mmc)
 	if (!IS_SD(mmc) && (mmc->version >= MMC_VERSION_4)) {
 		/* check  ext_csd version and capacity */
 		err = mmc_send_ext_csd(mmc, ext_csd);
-
 		if(!err){
 				/* update mmc version */
 			switch (ext_csd[192]) {
@@ -1068,7 +1069,6 @@ int mmc_startup(struct mmc *mmc)
 					break;
 			}
 		}
-
 
 		if (!err & (ext_csd[192] >= 2)) {
 			/*
@@ -1228,7 +1228,6 @@ int mmc_startup(struct mmc *mmc)
 			mmc->tran_speed = 26000000;
 		}
 	}
-
 	mmcdbg("%s: set clock %d\n", __FUNCTION__, mmc->tran_speed);
 	mmc_set_clock(mmc, mmc->tran_speed);
 
@@ -1340,7 +1339,7 @@ int mmc_init(struct mmc *mmc)
 {
 	int err;
 	struct boot_sdmmc_private_info_t *priv_info =
-		(struct boot_sdmmc_private_info_t *)(BT0_head.prvt_head.storage_data+SDMMC_PRIV_INFO_ADDR_OFFSET);
+		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
 
 	if (mmc->has_init){
 		mmcinfo("mmc %d Has init\n",mmc->control_num);
@@ -1437,7 +1436,6 @@ int mmc_init(struct mmc *mmc)
 		}
 	}
 #endif
-
 	err = mmc_startup(mmc);
 	if (err){
 		mmcinfo("***SD/MMC %d init error!!!***\n",mmc->control_num);

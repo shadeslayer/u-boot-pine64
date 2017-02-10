@@ -8,8 +8,13 @@
 #include <asm/io.h>
 #include <asm/arch/uart.h>
 #include <asm/arch/gpio.h>
-#include <asm/arch/cpu.h>
 #include <asm/arch/ccmu.h>
+
+#define thr rbr
+#define dll rbr
+#define dlh ier
+#define iir fcr
+
 
 static serial_hw_t *serial_ctrl_base = NULL;
 /*
@@ -33,17 +38,22 @@ void sunxi_serial_init(int uart_port, void *gpio_cfg, int gpio_max)
 	u32 reg, i;
 	u32 uart_clk;
 
-	if( (uart_port < 0) )
+	if( (uart_port < 0) ||(uart_port > 0) )
 	{
 		return;
 	}
+	//set apb2 source to 24M, which default value is 26M
+	reg = readl(CCMU_APB2_CFG_GREG);
+	reg &= ~(3<<24);
+	reg |=  (2<<24);
+	writel(reg, CCMU_APB2_CFG_GREG);
 	//reset
-	reg = readl(CCMU_APB2_RST_REG);
+	reg = readl(CCMU_BUS_SOFT_RST_REG4);
 	reg &= ~(1<<(CCM_UART_PORT_OFFSET + uart_port));
-	writel(reg, CCMU_APB2_RST_REG);
+	writel(reg, CCMU_BUS_SOFT_RST_REG4);
 	for( i = 0; i < 100; i++ );
 	reg |=  (1<<(CCM_UART_PORT_OFFSET + uart_port));
-	writel(reg, CCMU_APB2_RST_REG);
+	writel(reg, CCMU_BUS_SOFT_RST_REG4);
 	//gate
 	reg = readl(CCMU_BUS_CLK_GATING_REG3);
 	reg &= ~(1<<(CCM_UART_PORT_OFFSET + uart_port));

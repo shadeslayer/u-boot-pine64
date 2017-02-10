@@ -12,7 +12,11 @@
 #include "sunxi_string.h"
 #include "sunxi_serial.h"
 #include <fdt_support.h>
+#include <sys_config_old.h>
 #include <arisc.h>
+#include <sunxi_nand.h>
+#include <mmc.h>
+#include <asm/arch/dram.h>
 
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -27,22 +31,22 @@ void sunxi_update_subsequent_processing(int next_work)
 	printf("next work %d\n", next_work);
 	switch(next_work)
 	{
-		case SUNXI_UPDATE_NEXT_ACTION_REBOOT:	
+		case SUNXI_UPDATE_NEXT_ACTION_REBOOT:
 		case SUNXI_UPDATA_NEXT_ACTION_SPRITE_TEST:
 			printf("SUNXI_UPDATE_NEXT_ACTION_REBOOT\n");
 			sunxi_board_restart(0);
 			break;
-			
-		case SUNXI_UPDATE_NEXT_ACTION_SHUTDOWN:	
+
+		case SUNXI_UPDATE_NEXT_ACTION_SHUTDOWN:
 			printf("SUNXI_UPDATE_NEXT_ACTION_SHUTDOWN\n");
 			sunxi_board_shutdown();
 			break;
-			
+
 		case SUNXI_UPDATE_NEXT_ACTION_REUPDATE:
 			printf("SUNXI_UPDATE_NEXT_ACTION_REUPDATE\n");
-			sunxi_board_run_fel();			
+			sunxi_board_run_fel();
 			break;
-			
+
 		case SUNXI_UPDATE_NEXT_ACTION_BOOT:
 		case SUNXI_UPDATE_NEXT_ACTION_NORMAL:
 		default:
@@ -149,62 +153,43 @@ void sunxi_fastboot_init(void)
 */
 static int detect_other_boot_mode(void)
 {
- 	int ret1, ret2;
-	uint32_t key_high, key_low;
+	int ret1, ret2;
+	int key_high, key_low;
 	int keyvalue;
-	int nodeoffset;
 
 	keyvalue = gd->key_pressd_value;
 	printf("key %d\n", keyvalue);
-	
-	//check recovery key
-	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_RECOVERY_KEY);
-	if(nodeoffset >= 0)
-	{
-		ret1 = fdt_getprop_u32(working_fdt, nodeoffset, "key_max", &key_high);
-		ret2 = fdt_getprop_u32(working_fdt, nodeoffset, "key_min", &key_low);
-		if((ret1<0) || (ret2<0))
-		{
-			printf("recovery key:cant find key_max or key_min\n");
-		}
-		else
-		{
-			printf("recovery key high %d, low %d\n", key_high, key_low);
-			if((keyvalue >= key_low) && (keyvalue <= key_high))
-			{
-				printf("key found, android recovery\n");
-				return ANDROID_RECOVERY_MODE;
-			}
-		}
-	}
-	else
-	{
-		printf("cant find recovery value\n");
-	}
 
-	//check fast boot key
-	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_FASTBOOT_KEY);
-	if(nodeoffset >= 0)
+	ret1 = script_parser_fetch("recovery_key", "key_max", &key_high, 1);
+	ret2 = script_parser_fetch("recovery_key", "key_min", &key_low,  1);
+	if((ret1) || (ret2))
 	{
-		ret1 = fdt_getprop_u32(working_fdt, nodeoffset, "key_max", &key_high);
-		ret2 = fdt_getprop_u32(working_fdt, nodeoffset, "key_min", &key_low);
-		if((ret1<0) || (ret2<0))
-		{
-			printf("fastboot key:cant find key_max or key_min\n");
-		}
-		else
-		{
-			printf("fastboot key high %d, low %d\n", key_high, key_low);
-			if((keyvalue >= key_low) && (keyvalue <= key_high))
-			{
-				printf("key found, android fastboot\n");
-				return ANDROID_FASTBOOT_MODE;
-			}
-		}
+		printf("cant find rcvy value\n");
 	}
 	else
 	{
-		printf("cant find fastboot value\n");
+		printf("recovery key high %d, low %d\n", key_high, key_low);
+		if((keyvalue >= key_low) && (keyvalue <= key_high))
+		{
+			printf("key found, android recovery\n");
+
+			return ANDROID_RECOVERY_MODE;
+		}
+	}
+	ret1 = script_parser_fetch("fastboot_key", "key_max", &key_high, 1);
+	ret2 = script_parser_fetch("fastboot_key", "key_min", &key_low, 1);
+	if((ret1) || (ret2))
+	{
+		printf("cant find fstbt value\n");
+	}
+	else
+	{
+		printf("fastboot key high %d, low %d\n", key_high, key_low);
+		if((keyvalue >= key_low) && (keyvalue <= key_high))
+		{
+			printf("key found, android fastboot\n");
+			return ANDROID_FASTBOOT_MODE;
+		}
 	}
 
 	return ANDROID_NULL_MODE;
@@ -226,23 +211,29 @@ int update_bootcmd(void)
 		sprintf(delaytime, "%d", 3);
 		setenv("bootdelay", delaytime);
 	}
-	
+
 	memset(boot_commond, 0x0, 128);
 	strcpy(boot_commond, getenv("bootcmd"));
 	printf("base bootcmd=%s\n", boot_commond);
-	
-	if((uboot_spare_head.boot_data.storage_type == 1) || (uboot_spare_head.boot_data.storage_type == 2))
+
+	if((uboot_spare_head.boot_data.storage_type == STORAGE_SD) ||
+		(uboot_spare_head.boot_data.storage_type == STORAGE_EMMC)||
+		uboot_spare_head.boot_data.storage_type == STORAGE_EMMC3)
 	{
 		sunxi_str_replace(boot_commond, "setargs_nand", "setargs_mmc");
 		printf("bootcmd set setargs_mmc\n");
 	}
-	else
+	else if(uboot_spare_head.boot_data.storage_type == STORAGE_NOR)
+	{
+		sunxi_str_replace(boot_commond, "setargs_nand", "setargs_nor");
+	}
+	else if(uboot_spare_head.boot_data.storage_type == STORAGE_NAND)
 	{
 		printf("bootcmd set setargs_nand\n");
 	}
-	
+
 	//user enter debug mode by plug usb up to 3 times
-	if(debug_mode_get()) 
+	if(debug_mode_get())
 	{
 		//if enter debug mode,set loglevel = 8
 		debug_mode_update_info();
@@ -252,7 +243,7 @@ int update_bootcmd(void)
 	misc_message = (struct bootloader_message *)misc_args;
 	memset(misc_args, 0x0, 2048);
 	memset(misc_fill, 0xff, 2048);
-	
+
 	mode = detect_other_boot_mode();
 	switch(mode)
 	{
@@ -293,7 +284,7 @@ int update_bootcmd(void)
 			}
 			break;
 	}
-	
+
 	if(!strcmp(misc_message->command, "efex"))
 	{
 		/* there is a recovery command */
@@ -346,81 +337,136 @@ int update_bootcmd(void)
 	}
 	else
 	{
-		
+
 	}
-	
+
 	setenv("bootcmd", boot_commond);
 	printf("to be run cmd=%s\n", boot_commond);
 
 	return 0;
 }
 
+
+int disable_node(char* name)
+{
+
+	int nodeoffset = 0;
+	int ret = 0;
+
+	if(strcmp(name,"mmc3") == 0)
+	{
+#ifndef CONFIG_MMC3_SUPPORT
+		return 0;
+#endif
+	}
+	nodeoffset = fdt_path_offset(working_fdt, name);
+	ret = fdt_set_node_status(working_fdt,nodeoffset,FDT_STATUS_DISABLED,0);
+	if(ret < 0)
+	{
+		printf("disable nand error: %s\n", fdt_strerror(ret));
+	}
+	return ret;
+}
+
+int  dragonboard_handler(void* dtb_base)
+{
+#ifdef CONFIG_SUNXI_DRAGONBOARD_SUPPORT
+	int card_num = 0;
+
+	printf("%s call\n",__func__);
+	if(!nand_uboot_probe())  //nand_uboot_init(1)
+	{
+		printf("try nand successed \n");
+		disable_node("mmc2");
+		disable_node("mmc3");
+	}
+	else
+	{
+		struct mmc *mmc_tmp = NULL;
+#ifdef CONFIG_MMC3_SUPPORT
+		card_num = 3;
+#else
+		card_num = 2;
+#endif
+		printf("try to find card%d \n", card_num);
+		board_mmc_set_num(card_num);
+		board_mmc_pre_init(card_num);
+		mmc_tmp = find_mmc_device(card_num);
+		if(!mmc_tmp)
+		{
+			return -1;
+		}
+		if (0 == mmc_init(mmc_tmp))
+		{
+			printf("try mmc successed \n");
+			disable_node("nand0");
+			if(card_num == 2)
+				disable_node("mmc3");
+			else if(card_num == 3)
+				disable_node("mmc2");
+		}
+		else
+		{
+			printf("try card%d successed \n", card_num);
+		}
+		mmc_exit();
+	}
+#endif
+	return 0;
+
+}
+
+
 int update_fdt_para_for_kernel(void* dtb_base)
 {
 	int ret;
-	
-
 	int nodeoffset = 0;
-	int nodeoffset_emmc = 0;
-	int nodeoffset_nand = 0;
-
 	uint storage_type = 0;
+
+
+	storage_type = uboot_spare_head.boot_data.storage_type;
+
+	//fix nand&sdmmc
+	switch(storage_type)
+	{
+		case STORAGE_NAND:
+			disable_node("mmc2");
+			disable_node("mmc3");
+			break;
+		case STORAGE_EMMC:
+			disable_node("nand0");
+			disable_node("mmc3");
+			break;
+		case STORAGE_EMMC3:
+			disable_node("nand0");
+			disable_node("mmc2");
+			break;
+		case STORAGE_SD:
+		{
+			uint32_t dragonboard_test = 0;
+			ret = script_parser_fetch("target", "dragonboard_test", (int *)&dragonboard_test, 1);
+			if(dragonboard_test == 1)
+			{
+				dragonboard_handler(dtb_base);
+			}
+			else
+			{
+				disable_node("nand0");
+				disable_node("mmc2");
+				disable_node("mmc3");
+			}
+		}
+			break;
+		default:
+			break;
+
+	}
 
 	//fix memory
 	ret = fdt_fixup_memory(dtb_base, gd->bd->bi_dram[0].start ,gd->bd->bi_dram[0].size);
 	if(ret < 0)
 	{
 		return -1;
-	}
-
-
-	storage_type = uboot_spare_head.boot_data.storage_type;
-	nodeoffset_emmc = fdt_path_offset(dtb_base, "mmc2");
-	nodeoffset_nand = fdt_path_offset(dtb_base, "nand0");
-	if(nodeoffset_emmc < 0 || nodeoffset_nand < 0)
-	{
-		printf("emmc or nand path error: %s\n", fdt_strerror(ret));
-		return -1;
-	}
-
-	//fix nand&sdmmc
-	if(storage_type == STORAGE_NAND)
-	{
-		ret = fdt_set_node_status(dtb_base,nodeoffset_emmc,FDT_STATUS_DISABLED,0);
-		if(ret < 0)
-		{
-			printf("disable emmc error: %s\n", fdt_strerror(ret));
-			return -1;
-		}
-	}
-	else if(storage_type == STORAGE_EMMC)
-	{
-		ret = fdt_set_node_status(dtb_base,nodeoffset_nand,FDT_STATUS_DISABLED,0);
-		if(ret < 0)
-		{
-			printf("disable nand error: %s\n", fdt_strerror(ret));
-			return -1;
-		}
-	}
-	else if(storage_type == STORAGE_SD)
-	{
-		uint32_t nand0_dragonboard = 0;
-		ret = fdt_getprop_u32(dtb_base,nodeoffset_nand,"nand0_dragonboard",&nand0_dragonboard);
-		if(ret<0 || nand0_dragonboard != 1)
-		{
-			ret = fdt_set_node_status(dtb_base,nodeoffset_nand,FDT_STATUS_DISABLED,0);
-			if(ret < 0)
-			{
-				printf("diable nand error: %s\n", fdt_strerror(ret));
-				return -1;
-			}
-		}
-		ret = fdt_set_node_status(dtb_base,nodeoffset_emmc,FDT_STATUS_DISABLED,0);
-		if(ret < 0)
-		{
-			printf("diable emmc error: %s\n", fdt_strerror(ret));
-			return -1;
-		}
 	}
 
 	//fix dram para
@@ -472,6 +518,40 @@ int get_boot_storage_type(void)
 	return uboot_spare_head.boot_data.storage_type;
 }
 
+u32 get_boot_dram_para_addr(void)
+{
+	return (u32)uboot_spare_head.boot_data.dram_para;
+}
+
+u32 get_boot_dram_para_size(void)
+{
+	return 32*4;
+}
+
+u32 get_boot_dram_update_flag(void)
+{
+	u32 flag = 0;
+	//boot pass dram para to uboot
+	//dram_tpr13:bit31
+	//0:uboot update boot0  1: not
+	__dram_para_t *pdram = (__dram_para_t *)uboot_spare_head.boot_data.dram_para;
+	flag = (pdram->dram_tpr13>>31)&0x1;
+	return flag == 0 ? 1:0;
+}
+
+void set_boot_dram_update_flag(u32 *dram_para)
+{
+	//dram_tpr13:bit31
+	//0:uboot update boot0  1: not
+	u32 flag = 0;
+	__dram_para_t *pdram = (__dram_para_t *)dram_para;
+	flag = pdram->dram_tpr13;
+	flag |= (1<<31);
+	pdram->dram_tpr13 = flag;
+}
+
+
+
 /*
 ************************************************************************************************************
 *
@@ -491,14 +571,14 @@ int get_boot_storage_type(void)
 int get_debugmode_flag(void)
 {
 	int debug_mode = 0;
-	int nodeoffset;
+
 	if(get_boot_work_mode() != WORK_MODE_BOOT)
 	{
 		gd->debug_mode = 1;
 		return 0;
 	}
-	nodeoffset = fdt_path_offset(working_fdt, FDT_PATH_PLATFORM);
-	if(fdt_getprop_u32(working_fdt,nodeoffset,"debug_mode",(uint32_t*)&debug_mode) > 0)
+
+	 if (!script_parser_fetch("platform", "debug_mode", &debug_mode, 1))
 	{
 		gd->debug_mode = debug_mode;
 	}
@@ -509,6 +589,54 @@ int get_debugmode_flag(void)
 	return 0;
 }
 
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :	update_dram_para_for_ota
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :	after ota, should restore dram para to flash.
+*
+*
+************************************************************************************************************
+*/
+
+
+int update_dram_para_for_ota(void)
+{
+	extern int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
+
+#ifdef CONFIG_ARCH_SUN50IW1P1
+	return 0;
+#endif
+
+#ifdef FPGA_PLATFORM
+	return 0;
+#else
+	int ret = 0;
+	if( (get_boot_work_mode() == WORK_MODE_BOOT) &&
+		(STORAGE_SD != get_boot_storage_type()))
+	{
+		if(get_boot_dram_update_flag())
+		{
+			printf("begin to update boot0 atfer ota\n");
+			ret = sunxi_flash_update_boot0();
+			printf("update boot0 %s\n", ret==0?"success":"fail");
+			//if update fail, should reset the system
+			if(ret)
+			{
+				do_reset(NULL, 0, 0,NULL);
+			}
+		}
+	}
+	return ret;
+#endif
+}
 
 int board_late_init(void)
 {
@@ -516,6 +644,7 @@ int board_late_init(void)
 	if(get_boot_work_mode() == WORK_MODE_BOOT)
 	{
 		sunxi_fastboot_init();
+		update_dram_para_for_ota();
 		update_bootcmd();
 		ret = update_fdt_para_for_kernel(working_fdt);
 #ifdef CONFIG_SUNXI_SERIAL

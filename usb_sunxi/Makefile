@@ -32,10 +32,16 @@ obj-y += efex_queue.o
 obj-$(CONFIG_SUNXI_HDCP_IN_SECURESTORAGE) += key_deal.o
 
 
-obj-$(CONFIG_ARCH_SUN50IW1P1)   += usb_base_sun50iw1p1.o
+obj-$(CONFIG_ARCH_SUN50IW1P1)   += usb_base_platform.o
 obj-$(CONFIG_ARCH_SUN50IW1P1)   += usb_dma_control.o
 
-obj-$(CONFIG_ARCH_SUN8IW10P1)   += usb_base_sun8iw10p1.o
+obj-$(CONFIG_ARCH_SUN50IW2P1)   += usb_base_platform.o
+obj-$(CONFIG_ARCH_SUN50IW2P1)   += usb_dma_control.o
+
+obj-$(CONFIG_ARCH_SUN8IW10P1)   += usb_base_platform.o
 obj-$(CONFIG_ARCH_SUN8IW10P1)   += usb_dma_control.o
+
+obj-$(CONFIG_ARCH_SUN8IW11P1)   += usb_base_platform.o
+obj-$(CONFIG_ARCH_SUN8IW11P1)   += usb_dma_control.o
 
 #########################################################################

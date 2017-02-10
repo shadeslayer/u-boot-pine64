@@ -108,11 +108,18 @@ static s32 copy_to_user(void *src, void* dest, u32 size)
 
 static void drv_lcd_open_callback(void *parg)
 {
-	disp_lcd_flow *flow;
+	disp_lcd_flow *flow = NULL;
 	u32 sel = (u32)parg;
 	s32 i = lcd_flow_cnt[sel]++;
 
 	flow = bsp_disp_lcd_get_open_flow(sel);
+	if (NULL == flow) {
+		printf("%s lcd open flow is NULL! LCD enable fail!\n", __func__);
+		lcd_op_start[sel] = 0;
+		lcd_op_finished[sel] = 1;
+		del_timer(&lcd_timer[sel]);
+		return ;
+	}
 
 	if (i < flow->func_num)
 	{
@@ -277,59 +284,144 @@ s32 drv_disp_init(void)
 	int disp, num_screens;
 	int i;
 	int ret = 0;
+	int counter = 0;
+#if defined(CONFIG_ARCH_SUN50IW2P1)
+	int node_offset = 0;
+#endif
 
 	printf("%s\n", __func__);
 	disp_fdt_init();
-	//for_test
+
 	clk_init();
 	/* check if the resolution of lcd supported */
 	drv_disp_check_spec();
-
-	/* pwm init */
-	pwm_init();
 
 	memset(&g_disp_drv, 0, sizeof(disp_drv_info));
 	para = &g_disp_drv.para;
 
 	/* iomap */
-	para->reg_base[DISP_MOD_DE] = disp_getprop_regbase(FDT_DISP_PATH, "reg", 0);
+	/* de - [device(tcon-top)] - lcd0/1/2.. - dsi */
+	counter = 0;
+	para->reg_base[DISP_MOD_DE] = disp_getprop_regbase(FDT_DISP_PATH, "reg", counter);
 	if (!para->reg_base[DISP_MOD_DE]) {
 		__wrn("unable to map de registers\n");
 		ret = -EINVAL;
 		goto exit;
 	}
+	counter ++;
 
-	para->reg_base[DISP_MOD_LCD0] = disp_getprop_regbase(FDT_DISP_PATH, "reg", 1);
-	if (!para->reg_base[DISP_MOD_LCD0]) {
-		__wrn("unable to map lcd registers\n");
+#if defined(HAVE_DEVICE_COMMON_MODULE)
+	para->reg_base[DISP_MOD_DEVICE] = disp_getprop_regbase(FDT_DISP_PATH, "reg", counter);
+	if (!para->reg_base[DISP_MOD_DEVICE]) {
+		__wrn("unable to map device common module registers\n");
 		ret = -EINVAL;
 		goto exit;
 	}
+	counter ++;
+#endif
+
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		para->reg_base[DISP_MOD_LCD0 + i] = disp_getprop_regbase(FDT_DISP_PATH, "reg", counter);
+		if (!para->reg_base[DISP_MOD_LCD0 + i]) {
+			__wrn("unable to map timing controller %d registers\n", i);
+			ret = -EINVAL;
+			goto exit;
+		}
+		counter ++;
+	}
 
 #if defined(SUPPORT_DSI)
-	para->reg_base[DISP_MOD_DSI0] = disp_getprop_regbase(FDT_DISP_PATH, "reg", 2);
+	para->reg_base[DISP_MOD_DSI0] = disp_getprop_regbase(FDT_DISP_PATH, "reg", counter);
 	if (!para->reg_base[DISP_MOD_DSI0]) {
 		__wrn("unable to map dsi registers\n");
 		ret = -EINVAL;
 		goto exit;
 	}
+	counter ++;
 #endif
 
 	/* parse and map irq */
-	for (i=0; i<DEVICE_NUM; i++) {
-		para->irq_no[DISP_MOD_LCD0 + i] = disp_getprop_irq(FDT_DISP_PATH, "interrupts", i);
+	/* lcd0/1/2.. - dsi */
+	counter = 0;
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		para->irq_no[DISP_MOD_LCD0 + i] = disp_getprop_irq(FDT_DISP_PATH, "interrupts", counter);
 		if (!para->irq_no[DISP_MOD_LCD0 + i]) {
-			__wrn("irq_of_parse_and_map irq %d fail for lcd%d\n", i, i);
+			__wrn("irq_of_parse_and_map irq %d fail for lcd%d\n", counter, i);
 		}
+		counter ++;
 	}
+
 #if defined(SUPPORT_DSI)
-	para->irq_no[DISP_MOD_DSI0] = disp_getprop_irq(FDT_DISP_PATH, "interrupts", i);
+	para->irq_no[DISP_MOD_DSI0] = disp_getprop_irq(FDT_DISP_PATH, "interrupts", counter);
 	if (!para->irq_no[DISP_MOD_DSI0]) {
-		__wrn("irq_of_parse_and_map irq %d fail for dsi\n", i);
+		__wrn("irq_of_parse_and_map irq %d fail for dsi\n", counter);
 	}
+	counter ++;
 #endif
 
+#if defined(CONFIG_ARCH_SUN50IW2P1)
+	node_offset = disp_fdt_nodeoffset("disp");
+	of_periph_clk_config_setup(node_offset);
+
+	/* get clk via device-tree-supported interface */
+	/* de - [device(tcon-top)] - lcd0/1/2.. - lvds - dsi */
+	counter = 0;
+	para->mclk[DISP_MOD_DE] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_DE])) {
+		printf("fail to get clk for de\n");
+	}
+	counter ++;
+
+#if defined(HAVE_DEVICE_COMMON_MODULE)
+	para->mclk[DISP_MOD_DEVICE] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_DEVICE])) {
+		printf("fail to get clk for device common module\n");
+	}
+	counter ++;
+#endif
+
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		para->mclk[DISP_MOD_LCD0 + i] = of_clk_get(node_offset, counter);
+		if (IS_ERR(para->mclk[DISP_MOD_LCD0 + i])) {
+			printf("fail to get clk for timing controller%d\n", i);
+		}
+		counter ++;
+	}
+
+#if defined(SUPPORT_LVDS)
+	para->mclk[DISP_MOD_LVDS] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_LVDS])) {
+		printf("fail to get clk for lvds\n");
+	}
+	counter ++;
+#endif
+
+#if defined(SUPPORT_DSI)
+	para->mclk[DISP_MOD_DSI0] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_DSI0])) {
+		__wrn("fail to get clk for dsi\n");
+	}
+	counter ++;
+#endif
+
+#if defined(SUPPORT_EINK)
+	para->mclk[DISP_MOD_EINK] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_EINK])) {
+		printf("fail to get clk for eink\n");
+	}
+	counter ++;
+
+	para->mclk[DISP_MOD_EDMA] = of_clk_get(node_offset, counter);
+	if (IS_ERR(para->mclk[DISP_MOD_EDMA])) {
+		printf("fail to get clk for edma\n");
+	}
+	counter ++;
+#endif
+
+#else
 	/* get clk for display modes */
+	/* de - [device(tcon-top)] - lcd0/1/2.. - lvds - dsi */
+	counter = 0;
 	para->mclk[DISP_MOD_DE] = clk_get(NULL, "de");
 	if (IS_ERR(para->mclk[DISP_MOD_DE])) {
 		__wrn("fail to get clk for de\n");
@@ -342,6 +434,14 @@ s32 drv_disp_init(void)
 	if (IS_ERR(para->mclk[DISP_MOD_LCD1])) {
 		__wrn("fail to get clk for lcd1\n");
 	}
+	para->mclk[DISP_MOD_LCD2] = clk_get(NULL, "tcon_tv0");
+	if (IS_ERR(para->mclk[DISP_MOD_LCD2])) {
+		__wrn("fail to get clk for lcd1\n");
+	}
+	para->mclk[DISP_MOD_LCD3] = clk_get(NULL, "tcon_tv1");
+	if (IS_ERR(para->mclk[DISP_MOD_LCD3])) {
+		__wrn("fail to get clk for lcd1\n");
+	}
 	para->mclk[DISP_MOD_LVDS] = clk_get(NULL, "lvds");
 	if (IS_ERR(para->mclk[DISP_MOD_LVDS])) {
 		__wrn("fail to get clk for lvds\n");
@@ -350,10 +450,12 @@ s32 drv_disp_init(void)
 	if (IS_ERR(para->mclk[DISP_MOD_DSI0])) {
 		__wrn("fail to get clk for dsi\n");
 	}
+#endif
 
 	/* FIXME: set clk parent for all clk of dipslay modes
 		should remove when clock supoort dts config
 	*/
+#if defined(CONFIG_ARCH_SUN50IW1P1)|| defined(CONFIG_ARCH_SUN8IW11P1)
 	{
 		struct clk* pll;
 
@@ -381,6 +483,66 @@ s32 drv_disp_init(void)
 			printf("clk(pll_video0) get fail\n");
 		clk_put(pll);
 
+		pll = clk_get(NULL, "pll_video1");
+		if (pll) {
+			ret = clk_set_parent(para->mclk[DISP_MOD_LCD2], pll);
+			if (0 != ret) {
+				printf("clk_set parent tcon1 fail\n");
+			}
+			ret = clk_set_parent(para->mclk[DISP_MOD_LCD3], pll);
+			if (0 != ret) {
+				printf("clk_set parent pll_mipi fail\n");
+			}
+		} else
+			printf("clk(pll_video1) get fail\n");
+		clk_put(pll);
+
+
+		pll = clk_get(NULL, "pll_de");
+		if (pll) {
+			ret = clk_set_parent(para->mclk[DISP_MOD_DE], pll);
+			if (0 != ret) {
+				printf("clk_set parent de fail\n");
+			}
+		} else
+			printf("clk(pll_de) get fail\n");
+		clk_put(pll);
+#if defined(CONFIG_ARCH_SUN8IW11P1)
+		struct clk *device;
+
+		pll = clk_get(NULL, "tcon_top");
+		clk_prepare_enable(pll);
+		clk_put(pll);
+
+		device = clk_get(NULL, "tve0");
+		pll = clk_get(NULL, "pll_video0");
+		clk_set_parent(device, pll);
+		printf("device name:%s, par name:%s\n", device->name, device->parent->name);
+		device = clk_get(NULL, "tve1");
+		clk_set_parent(device, pll);
+
+		device = clk_get(NULL, "tve_top");
+		clk_set_parent(device, pll);
+#endif
+	}
+#elif defined(CONFIG_ARCH_SUN8IW10)
+	{
+		struct clk* pll;
+
+		pll = clk_get(NULL, "pll_video0");
+		if (pll) {
+			ret = clk_set_parent(para->mclk[DISP_MOD_LCD0], pll);
+			if (0 != ret) {
+				printf("clk_set parent tcon0 fail\n");
+			}
+		} else
+			printf("clk(pll_video0) get fail\n");
+
+		ret = clk_set_parent(para->mclk[DISP_MOD_LCD1], pll);
+		if (0 != ret) {
+			printf("clk_set parent tcon1 fail\n");
+		}
+
 		pll = clk_get(NULL, "pll_de");
 		if (pll) {
 			ret = clk_set_parent(para->mclk[DISP_MOD_DE], pll);
@@ -391,6 +553,7 @@ s32 drv_disp_init(void)
 			printf("clk(pll_de) get fail\n");
 		clk_put(pll);
 	}
+#endif
 
 	bsp_disp_init(para);
 	num_screens = bsp_disp_feat_get_num_screens();
@@ -734,11 +897,12 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 #if defined (SUPPORT_TV)
 	case DISP_TV_GET_HPD_STATUS:
+
 	if (DISPLAY_NORMAL == suspend_status)
 		ret = bsp_disp_tv_get_hpd_status(ubuffer[0]);
 	else
 		ret = 0;
-	}
+
 	break;
 #endif
 

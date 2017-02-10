@@ -49,8 +49,7 @@ extern int  NAND_Print(const char * str, ...);
 #define FREE(x,size)                    	NAND_Free((x),(size))
 
 //define the message print interface
-extern int printf(const char *fmt, ...);
-#define NAND_Print(fmt, args...) printf(fmt, ##args)
-#define PRINT(fmt, args...)	 printf(fmt, ##args)
+#define PRINT(...)							NAND_Print(__VA_ARGS__)
+
 
 #endif //__NAND_OSAL_H__

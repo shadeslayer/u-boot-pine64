@@ -23,14 +23,14 @@
  */
 #include <common.h>
 #include <malloc.h>
-#include "../nand_interface/nand_bsp.h"
+#include "../../nand_interface/nand_bsp.h"
 
 
 #define  OOB_BUF_SIZE                   64
 #define NAND_BOOT0_BLK_START    0
 #define NAND_BOOT0_BLK_CNT		2
 #define NAND_UBOOT_BLK_START    (NAND_BOOT0_BLK_START+NAND_BOOT0_BLK_CNT)
-#define NAND_UBOOT_BLK_CNT		5
+#define NAND_UBOOT_BLK_CNT		6
 #define NAND_BOOT0_PAGE_CNT_PER_COPY     64
 
 static char nand_para_store[256];
@@ -148,7 +148,7 @@ int NAND_LogicInit(int boot_mode)
 		return -5;
 	}
 
-	if(boot_mode)
+	if(boot_mode == 1)
 	{
 		nftl_num = get_phy_partition_num(nand_info);
 		printf("NB1 : nftl num: %d \n", nftl_num);
@@ -159,7 +159,11 @@ int NAND_LogicInit(int boot_mode)
 		}
 
         nand_partition_num = 0;
-		for(i=0; i<nftl_num-1; i++)
+#if defined(CONFIG_ARCH_HOMELET)
+		for(i=0; i<1; i++)
+#else
+		for(i=0; i<((nftl_num>1)?(nftl_num-1):1); i++)
+#endif
 		{
 		    nand_partition_num++;
 			printf(" init nftl: %d \n", i);
@@ -168,6 +172,7 @@ int NAND_LogicInit(int boot_mode)
 	}
 	else
 	{
+		printf("boot_mode = %d, build all\n", boot_mode);
 		result = nftl_build_all(nand_info);
 		nand_partition_num = get_phy_partition_num(nand_info);
 	}
@@ -366,7 +371,7 @@ int NAND_UbootInit(int boot_mode)
 	//int enable_bad_block_scan_flag = 0;
 	//uint good_block_ratio=0;
 
-	debug("NAND_UbootInit start\n");
+	printf("NAND_UbootInit start\n");
 
 	NAND_set_boot_mode(boot_mode);
     /* logic init */
@@ -380,7 +385,7 @@ int NAND_UbootInit(int boot_mode)
 		}
 	}
 
-	debug("NAND_UbootInit end: 0x%x\n", ret);
+	printf("NAND_UbootInit end: 0x%x\n", ret);
 
 	return ret;
 
@@ -484,6 +489,11 @@ int NAND_BurnBoot0(uint length, void *buffer)
     return nand_write_nboot_data(buffer,length);
 }
 
+int NAND_ReadBoot0(uint length, void *buffer)
+{
+    return nand_read_nboot_data(buffer,length);
+}
+
 
 int NAND_BurnUboot(uint length, void *buffer)
 {
@@ -492,6 +502,7 @@ int NAND_BurnUboot(uint length, void *buffer)
 
 int NAND_GetParam_store(void *buffer, uint length)
 {
+    boot_nand_para_t * t;
 	if(!flash_scaned)
 	{
 		printf("sunxi flash: force flash init to begin hardware scanning\n");
@@ -500,6 +511,10 @@ int NAND_GetParam_store(void *buffer, uint length)
 		printf("sunxi flash: hardware scan finish\n");
 	}
 	memcpy(buffer, nand_para_store, length);
+
+	t = (boot_nand_para_t *)buffer;
+
+	printf("NAND_GetParam_store 0x%x 0x%x 0x%x 0x%x 0x%x\n",t->NandChipId[0],t->NandChipId[1],t->NandChipId[2],t->NandChipId[3],t->NandChipId[4]);
 
 	return 0;
 }

@@ -65,7 +65,7 @@ static void dumpmmcreg(struct sunxi_mmc *reg)
 #endif /* SUNXI_MMCDBG */
 
 
-extern const boot0_file_head_t BT0_head;
+extern int mmc_config_addr; /*extern const boot0_file_head_t BT0_head;*/
 extern int mmc_register(int dev_num, struct mmc *mmc);
 extern int mmc_unregister(int dev_num);
 
@@ -89,7 +89,7 @@ void set_mmc_para(int smc_no, void *addr)
 	memcpy((void *)(uboot_buf->boot_data.sdcard_spare_data), (addr+SDMMC_PRIV_INFO_ADDR_OFFSET), sizeof(struct boot_sdmmc_private_info_t));
 
 	p = (u32 *)(uboot_buf->boot_data.sdcard_spare_data);
-	for (i=0; i<5; i++)
+	for (i=0; i<6; i++)
 		printf("0x%x 0x%x\n", p[i*2 + 0], p[i*2 + 1]);
 
 	return;
@@ -222,7 +222,7 @@ static int mmc_get_timing_cfg_tm4(u32 sdc_no, u32 spd_md_id, u32 freq_id, u8 *od
 {
 	s32 ret = 0;
 	struct boot_sdmmc_private_info_t *priv_info =
-		(struct boot_sdmmc_private_info_t *)(BT0_head.prvt_head.storage_data+SDMMC_PRIV_INFO_ADDR_OFFSET);
+		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
 	struct tune_sdly *tune_sdly = &(priv_info->tune_sdly);
 	u8 boot0_para = priv_info->boot_mmc_cfg.boot0_para;
 	u32 spd_md_sdly = 0;
@@ -592,7 +592,7 @@ static int mmc_config_clock_modex(struct sunxi_mmc_host* mmchost, unsigned clk)
 		writel(0x0, &mmchost->reg->ntsr);
 
 	/* configure clock */
-	if ((mode == SUNXI_MMC_TIMING_MODE_1) || (mmc->speed_mode == HSDDR52_DDR50)) {
+	if ((mode == SUNXI_MMC_TIMING_MODE_1) || (mode == SUNXI_MMC_TIMING_MODE_3)) {
 		if (mmc->speed_mode == HSDDR52_DDR50)
 			mmchost->mod_clk = clk * 4;
 		else
@@ -1172,7 +1172,7 @@ int sunxi_mmc_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_i
 	int ret;
 	u8 sdly=0xff, odly=0xff;
 	struct boot_sdmmc_private_info_t *priv_info =
-		(struct boot_sdmmc_private_info_t *)(BT0_head.prvt_head.storage_data + SDMMC_PRIV_INFO_ADDR_OFFSET);
+		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
 	u8 ext_f_max = priv_info->boot_mmc_cfg.boot_hs_f_max;
 
 	mmcinfo("mmc driver ver %s\n", DRIVER_VER);

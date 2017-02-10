@@ -60,6 +60,7 @@ void arch_lmb_reserve(struct lmb *lmb)
 		    gd->bd->bi_dram[0].start + gd->bd->bi_dram[0].size - sp);
 }
 
+#if 0
 /**
  * announce_and_cleanup() - Print message and prepare for kernel boot
  *
@@ -82,6 +83,9 @@ static void announce_and_cleanup(int fake)
 #endif
 	cleanup_before_linux();
 }
+#else
+extern	void announce_and_cleanup(int fake);
+#endif
 
 static void setup_start_tag (bd_t *bd)
 {

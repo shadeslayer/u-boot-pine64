@@ -36,13 +36,13 @@
 //#include <sunxi_board.h>
 #include <android_image.h>
 #include <fdtdec.h>
-#include <asm/io.h> 
+#include <asm/io.h>
 #include <fdt_support.h>
 #include <image.h>
 #include <sunxi_board.h>
 #include <power/sunxi/pmu.h>
 #include <smc.h>
-
+#include <cputask.h>
 
 #ifndef CFG_ANDROID_IMAGE_PAGE_SIZE
 	#define CFG_ANDROID_IMAGE_PAGE_SIZE 2048
@@ -64,7 +64,7 @@ int do_sunxi_boot_signature(cmd_tbl_t * cmdtp, int flag, int argc, char * const 
 
 //static unsigned char boot_hdr[512];
 
-typedef void (*Kernel_Entry)(void *fdt_addr);
+typedef void (*Kernel_Entry)(int zero,int machine_id,void *fdt_addr);
 
 
 void do_nonsec_virt_switch(void)
@@ -90,15 +90,15 @@ void do_nonsec_virt_switch(void)
 }
 
 
-static void announce_and_cleanup(int fake)
+ void announce_and_cleanup(int fake)
 {
-	printf("\nStarting kernel ...%s\n\n", fake ?
-		"(fake run for tracing)" : "");
-
+	printf("prepare for kernel\n");
 	axp_set_next_poweron_status(PMU_PRE_SYS_MODE);
 #ifdef CONFIG_SUNXI_DISPLAY
+#ifndef CONFIG_SUNXI_MULITCORE_BOOT
 	board_display_wait_lcd_open();		//add by jerry
 	board_display_set_exit_mode(1);
+#endif
 #endif
 	sunxi_board_close_source();
 
@@ -113,8 +113,11 @@ static void announce_and_cleanup(int fake)
 	udc_disconnect();
 #endif
 	cleanup_before_linux();
+	tick_printf("\nStarting kernel ...%s\n\n", fake ?
+		"(fake run for tracing)" : "");
 }
 
+/*
 #ifndef CONFIG_ARM64
 
 #define ENTRY_ADDR0_L    (SUNXI_CPUX_CFG_BASE+0xA0)
@@ -125,12 +128,12 @@ void uboot_jmpto_kernel(ulong addr,ulong dtb_base)
 	//set jmp addr
 	writel(addr,ENTRY_ADDR0_L);
 	writel(0,ENTRY_ADDR0_H);
-	
+
 
 	//set dtb ,X0 save the addr of the dtb
-	asm volatile("mov r0,%0\n": :"r"(dtb_base));  
+	asm volatile("mov r0,%0\n": :"r"(dtb_base));
 
-	
+
 	//set cpu to AA64 execution state when the cpu boots into after a warm reset
 	asm volatile("MRC p15,0,r1,c12,c0,2");
 	asm volatile("ORR r1,r1,#(0x3<<0)");
@@ -143,19 +146,34 @@ __LOOP:
 
 }
 #endif
+*/
+enum {
+	ARCH_ARM = 0,
+	ARCH_ARM64,
+};
 
-int do_boota_linux (struct andr_img_hdr *hdr,void * dtb_base)
+uint get_arch_type(struct andr_img_hdr *hdr)
+{
+	if ((hdr->kernel_addr & 0xfffff) == 0x80000)
+		return ARCH_ARM64;
+	else
+		return ARCH_ARM;
+}
+
+int do_boota_linux (void *kernel_addr, void *dtb_base, uint arch_type)
 {
 	int fake = 0;
 	Kernel_Entry kernel_entry = NULL;
 
 
-	kernel_entry = (Kernel_Entry)(ulong)(hdr->kernel_addr);
-	
+	kernel_entry = (Kernel_Entry)(ulong)(kernel_addr);
+
 	debug("## Transferring control to Linux (at address %lx)...\n",
 		(ulong) kernel_entry);
 
-	
+#ifdef CONFIG_SUNXI_MULITCORE_BOOT
+	sunxi_secondary_cpu_poweroff();
+#endif
 	//while(*(uint*)(0x4a000000) != 9);
 #ifdef CONFIG_ARM64
 	do_nonsec_virt_switch();
@@ -164,13 +182,9 @@ int do_boota_linux (struct andr_img_hdr *hdr,void * dtb_base)
 #else
 	announce_and_cleanup(fake);
 	if(sunxi_probe_secure_monitor())
-	{
-		arm_svc_run_os((ulong)hdr->kernel_addr, (ulong)dtb_base,  0);
-	}
+		arm_svc_run_os((ulong)kernel_addr, (ulong)dtb_base,  arch_type);
 	else
-	{
-		uboot_jmpto_kernel((ulong)hdr->kernel_addr, (ulong)dtb_base);
-	}
+		kernel_entry(0,0xffffffff,dtb_base);
 #endif
 	return 0;
 }
@@ -196,13 +210,22 @@ void update_bootargs(void)
 	char *str;
 	char cmdline[1024] = {0};
 	char tmpbuf[128] = {0};
+	char *verifiedbootstate_info = getenv("verifiedbootstate");
+	char *rotpk_info = getenv("sunxi_rotpk");
+    __u32 lcd_x = 0;
+	__u32 lcd_y = 0;
+    int node;
 	str = getenv("bootargs");
 
 	strcpy(cmdline,str);
 	//charge type
 	if(gd->chargemode)
 	{
-		strcat(cmdline," androidboot.mode=charger");
+		if((0==strcmp(getenv("bootcmd"),"run setargs_mmc boot_normal"))||(0==strcmp(getenv("bootcmd"),"run setargs_nand boot_normal")))
+		{
+			printf("only in boot normal mode, pass charger para to kernel\n");
+			strcat(cmdline," androidboot.mode=charger");
+		}
 	}
 	//serial info
 	str = getenv("sunxi_serial");
@@ -211,6 +234,40 @@ void update_bootargs(void)
 	//harware info
 	sprintf(tmpbuf," androidboot.hardware=%s",board_hardware_info());
 	strcat(cmdline,tmpbuf);
+	//boot_type
+	sprintf(tmpbuf, " boot_type=%d", uboot_spare_head.boot_data.storage_type);
+	strcat(cmdline,tmpbuf);
+
+    if(gd->securemode)
+    {
+        //verified boot state info
+        sprintf(tmpbuf," androidboot.verifiedbootstate=%s",verifiedbootstate_info);
+        strcat(cmdline,tmpbuf);
+        //rotpk  info
+        sprintf(tmpbuf," androidboot.sunxi_rotpk=%s",rotpk_info);
+        strcat(cmdline,tmpbuf);
+    }
+
+    node = fdt_path_offset(working_fdt,"lcd0");
+	if (node >= 0) {
+	    if (fdt_getprop_u32(working_fdt, node, "lcd_x", (uint32_t*)&lcd_x) < 0) {
+		    printf("fetch script data lcd0.lcd_x fail\n");
+	    } else{
+		    printf("lcd0.lcd_x=%d\n", lcd_x);
+            //lcd0.lcd_x
+	        sprintf(tmpbuf, " androidboot.lcd_x=%d", lcd_x);
+	        strcat(cmdline,tmpbuf);
+	    }
+        if (fdt_getprop_u32(working_fdt, node, "lcd_y", (uint32_t*)&lcd_y) < 0) {
+		    printf("fetch script data lcd0.lcd_y fail\n");
+	    } else{
+		    printf("lcd0.lcd_y=%d\n", lcd_y);
+            //lcd0.lcd_y
+	        sprintf(tmpbuf, " androidboot.lcd_y=%d", lcd_y);
+	        strcat(cmdline,tmpbuf);
+	    }
+	}else
+	    printf("fetch script data lcd0 fail\n");
 
 	setenv("bootargs", cmdline);
 }
@@ -218,10 +275,13 @@ int do_boota (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
 
 	ulong os_load_addr;
-	ulong os_data,os_len;
+	ulong os_data = 0,os_len = 0;
 	ulong rd_data,rd_len;
+	uint arch_type = 0;
+	void *kernel_addr = NULL;
 	struct  andr_img_hdr *fb_hdr = NULL;
 	void *dtb_base = (void*)CONFIG_SUNXI_FDT_ADDR;
+	char efuse_hash[32] , all_zero[32];
 
 	if (argc < 2)
 		return cmd_usage(cmdtp);
@@ -236,25 +296,70 @@ int do_boota (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	}
 	android_image_get_kernel(fb_hdr,0,&os_data,&os_len);
 	android_image_get_ramdisk(fb_hdr,&rd_data,&rd_len);
+	arch_type = get_arch_type(fb_hdr);
+	kernel_addr = (void *)fb_hdr->kernel_addr;
+#ifdef CONFIG_SUNXI_SECURE_SYSTEM
+	if(gd->securemode)
+	{
+		ulong total_len = ALIGN(fb_hdr->ramdisk_size, fb_hdr->page_size) + 	\
+		                  ALIGN(fb_hdr->kernel_size, fb_hdr->page_size)  +  \
+		                  fb_hdr->page_size;
 
+		printf("total_len=%d\n", (unsigned int)total_len);
+		//为了签名检查，必须知道当前启动分区的名称
+		int ret = sunxi_verify_signature((void *)os_load_addr, (unsigned int)total_len, argv[2]);
+		setenv("verifiedbootstate", "green");
+		if(ret)
+		{
+			printf("boota: verify the %s failed\n", argv[2]);
+			setenv("verifiedbootstate", "red");
+#ifndef CONFIG_SUNXI_MULITCORE_BOOT
+			printf("start to display warnings.bmp\n");
+			sunxi_bmp_display("warnings.bmp");
+#endif
+		}
+
+		memset(efuse_hash, 0, 32);
+		ret = arm_svc_efuse_read("rotpk", efuse_hash);
+		if(ret)
+		{
+		        printf("read efuse rotpk failed\n");
+		}
+		else
+		{
+		        printf("read efuse rotpk successed\n");
+		        sunxi_dump(efuse_hash, 32);
+		}
+		memset(all_zero, 0, 32);
+		if(memcmp(all_zero, efuse_hash,32 ) ){
+			printf("rotpk has been burn to efuse\n");
+			setenv("sunxi_rotpk", "true");
+		}
+		else{
+			printf("rotpk efuse is empty\n");
+			setenv("sunxi_rotpk", "flase");
+		}
+	}
+#endif
 	memcpy2((void*) (long)fb_hdr->kernel_addr, (const void *)os_data, os_len);
 	memcpy2((void*) (long)fb_hdr->ramdisk_addr, (const void *)rd_data, rd_len);
 
-	debug("moving sysconfig.bin from %lx to: %lx, size 0x%lx\n", 
+#ifdef SYS_CONFIG_MEMBASE
+	debug("moving sysconfig.bin from %lx to: %lx, size 0x%lx\n",
 		(ulong)gd->script_reloc_buf,
 		(ulong)(SYS_CONFIG_MEMBASE),
 		gd->script_reloc_size);
-	debug("moving platform.dtb from %lx to: %lx, size 0x%lx\n", 
-		(ulong)dtb_base,
-		(ulong)(gd->fdt_blob),gd->fdt_size);
-	
-	memcpy((void*)SYS_CONFIG_MEMBASE, (void*)gd->script_reloc_buf,gd->script_reloc_size);
 
+	memcpy((void*)SYS_CONFIG_MEMBASE, (void*)gd->script_reloc_buf,gd->script_reloc_size);
+#endif
 	update_bootargs();
 
 	//update fdt bootargs from env config
 	fdt_chosen(working_fdt);
 	fdt_initrd(working_fdt,(ulong)fb_hdr->ramdisk_addr, (ulong)(fb_hdr->ramdisk_addr+rd_len));
+	debug("moving platform.dtb from %lx to: %lx, size 0x%lx\n",
+		(ulong)dtb_base,
+		(ulong)(gd->fdt_blob),gd->fdt_size);
 	//fdt_blob  save the addree of  working_fdt
 	memcpy((void*)dtb_base, gd->fdt_blob,gd->fdt_size);
 	if(fdt_check_header(dtb_base) !=0 )
@@ -265,7 +370,7 @@ int do_boota (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 	tick_printf("ready to boot\n");
 #if 1
-	do_boota_linux(fb_hdr, dtb_base);
+	do_boota_linux(kernel_addr, dtb_base, arch_type);
 	puts("Boot linux failed, control return to monitor\n");
 #else
 	puts("Boot linux test ok, control return to monitor\n");

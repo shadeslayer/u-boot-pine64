@@ -8,6 +8,7 @@
 #include <power/sunxi/pmu.h>
 #include "debug_mode.h"
 #include <fdt_support.h>
+#include <sys_config_old.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -19,7 +20,7 @@ enum _USER_MODE
 };
 
 
-
+#ifdef CONFIG_SUNXI_KEY_SUPPORT
 #define   KEY_DELAY_MAX          (8)
 #define   KEY_DELAY_EACH_TIME    (40)
 #define   KEY_MAX_COUNT_GO_ON    ((KEY_DELAY_MAX * 1000)/(KEY_DELAY_EACH_TIME))
@@ -33,21 +34,17 @@ static int check_config_fel_key(uint32_t key_value)
 {
 	uint32_t fel_key_max=0, fel_key_min=0;
 	int ret = 0;
-	int nodeoffset;
-	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_FEL_KEY);
-	if(nodeoffset < 0)
-	{
-		printf("fel key not configed\n");
-		return NORMAL_MODE;
-	}
+
 	printf("fel key configed\n");
-	ret = fdt_getprop_u32(working_fdt, nodeoffset,"fel_key_max",&fel_key_max);
+
+	ret = script_parser_fetch("fel_key", "fel_key_max", (int *)&fel_key_max, 1);
 	if(ret < 0)
 	{
 		printf ("%s:get fel_key_max error: %s\n",__func__,fdt_strerror(ret));
 	    	return NORMAL_MODE;
 	}
-	ret = fdt_getprop_u32(working_fdt, nodeoffset,"fel_key_min",&fel_key_min);
+
+	ret = script_parser_fetch("fel_key", "fel_key_min", (int *)&fel_key_max, 1);
 	if(ret < 0)
 	{
 		printf ("%s:get fel_key_min error: %s\n",__func__,fdt_strerror(ret));
@@ -64,6 +61,7 @@ static int check_config_fel_key(uint32_t key_value)
 	return NORMAL_MODE;
 
 }
+
 
 /*
 * fun      :       check_user_mode    
@@ -160,15 +158,19 @@ int check_update_key(void)
 	{
 		return -1;
 	}
-	
 	if(check_user_mode() == FEL_MODE)
 	{
 		return -1;
 	}
-	
+	return 0;
+}
+#else
+int check_update_key(void)
+{
 	return 0;
 }
 
+#endif
 
 /*
  * Read a char from serial when call board_init_f 
@@ -198,8 +200,10 @@ int check_uart_input(void)
 	}
 	else if(c == '3')
 	{
+#ifdef SUNXI_KEY_SUPPORT
 		sunxi_key_init();
 		do_key_test(NULL, 0, 1, NULL);
+#endif
 	}
 	else if(c == 's')		//shell mode
 	{

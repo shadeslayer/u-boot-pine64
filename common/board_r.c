@@ -62,6 +62,7 @@
 #include <sunxi_board.h>
 #include <sys_partition.h>
 #include <sys_config.h>
+#include <sys_config_old.h>
 #include <smc.h>
 #include <securestorage.h>
 #include <arisc.h>
@@ -186,7 +187,7 @@ static int initr_serial(void)
 
 
 
-
+extern int sunxi_widevine_keybox_install(void);
 extern void mem_noncache_malloc_init(uint noncache_start, uint noncache_size);
 static int initr_malloc(void)
 {
@@ -308,7 +309,7 @@ static int initr_sunxi_base(void)
 static int sunxi_burn_key(void)
 {
 
-#ifndef CONFIG_SUNXI_SPINOR_PLATFORM
+#ifdef CONFIG_SUNXI_KEY_BURN
 	sunxi_keydata_burn_by_usb();
 #endif
 	return 0;
@@ -316,6 +317,48 @@ static int sunxi_burn_key(void)
 
 
 #ifdef  CONFIG_SUNXI_DISPLAY
+int display_for_hdcp (void)
+{
+	int hdcpkey_enable=0;
+	int ret = 0;
+	char buffer[4096];
+	int data_len;
+
+	ret = script_parser_fetch("hdmi_para", "hdmi_hdcp_enable", &hdcpkey_enable, 1);
+	if((ret) || (hdcpkey_enable != 1))
+	{
+		board_display_device_open();
+		board_display_layer_request();
+		return 0;
+	}
+
+	memset(buffer, 0, 4096);
+	ret = sunxi_secure_storage_init();
+	if(ret)
+	{
+		printf("sunxi init secure storage failed\n");
+		return -1;
+	}
+
+	ret = sunxi_secure_storage_read("hdcpkey", buffer, 4096, &data_len);
+	if(ret)
+	{
+		printf("probe hdcp key failed\n");
+		return -1;
+	}
+
+	ret = smc_aes_bssk_decrypt_to_keysram(buffer, data_len);
+	if(ret)
+	{
+		printf("push hdcp key failed\n");
+		return -1;
+	}
+
+	board_display_device_open();
+	board_display_layer_request();
+	return 0;
+}
+
 static int initr_sunxi_display(void)
 {
 
@@ -330,54 +373,17 @@ static int initr_sunxi_display(void)
 	drv_disp_init();
 
 #ifdef CONFIG_SUNXI_HDCP_IN_SECURESTORAGE
-{
-	int hdcpkey_enable=0;
-	int ret = 0;
-	ret = script_parser_fetch("hdmi_para", "hdmi_hdcp_enable", &hdcpkey_enable, 1);
-	if((ret) || (hdcpkey_enable != 1))
-	{
+	display_for_hdcp();
+#else
+
+	#ifndef CONFIG_BOOT_GUI
 		board_display_device_open();
 		board_display_layer_request();
-	}
-	//here: write key to hardware
-	if(hdcpkey_enable==1)
-	{
-		char buffer[4096];
-		int data_len;
-		int ret0;
+	#else
+		disp_devices_open();
+		fb_init();
+	#endif
 
-		memset(buffer, 0, 4096);
-		ret0 = sunxi_secure_storage_init();
-		if(ret0)
-		{
-			printf("sunxi init secure storage failed\n");
-		}
-		else
-		{
-			ret0 = sunxi_secure_storage_read("hdcpkey", buffer, 4096, &data_len);
-			if(ret0)
-			{
-				printf("probe hdcp key failed\n");
-			}
-			else
-			{
-				ret0 = smc_aes_bssk_decrypt_to_keysram(buffer, data_len);
-				if(ret0)
-				{
-					printf("push hdcp key failed\n");
-				}
-				else
-				{
-					board_display_device_open();
-					board_display_layer_request();
-				}
-			}
-		}
-	}
-}
-#else
-	board_display_device_open();
-	board_display_layer_request();
 #endif
 	tick_printf("end\n");
 	return 0;
@@ -397,6 +403,30 @@ static int initr_sunxi_flash(void)
 #endif
 	return ret;
 
+}
+static int platform_dma_init(void)
+{
+#ifdef CONFIG_SUNXI_DMA
+	extern void sunxi_dma_init(void);
+	sunxi_dma_init();
+#endif
+	return 0;
+}
+static int usb_net_init(void)
+{
+#if defined(CONFIG_CMD_NET)
+	puts("Net:   ");
+	eth_initialize(gd->bd);
+#if defined(CONFIG_RESET_PHY_R)
+	debug("Reset Ethernet PHY\n");
+	reset_phy();
+#endif
+#endif
+	return 0;
+}
+__weak int show_platform_info(void)
+{
+	return 0;
 }
 
 /*
@@ -425,6 +455,7 @@ init_fnc_t init_sequence_r[] = {
 	initr_reloc_global_data,
 	initr_serial,
 	initr_announce,
+	show_platform_info,
 	initr_malloc,
 	script_init,
 	bootstage_relocate,
@@ -438,6 +469,7 @@ init_fnc_t init_sequence_r[] = {
 	initr_enable_interrupts,
 #endif
 #ifdef CONFIG_SUNXI
+	platform_dma_init,
 	//sunxi_arisc_probe,   //call this func here for optimize boot time
 	#ifdef  CONFIG_SUNXI_DISPLAY
 	initr_sunxi_display,
@@ -446,9 +478,13 @@ init_fnc_t init_sequence_r[] = {
 	sunxi_burn_key,
 	initr_env,
 	initr_sunxi_base,
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
+	sunxi_widevine_keybox_install,
+#endif
 	//sunxi_arisc_wait_ready,  // must call this func here,because will call power_check later.
 	PowerCheck,
 #endif
+	usb_net_init,
 	run_main_loop,
 };
 

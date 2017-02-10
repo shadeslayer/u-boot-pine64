@@ -1,5 +1,6 @@
 #include "disp_capture.h"
 
+#if defined(SUPPORT_WB)
 struct disp_capture_info_list
 {
 	struct disp_capture_info info;
@@ -468,4 +469,16 @@ s32 disp_init_capture(disp_bsp_init_para *para)
 	}
 	return 0;
 }
+
+#else
+struct disp_capture* disp_get_capture(u32 disp)
+{
+	return NULL;
+}
+
+s32 disp_init_capture(disp_bsp_init_para *para)
+{
+	return 0;
+}
+#endif
 

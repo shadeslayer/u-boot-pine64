@@ -28,27 +28,32 @@
 #include <power/sunxi/power.h>
 #include <power/sunxi/pmu.h>
 #include <sys_config.h>
+#include <sys_config_old.h>
 #include <power/sunxi/axp.h>
 #include <fdt_support.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
-sunxi_axp_dev_t  *sunxi_axp_dev[SUNXI_AXP_DEV_MAX] = {(void *)(-1)};
 extern int platform_axp_probe(sunxi_axp_dev_t* sunxi_axp_dev[], int max_dev);
-static int pmu_nodeoffset = 0;
+
+ __attribute__((section(".data")))
+static sunxi_axp_dev_t  *sunxi_axp_dev[SUNXI_AXP_DEV_MAX]  = {NULL};
+
+__attribute__((section(".data")))
+static int pmu_nodeoffset_in_config = 0;
 
 /*
 ************************************************************************************************************
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -58,15 +63,16 @@ int axp_probe(void)
 	int axp_num = 0;
 	memset(sunxi_axp_dev, 0, SUNXI_AXP_DEV_MAX * 4);
 
-	pmu_nodeoffset = fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
-	if(pmu_nodeoffset < 0)
+	//pmu_nodeoffset = fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
+	pmu_nodeoffset_in_config = script_parser_offset(PMU_SCRIPT_NAME);
+	if(pmu_nodeoffset_in_config < 0)
 	{
 		printf("axp: get node[%s] error\n",PMU_SCRIPT_NAME);
-		return 0;
 	}
-	axp_num = platform_axp_probe((sunxi_axp_dev_t* *)&sunxi_axp_dev,SUNXI_AXP_DEV_MAX);
 
-	
+	axp_num = platform_axp_probe((sunxi_axp_dev_t* *)&sunxi_axp_dev,
+		SUNXI_AXP_DEV_MAX);
+
 	return axp_num;
 }
 /*
@@ -91,13 +97,14 @@ int axp_reinit(void)
 
 	for(i=0;i<SUNXI_AXP_DEV_MAX;i++)
 	{
-		if((sunxi_axp_dev[i] != NULL) && (sunxi_axp_dev[i] != (void *)(-1)))
+		if(sunxi_axp_dev[i] != NULL)
 		{
 			sunxi_axp_dev[i] = (sunxi_axp_dev_t *)((ulong)sunxi_axp_dev[i] + gd->reloc_off);
 		}
 	}
-	pmu_nodeoffset = fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
-	if(pmu_nodeoffset < 0)
+	//pmu_nodeoffset = fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
+	pmu_nodeoffset_in_config = script_parser_offset(PMU_SCRIPT_NAME);
+	if(pmu_nodeoffset_in_config < 0)
 	{
 		printf("axp: get node[%s] error\n",PMU_SCRIPT_NAME);
 		return 0;
@@ -110,13 +117,13 @@ int axp_reinit(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -130,13 +137,13 @@ int axp_get_power_vol_level(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -150,13 +157,13 @@ int axp_probe_startup_cause(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£ºaxp_probe_startup_check_factory_mode
+*    å‡½æ•°åç§°ï¼šaxp_probe_startup_check_factory_mode
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £ºÓÃÓÚÑù»ú»Ö¸´³ö³§ÉèÖÃºó£¬µÚÒ»´ÎÆô¶¯ÏµÍ³ÒªÇó£¬ÒªÔÚUSB»ò»ğÅ£´æÔÚÇé¿öÏÂ²ÅÄÜ°´°´¼üÆô¶¯£¬Æô¶¯ºóÇå³ı±êÖ¾
+*    è¯´æ˜    ï¼šç”¨äºæ ·æœºæ¢å¤å‡ºå‚è®¾ç½®åï¼Œç¬¬ä¸€æ¬¡å¯åŠ¨ç³»ç»Ÿè¦æ±‚ï¼Œè¦åœ¨USBæˆ–ç«ç‰›å­˜åœ¨æƒ…å†µä¸‹æ‰èƒ½æŒ‰æŒ‰é”®å¯åŠ¨ï¼Œå¯åŠ¨åæ¸…é™¤æ ‡å¿—
 *
 *
 ************************************************************************************************************
@@ -174,7 +181,7 @@ int axp_probe_factory_mode(void)
 		status = sunxi_axp_dev[0]->probe_power_status();
 		if(status > 0)  //has the dc or vbus
 		{
-			//»ñÈ¡ ¿ª»úÔ­Òò£¬ÊÇ°´¼ü´¥·¢£¬»òÕß²åÈëµçÑ¹´¥·¢
+			//è·å– å¼€æœºåŸå› ï¼Œæ˜¯æŒ‰é”®è§¦å‘ï¼Œæˆ–è€…æ’å…¥ç”µå‹è§¦å‘
 			poweron_reason = sunxi_axp_dev[0]->probe_this_poweron_cause();
 			if(poweron_reason == AXP_POWER_ON_BY_POWER_KEY)
 			{
@@ -206,23 +213,22 @@ int axp_probe_factory_mode(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
 */
-int axp_set_hardware_poweron_vol(void) //ÉèÖÃ¿ª»úÖ®ºó£¬PMUÓ²¼ş¹Ø»úµçÑ¹Îª2.9V
+int axp_set_hardware_poweron_vol(void) //è®¾ç½®å¼€æœºä¹‹åï¼ŒPMUç¡¬ä»¶å…³æœºç”µå‹ä¸º2.9V
 {
 	int vol_value = 0;
 
-	//if(script_parser_fetch(PMU_SCRIPT_NAME, "pmu_pwron_vol", &vol_value, 1))
-	if(fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_pwron_vol", (uint32_t*)&vol_value)<0)
+	if(script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_pwron_vol", (uint32_t*)&vol_value)<0)
 	{
 		puts("set power on vol to default\n");
 	}
@@ -234,23 +240,22 @@ int axp_set_hardware_poweron_vol(void) //ÉèÖÃ¿ª»úÖ®ºó£¬PMUÓ²¼ş¹Ø»úµçÑ¹Îª2.9V
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
 */
-int axp_set_hardware_poweroff_vol(void) //ÉèÖÃ¹Ø»úÖ®ºó£¬PMUÓ²¼şÏÂ´Î¿ª»úµçÑ¹Îª3.3V
+int axp_set_hardware_poweroff_vol(void) //è®¾ç½®å…³æœºä¹‹åï¼ŒPMUç¡¬ä»¶ä¸‹æ¬¡å¼€æœºç”µå‹ä¸º3.3V
 {
 	int vol_value = 0;
 
-	//if(script_parser_fetch(PMU_SCRIPT_NAME, "pmu_pwroff_vol", &vol_value, 1))
-	if(fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_pwroff_vol", (uint32_t*)&vol_value)<0)
+	if(script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_pwroff_vol", (uint32_t*)&vol_value)<0)
 	{
 		puts("set power off vol to default\n");
 	}
@@ -262,13 +267,13 @@ int axp_set_hardware_poweroff_vol(void) //ÉèÖÃ¹Ø»úÖ®ºó£¬PMUÓ²¼şÏÂ´Î¿ª»úµçÑ¹Îª3.3
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -282,13 +287,13 @@ int  axp_set_power_off(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -302,13 +307,13 @@ int axp_set_next_poweron_status(int value)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -322,13 +327,13 @@ int axp_probe_pre_sys_mode(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -343,7 +348,7 @@ int  axp_power_get_dcin_battery_exist(int *dcin_exist, int *battery_exist)
 
 int  axp_probe_battery_exist(void)
 {
-	
+
 	return sunxi_axp_dev[0]->probe_battery_exist();
 }
 
@@ -352,13 +357,13 @@ int  axp_probe_battery_exist(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º						axp_probe_power_source
+*    å‡½æ•°åç§°ï¼š						axp_probe_power_source
 *
-*    ²ÎÊıÁĞ±í£ºvoid
+*    å‚æ•°åˆ—è¡¨ï¼švoid
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -367,24 +372,20 @@ int axp_probe_power_source(void)
 {
 	int status = 0;
 	status = sunxi_axp_dev[0]->probe_power_status();
-	if(status == AXP_VBUS_EXIST)
-		return 1;
-	else if(status == AXP_DCIN_EXIST)
-		return 2;
-	return 0;
+	return status;
 }
 /*
 ************************************************************************************************************
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -398,13 +399,13 @@ int  axp_probe_battery_vol(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -418,13 +419,13 @@ int  axp_probe_rest_battery_capacity(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -438,13 +439,13 @@ int  axp_probe_key(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -458,13 +459,13 @@ int  axp_probe_charge_current(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -478,13 +479,13 @@ int  axp_set_charge_current(int current)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -498,13 +499,13 @@ int  axp_set_charge_control(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -513,7 +514,6 @@ int axp_set_vbus_limit_dc(void)
 {
 	sunxi_axp_dev[0]->set_vbus_vol_limit(gd->limit_vol);
 	sunxi_axp_dev[0]->set_vbus_cur_limit(gd->limit_cur);
-
 	return 0;
 }
 /*
@@ -521,13 +521,13 @@ int axp_set_vbus_limit_dc(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -536,7 +536,6 @@ int axp_set_vbus_limit_pc(void)
 {
 	sunxi_axp_dev[0]->set_vbus_vol_limit(gd->limit_pcvol);
 	sunxi_axp_dev[0]->set_vbus_cur_limit(gd->limit_pccur);
-
 	return 0;
 }
 
@@ -545,48 +544,23 @@ int axp_set_vbus_limit_pc(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
 */
 int axp_set_all_limit(void)
 {
-	int usbvol_limit = 0;
-	int usbcur_limit = 0;
-#if 0
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbvol_limit", &usbvol_limit, 1);
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbcur_limit", &usbcur_limit, 1);
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbvol", (int *)&gd->limit_vol, 1);
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbcur", (int *)&gd->limit_cur, 1);
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbvol_pc", (int *)&gd->limit_pcvol, 1);
-	script_parser_fetch(PMU_SCRIPT_NAME, "pmu_usbcur_pc", (int *)&gd->limit_pccur, 1);
-#endif
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbvol_limit", (uint32_t*)&usbvol_limit);
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbcur_limit", (uint32_t*)&usbcur_limit);
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbvol", (uint32_t*)&gd->limit_vol);
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbcur", (uint32_t*)&gd->limit_cur);
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbvol_pc", (uint32_t*)&gd->limit_pcvol);
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_usbcur_pc", (uint32_t*)&gd->limit_pccur);
-
-	debug("usbvol_limit = %d, limit_vol = %ld\n", usbvol_limit, gd->limit_vol);
-	debug("usbcur_limit = %d, limit_cur = %ld\n", usbcur_limit, gd->limit_cur);
-
-	if(!usbvol_limit)
-	{
-		gd->limit_vol = 0;
-
-	}
-	if(!usbcur_limit)
-	{
-		gd->limit_cur = 0;
-	}
+	script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_ac_vol", (uint32_t*)&gd->limit_vol);
+	script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_ac_cur", (uint32_t*)&gd->limit_cur);
+	script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_usbpc_vol", (uint32_t*)&gd->limit_pcvol);
+	script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_usbpc_cur", (uint32_t*)&gd->limit_pccur);
 
 	axp_set_vbus_limit_pc();
 
@@ -597,13 +571,13 @@ int axp_set_all_limit(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -617,13 +591,13 @@ int axp_set_suspend_chgcur(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -637,13 +611,13 @@ int axp_set_runtime_chgcur(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -653,11 +627,8 @@ int axp_set_charge_vol_limit(void)
 	int ret1;
 	int ret2;
 
-	//ret1 = script_parser_fetch(PMU_SCRIPT_NAME, "pmu_runtime_chgcur", (int *)&gd->pmu_runtime_chgcur, 1);
-	//ret2 = script_parser_fetch(PMU_SCRIPT_NAME, "pmu_suspend_chgcur", (int *)&gd->pmu_suspend_chgcur, 1);
-	ret1 = fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_runtime_chgcur", (uint32_t*)&gd->pmu_runtime_chgcur);
-	ret2 = fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_suspend_chgcur", (uint32_t*)&gd->pmu_suspend_chgcur);
-
+	ret1 = script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_runtime_chgcur", (uint32_t*)&gd->pmu_runtime_chgcur);
+	ret2 = script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_suspend_chgcur", (uint32_t*)&gd->pmu_suspend_chgcur);
 	if(ret1)
 	{
 		gd->pmu_runtime_chgcur = 600;
@@ -679,13 +650,13 @@ int axp_set_charge_vol_limit(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -816,13 +787,13 @@ int axp_set_power_supply_output(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -916,13 +887,13 @@ int axp_slave_set_power_supply_output(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -933,24 +904,22 @@ int axp_probe_power_supply_condition(void)
 	int   ratio;
 	int   safe_vol;
 
-	//
 	dcin_exist = sunxi_axp_dev[0]->probe_power_status();
 	bat_vol = sunxi_axp_dev[0]->probe_battery_vol();
 
 	safe_vol = 0;
-	fdt_getprop_u32(working_fdt,pmu_nodeoffset,"pmu_safe_vol", (uint32_t*)&safe_vol);
+	script_parser_fetch_by_offset(pmu_nodeoffset_in_config,"pmu_safe_vol", (uint32_t*)&safe_vol);
+
 	if(safe_vol < 3000)
 	{
 		safe_vol = 3500;
 	}
 
+	/* Reset coulombmeter will product a bug, which
+	 * recovery percentage of battery power.
+	 */
 	ratio = sunxi_axp_dev[0]->probe_battery_ratio();
-	if(ratio < 1)
-	{
-		sunxi_axp_dev[0]->set_coulombmeter_onoff(0);
-		sunxi_axp_dev[0]->set_coulombmeter_onoff(1);
-	}
-	printf("bat_vol=%d, ratio=%d\n", bat_vol, ratio);
+	//printf("bat_vol=%d, ratio=%d\n", bat_vol, ratio);
 	if(ratio < 1)
 	{
 		if(dcin_exist)
@@ -981,24 +950,24 @@ int axp_probe_power_supply_condition(void)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
 */
-static __u8 power_int_value[8];
+//static __u8 power_int_value[8];
 
 int axp_int_enable(__u8 *value)
 {
-	sunxi_axp_dev[0]->probe_int_enable(power_int_value);
-	sunxi_axp_dev[0]->set_int_enable(value);
-	//´ò¿ªĞ¡cpuµÄÖĞ¶ÏÊ¹ÄÜ
+	//sunxi_axp_dev[0]->probe_int_enable(power_int_value);
+	//sunxi_axp_dev[0]->set_int_enable(value);
+	//æ‰“å¼€å°cpuçš„ä¸­æ–­ä½¿èƒ½
 	//*(volatile unsigned int *)(0x01f00c00 + 0x10) |= 1;
 	//*(volatile unsigned int *)(0x01f00c00 + 0x40) |= 1;
 
@@ -1009,13 +978,13 @@ int axp_int_enable(__u8 *value)
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -1024,20 +993,21 @@ int axp_int_disable(void)
 {
 	//*(volatile unsigned int *)(0x01f00c00 + 0x10) |= 1;
 	//*(volatile unsigned int *)(0x01f00c00 + 0x40) &= ~1;
-	return sunxi_axp_dev[0]->set_int_enable(power_int_value);
+	//return sunxi_axp_dev[0]->set_int_enable(power_int_value);
+	return 0;
 }
 /*
 ************************************************************************************************************
 *
 *                                             function
 *
-*    º¯ÊıÃû³Æ£º
+*    å‡½æ•°åç§°ï¼š
 *
-*    ²ÎÊıÁĞ±í£º
+*    å‚æ•°åˆ—è¡¨ï¼š
 *
-*    ·µ»ØÖµ  £º
+*    è¿”å›å€¼  ï¼š
 *
-*    ËµÃ÷    £º
+*    è¯´æ˜    ï¼š
 *
 *
 ************************************************************************************************************
@@ -1062,15 +1032,15 @@ int axp_int_query(__u8 *addr)
 *
 *    return        :
 *
-*    note          :  Èç¹ûpmu_type = 0, ±íÊ¾²Ù×÷Ö÷PMU
-*                     Èç¹ûºÏ·¨µÄ·ÇÁãÖµ£¬±íÊ¾²Ù×÷Ö¸¶¨pmu
-*                     Èç¹û·Ç·¨Öµ£¬²»Ö´ĞĞÈÎºÎ²Ù×÷
+*    note          :  å¦‚æœpmu_type = 0, è¡¨ç¤ºæ“ä½œä¸»PMU
+*                     å¦‚æœåˆæ³•çš„éé›¶å€¼ï¼Œè¡¨ç¤ºæ“ä½œæŒ‡å®špmu
+*                     å¦‚æœéæ³•å€¼ï¼Œä¸æ‰§è¡Œä»»ä½•æ“ä½œ
 *
 ************************************************************************************************************
 */
 int axp_set_supply_status(int pmu_type, int vol_name, int vol_value, int onoff)
 {
-	//µ÷ÓÃ²»Í¬µÄº¯ÊıÖ¸Õë
+	//è°ƒç”¨ä¸åŒçš„å‡½æ•°æŒ‡é’ˆ
 	return sunxi_axp_dev[pmu_type]->set_supply_status(vol_name, vol_value, onoff);
 }
 /*
@@ -1091,19 +1061,18 @@ int axp_set_supply_status(int pmu_type, int vol_name, int vol_value, int onoff)
 */
 int axp_set_supply_status_byname(char *pmu_type, char *vol_type, int vol_value, int onoff)
 {
-	//µ÷ÓÃ²»Í¬µÄº¯ÊıÖ¸Õë
-	int   i;
+	int axp_index = 0;
 
-	for(i=1;i<SUNXI_AXP_DEV_MAX;i++)
+	if(0 == strcmp(AXP_SLAVE, pmu_type))
 	{
-		if(sunxi_axp_dev[i] != NULL)
-		{
-			if(!strcmp(sunxi_axp_dev[i]->pmu_name, pmu_type))
-			{
-				return sunxi_axp_dev[i]->set_supply_status_byname(vol_type, vol_value, onoff);
-			}
-		}
+		axp_index = AXP_TYPE_SLAVE;
 	}
+	else
+	{
+		axp_index = AXP_TYPE_MAIN;
+	}
+	if(sunxi_axp_dev[axp_index] != NULL)
+		return sunxi_axp_dev[axp_index]->set_supply_status_byname(vol_type, vol_value, onoff);
 
 	return -1;
 }
@@ -1125,7 +1094,7 @@ int axp_set_supply_status_byname(char *pmu_type, char *vol_type, int vol_value, 
 */
 int axp_probe_supply_status(int pmu_type, int vol_name, int vol_value)
 {
-	//µ÷ÓÃ²»Í¬µÄº¯ÊıÖ¸Õë
+	//è°ƒç”¨ä¸åŒçš„å‡½æ•°æŒ‡é’ˆ
 	return sunxi_axp_dev[pmu_type]->probe_supply_status(vol_name, 0, 0);
 }
 /*
@@ -1146,10 +1115,10 @@ int axp_probe_supply_status(int pmu_type, int vol_name, int vol_value)
 */
 int axp_probe_supply_status_byname(char *pmu_type, char *vol_type)
 {
-	//µ÷ÓÃ²»Í¬µÄº¯ÊıÖ¸Õë
+	//è°ƒç”¨ä¸åŒçš„å‡½æ•°æŒ‡é’ˆ
 	int   i;
 
-	for(i=1;i<SUNXI_AXP_DEV_MAX;i++)
+	for(i=0;i<SUNXI_AXP_DEV_MAX;i++)
 	{
 		if(sunxi_axp_dev[i] != NULL)
 		{
@@ -1211,7 +1180,7 @@ int axp_set_supply_status_byregulator(const char* id, int onoff)
 	{
 		nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_REGU);
 	}
-	
+
 	if(nodeoffset < 0)
 	{
 		printf("axp: get node[%s] error\n",FDT_PATH_REGU);
@@ -1297,15 +1266,15 @@ int axp_set_supply_status_byregulator(const char* id, int onoff)
 *
 ************************************************************************************************************
 */
-static int current_pmu = -1;
 int axp_probe_supply_pmu_name(char *axpname)
 {
+	static int current_pmu = -1;
 	int i = 0;
 	if(axpname == NULL)
 	{
 		return -1;
 	}
-	for(i=1;i<SUNXI_AXP_DEV_MAX;i++)
+	for(i=0;i<SUNXI_AXP_DEV_MAX;i++)
 	{
 		if((sunxi_axp_dev[i] != NULL) && (current_pmu < i))
 		{

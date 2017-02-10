@@ -39,7 +39,7 @@
 #define  AXP_POWER_ON_BY_POWER_KEY       0
 #define  AXP_POWER_ON_BY_POWER_TRIGGER   1
 
-#define  SUNXI_AXP_DEV_MAX               (8)
+#define  SUNXI_AXP_DEV_MAX               (2)
 
 
 #define  SUNXI_AXP_NULL                  null
@@ -54,6 +54,15 @@
 #define  RSB_SADDR_AXP809		        (0x3A3)
 #define  RSB_SADDR_AXP806		        (0x745)
 #define  RSB_SADDR_AXP81X		        (0x3A3)
+
+
+#define AXP_SLAVE  ("slave")
+#define AXP_MAIN   ("main")
+
+enum sunxi_axp_type{
+	AXP_TYPE_MAIN = 0,
+	AXP_TYPE_SLAVE,
+};
 
 
 typedef struct
@@ -149,6 +158,23 @@ sunxi_axp_module_ext(SUNXI_AXP_NULL);
 	sunxi_axp_module_ext(SUNXI_AXP_81X);
 #endif
 
+#if defined(CONFIG_SUNXI_AXP22)
+	sunxi_axp_module_ext(SUNXI_AXP_22X);
+#endif
+
+#if defined(CONFIG_SUNXI_AXP20)
+	sunxi_axp_module_ext(SUNXI_AXP_20X);
+#endif
+
+#if defined(CONFIG_SUNXI_AXP15)
+	sunxi_axp_module_ext(SUNXI_AXP_15X);
+#endif
+
+#if defined(CONFIG_SUNXI_AXP806)
+	sunxi_axp_module_ext(SUNXI_AXP_806);
+#endif
+
+
 static inline int axp_i2c_read(unsigned char chip, unsigned char addr, unsigned char *buffer)
 {
 #if defined(CONFIG_AXP_USE_I2C)
@@ -203,6 +229,7 @@ static inline int axp_i2c_config(unsigned int chip, unsigned char slave_id)
     }
 #endif
 #endif
+
     return 0;
 }
 

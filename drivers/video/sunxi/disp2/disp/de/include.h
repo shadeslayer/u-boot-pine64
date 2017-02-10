@@ -43,6 +43,7 @@
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
+#include <linux/compat.h>
 
 #include <video/sunxi_display2.h>
 #include "../disp_sys_intf.h"
@@ -215,7 +216,9 @@ struct disp_manager_info {
 	u32 interlace;
 	bool enable;
 	u32 disp_device;//disp of device
+	u32 hwdev_index;//indicate the index of timing controller
 	bool blank;//true: disable all layer; false: enable layer according to layer_config.enable
+	u32 de_freq;
 };
 
 struct disp_manager_data
@@ -397,8 +400,12 @@ typedef enum
 	LCD_CPU_IF_RGB565_8PIN  = 14,
 }disp_lcd_cpu_if;
 
-typedef enum
-{
+typedef enum {
+	LCD_CPU_AUTO_MODE    = 0,
+	LCD_CPU_TRIGGER_MODE = 1,
+} disp_lcd_cpu_mode;
+
+typedef enum {
 	LCD_TE_DISABLE	= 0,
 	LCD_TE_RISING		= 1,
 	LCD_TE_FALLING  = 2,
@@ -502,6 +509,7 @@ typedef struct
 
 	disp_lcd_cpu_if          lcd_cpu_if;
 	disp_lcd_te              lcd_cpu_te;
+	disp_lcd_cpu_mode        lcd_cpu_mode;
 
 	disp_lcd_dsi_if          lcd_dsi_if;
 	disp_lcd_dsi_lane        lcd_dsi_lane;
@@ -560,16 +568,18 @@ typedef struct
 
 typedef enum
 {
-	DISP_MOD_DE           = 0,
-	DISP_MOD_LCD0         = 1,
-	DISP_MOD_LCD1         = 2,
-	DISP_MOD_LCD2         = 3,
-	DISP_MOD_DSI0         = 4,
-	DISP_MOD_DSI1         = 5,
-	DISP_MOD_DSI2         = 6,
-	DISP_MOD_HDMI         = 7,
-	DISP_MOD_LVDS         = 8,
-	DISP_MOD_NUM          = 9,
+	DISP_MOD_DE = 0,
+	DISP_MOD_DEVICE, //for timing controller common module
+	DISP_MOD_LCD0,
+	DISP_MOD_LCD1,
+	DISP_MOD_LCD2,
+	DISP_MOD_LCD3,
+	DISP_MOD_DSI0,
+	DISP_MOD_DSI1,
+	DISP_MOD_DSI2,
+	DISP_MOD_HDMI,
+	DISP_MOD_LVDS,
+	DISP_MOD_NUM,
 }disp_mod_id;
 
 typedef struct
@@ -653,6 +663,7 @@ struct disp_device {
 	/* data fields */
 	char name[32];
 	u32 disp;
+	u32 hwdev_index;//indicate the index of hw device(timing controller)
 	u32 fix_timing;
 	enum disp_output_type type;
 	struct disp_manager *manager;

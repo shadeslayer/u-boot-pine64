@@ -94,6 +94,8 @@
 #define	DMAC_CFG_SRC_TYPE_OTG_EP4	    		(20)
 #define	DMAC_CFG_SRC_TYPE_OTG_EP5	    		(21)
 
+/* register difine */
+#define DMA_AUTO_GATE_REG       					(SUNXI_DMA_BASE + 0x28)
 
 typedef struct
 {

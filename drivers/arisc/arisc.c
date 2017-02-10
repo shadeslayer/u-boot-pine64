@@ -35,7 +35,7 @@ struct dts_cfg_64 dts_cfg_64 =
 	.dram_para = {0x1,0x1}
 };
 unsigned int arisc_debug_level = 2;
-
+#if 0 //boot load scp,so not need this param
 static int get_image_addr_size(phys_addr_t *image_addr, size_t *image_size)
 {
 	struct spare_boot_head_t *header;
@@ -58,7 +58,7 @@ static int get_image_addr_size(phys_addr_t *image_addr, size_t *image_size)
 
 	return 0;
 }
-
+#endif
 int arisc_dvfs_cfg_vf_table(void)
 {
 	u32    value = 0;
@@ -70,7 +70,9 @@ int arisc_dvfs_cfg_vf_table(void)
 	u32    vf_table_count = 0;
 	u32    vf_table_type = 0;
 
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,dvfs_table");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,dvfs_table");
+	nodeoffset = fdt_path_offset(working_fdt, "/dvfs_table");
+
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,dvfs_table] device node error\n");
 		return -EINVAL;
@@ -78,14 +80,15 @@ int arisc_dvfs_cfg_vf_table(void)
 
 	if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "vf_table_count", &vf_table_count))) {
 		ARISC_LOG("%s: support only one vf_table\n", __func__);
-		sprintf(vf_table_main_key, "%s", "allwinner,dvfs_table");
+		sprintf(vf_table_main_key, "%s", "/dvfs_table");
 	} else {
 		//vf_table_type = sunxi_get_soc_bin();
-		sprintf(vf_table_main_key, "%s%d", "allwinner,vf_table", vf_table_type);
+		sprintf(vf_table_main_key, "%s%d", "/vf_table", vf_table_type);
 	}
 	ARISC_INF("%s: vf table type [%d=%s]\n", __func__, vf_table_type, vf_table_main_key);
 
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, vf_table_main_key);
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, vf_table_main_key);
+	nodeoffset = fdt_path_offset(working_fdt, vf_table_main_key);
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [%s] device node error\n", vf_table_main_key);
 		return -EINVAL;
@@ -116,9 +119,12 @@ static int sunxi_arisc_parse_cfg(void)
 {
 	u32 value[4] = {0, 0, 0};
 	int nodeoffset;
+	uint32_t i;
+	char subkey[64];
 
 	/* parse arisc node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,sunxi-arisc");
+	//fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,sunxi-arisc");
+	nodeoffset = fdt_path_offset(working_fdt,"/soc/arisc");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,sunxi-arisc] device node error\n");
 		return -EINVAL;
@@ -143,7 +149,8 @@ static int sunxi_arisc_parse_cfg(void)
 	ARISC_INF("system_power:0x%x\n", dts_cfg.power.system_power);
 
 	/* parse arisc_space node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,arisc_space");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "/soc/arisc_space");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/arisc_space");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,arisc_space] device node error\n");
 		return -EINVAL;
@@ -195,7 +202,8 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.space.msgpool_dst, (void *)dts_cfg.space.msgpool_offset, dts_cfg.space.msgpool_size);
 
 	/* parse standby_space node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,standby_space");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,standby_space");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/standby_space");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,standby_space] device node error\n");
 		return -EINVAL;
@@ -214,14 +222,16 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.space.standby_dst, (void *)dts_cfg.space.standby_offset, dts_cfg.space.standby_size);
 
 	/* parse image para */
+	#if 0
 	get_image_addr_size(&dts_cfg.image.base, &dts_cfg.image.size);
 	ARISC_INF("image base:0x%p, image size:0x%zx\n", (void *)dts_cfg.image.base, dts_cfg.image.size);
-
+	#endif
 	/* parse dram node */
 	memcpy((void *)&dts_cfg.dram_para, (void *)(uboot_spare_head.boot_data.dram_para), sizeof(dts_cfg.dram_para));
 
 	/* parse prcm node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,prcm");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,prcm");
+	nodeoffset = fdt_path_offset(working_fdt,  "/prcm");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,prcm] device node error\n");
 		return -EINVAL;
@@ -239,7 +249,8 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.prcm.base, dts_cfg.prcm.size);
 
 	/* parse cpuscfg node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,cpuscfg");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,cpuscfg");
+	nodeoffset = fdt_path_offset(working_fdt,  "/cpuscfg");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,cpuscfg] device node error\n");
 		return -EINVAL;
@@ -257,7 +268,8 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.cpuscfg.base, dts_cfg.cpuscfg.size);
 
 	/* parse msgbox node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,msgbox");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,msgbox");
+	nodeoffset = fdt_path_offset(working_fdt,  "/soc/msgbox");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,msgbox] device node error\n");
 		return -EINVAL;
@@ -277,7 +289,8 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.msgbox.base, dts_cfg.msgbox.size, dts_cfg.msgbox.status);
 
 	/* parse hwspinlock node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,sunxi-hwspinlock");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,sunxi-hwspinlock");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/hwspinlock");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,sunxi-hwspinlock] device node error\n");
 		return -EINVAL;
@@ -297,7 +310,8 @@ static int sunxi_arisc_parse_cfg(void)
 		(void *)dts_cfg.hwspinlock.base, dts_cfg.hwspinlock.size, dts_cfg.hwspinlock.status);
 
 	/* parse s_uart node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_uart");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_uart");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/s_uart");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,s_uart] device node error\n");
 		return -EINVAL;
@@ -319,8 +333,31 @@ static int sunxi_arisc_parse_cfg(void)
 	ARISC_INF("s_uart base:0x%p, size:0x%zx, status:%u\n",
 		(void *)dts_cfg.s_uart.base, dts_cfg.s_uart.size, dts_cfg.s_uart.status);
 
+#if defined CONFIG_ARCH_SUN50IW2P1
+	/* parse s_twi node */
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_twi");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/s_twi");
+	if (IS_ERR_VALUE(nodeoffset)) {
+		ARISC_ERR("get [allwinner,s_twi] device node error\n");
+		return -EINVAL;
+	}
+
+	if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "reg", value))) {
+		ARISC_ERR("get s_twi reg error\n");
+		return -EINVAL;
+	}
+
+	dts_cfg.s_twi.base = (phys_addr_t)value[1];
+	dts_cfg.s_twi.size = (size_t)value[3];
+
+	dts_cfg.s_twi.status = fdtdec_get_is_enabled(working_fdt, nodeoffset);
+
+	ARISC_INF("s_twi base:0x%p, size:0x%zx, status:%u\n",
+		(void *)dts_cfg.s_twi.base, dts_cfg.s_twi.size, dts_cfg.s_twi.status);
+#else
 	/* parse s_rsb node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_rsb");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_rsb");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/s_rsb");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,s_rsb] device node error\n");
 		return -EINVAL;
@@ -338,9 +375,10 @@ static int sunxi_arisc_parse_cfg(void)
 
 	ARISC_INF("s_rsb base:0x%p, size:0x%zx, status:%u\n",
 		(void *)dts_cfg.s_rsb.base, dts_cfg.s_rsb.size, dts_cfg.s_rsb.status);
-
+#endif
 	/* parse s_jtag node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_jtag");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_jtag");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/s_jtag0");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,s_jtag] device node error\n");
 		return -EINVAL;
@@ -358,24 +396,41 @@ static int sunxi_arisc_parse_cfg(void)
 
 
 	/* parse s_cir node */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_cir");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,s_cir");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/s_cir");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,s_cir] device node error\n");
 		return -EINVAL;
 	}
-	if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "ir_power_key_code", &dts_cfg.s_cir.power_key_code))) {
-		ARISC_ERR("parse ir_power_key_code fail\n");
-		return -EINVAL;
-	}
-	if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "ir_addr_code", &dts_cfg.s_cir.addr_code))) {
-		ARISC_ERR("parse ir_addr_code fail\n");
-		return -EINVAL;
-	}
-	ARISC_INF("scir ir_power_key_code:0x%x, ir_addr_code:0x%x\n",
-		dts_cfg.s_cir.power_key_code, dts_cfg.s_cir.addr_code);
 
+	if (!IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "ir_power_key_code", &dts_cfg.s_cir.ir_key.ir_code[0].key_code))) {
+		if (!IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "ir_addr_code", &dts_cfg.s_cir.ir_key.ir_code[0].addr_code))) {
+			dts_cfg.s_cir.ir_key.num = 1;
+			goto print_ir_paras;
+		}
+	}
+
+	dts_cfg.s_cir.ir_key.num = 0;
+	for (i = 0; i < IR_NUM_KEY_SUP; i++) {
+		sprintf(subkey, "%s%d", "ir_power_key_code", i);
+		if (!IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, subkey, &dts_cfg.s_cir.ir_key.ir_code[i].key_code))) {
+			sprintf(subkey, "%s%d", "ir_addr_code", i);
+			if (!IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, subkey, &dts_cfg.s_cir.ir_key.ir_code[i].addr_code))) {
+				dts_cfg.s_cir.ir_key.num++;
+			}
+		}
+	}
+
+print_ir_paras:
+	for (i = 0; i < dts_cfg.s_cir.ir_key.num; i++) {
+		ARISC_INF("scir ir_code[%u].key_code:0x%x, ir_code[%u].addr_code:0x%x\n",
+			i, dts_cfg.s_cir.ir_key.ir_code[i].key_code, i, dts_cfg.s_cir.ir_key.ir_code[i].addr_code);
+	}
+
+#ifndef CONFIG_ARCH_SUN50IW2P1
 	/* config pmu config paras */
-	nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,pmu0");
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,pmu0");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/pmu0");
 	if (IS_ERR_VALUE(nodeoffset)) {
 		ARISC_ERR("get [allwinner,pmu0] device node error\n");
 		return -EINVAL;
@@ -398,6 +453,27 @@ static int sunxi_arisc_parse_cfg(void)
 	}
 	ARISC_INF("pmu pmu_bat_shutdown_ltf:0x%x, pmu_bat_shutdown_htf:0x%x, pmu_pwroff_vol:0x%x, power_start:0x%x\n",
 		dts_cfg.pmu.pmu_bat_shutdown_ltf, dts_cfg.pmu.pmu_bat_shutdown_htf, dts_cfg.pmu.pmu_pwroff_vol, dts_cfg.pmu.power_start);
+#endif
+	//dts_cfg.pmu.pmu_bat_shutdown_ltf = 3200;
+	//dts_cfg.pmu.pmu_bat_shutdown_htf = 237;
+	//dts_cfg.pmu.pmu_pwroff_vol = 3300;
+	//dts_cfg.pmu.power_start = 0;
+
+	/* parse box_start_os node */
+	//nodeoffset = fdt_node_offset_by_compatible(working_fdt, -1, "allwinner,box_start_os");
+	nodeoffset = fdt_path_offset(working_fdt, "/soc/box_start_os0");
+	if (!IS_ERR_VALUE(nodeoffset)) {
+		dts_cfg.start_os.used = fdtdec_get_is_enabled(working_fdt, nodeoffset);
+		if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "start_type", &dts_cfg.start_os.start_type))) {
+			ARISC_ERR("parse box_start_os->start_type fail\n");
+		}
+		if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "irkey_used", &dts_cfg.start_os.irkey_used))) {
+			ARISC_ERR("parse box_start_os->irkey_used fail\n");
+		}
+		if (IS_ERR_VALUE(fdt_getprop_u32(working_fdt, nodeoffset, "pmukey_used", &dts_cfg.start_os.pmukey_used))) {
+			ARISC_ERR("parse box_start_os->pmukey_used fail\n");
+		}
+	}
 
 	return 0;
 }
@@ -448,11 +524,17 @@ static void sunxi_arisc_transform_cfg(void)
 	dts_cfg_64.s_uart.irq = dts_cfg.s_uart.irq;
 	dts_cfg_64.s_uart.status = dts_cfg.s_uart.status;
 
+#if defined CONFIG_ARCH_SUN50IW2P1
+	dts_cfg_64.s_twi.base = (u64)dts_cfg.s_twi.base;
+	dts_cfg_64.s_twi.size = (u64)dts_cfg.s_twi.size;
+	dts_cfg_64.s_twi.irq = dts_cfg.s_twi.irq;
+	dts_cfg_64.s_twi.status = dts_cfg.s_twi.status;
+#else
 	dts_cfg_64.s_rsb.base = (u64)dts_cfg.s_rsb.base;
 	dts_cfg_64.s_rsb.size = (u64)dts_cfg.s_rsb.size;
 	dts_cfg_64.s_rsb.irq = dts_cfg.s_rsb.irq;
 	dts_cfg_64.s_rsb.status = dts_cfg.s_rsb.status;
-
+#endif
 	dts_cfg_64.s_jtag.base = (u64)dts_cfg.s_jtag.base;
 	dts_cfg_64.s_jtag.size = (u64)dts_cfg.s_jtag.size;
 	dts_cfg_64.s_jtag.irq = dts_cfg.s_jtag.irq;
@@ -462,16 +544,13 @@ static void sunxi_arisc_transform_cfg(void)
 	dts_cfg_64.s_cir.size = (u64)dts_cfg.s_cir.size;
 	dts_cfg_64.s_cir.irq = dts_cfg.s_cir.irq;
 	dts_cfg_64.s_cir.status = dts_cfg.s_cir.status;
-	dts_cfg_64.s_cir.power_key_code = dts_cfg.s_cir.power_key_code;
-	dts_cfg_64.s_cir.addr_code = dts_cfg.s_cir.addr_code;
+	memcpy(&dts_cfg_64.s_cir.ir_key, &dts_cfg.s_cir.ir_key, sizeof(ir_key_t));
+	memcpy(&dts_cfg_64.start_os, &dts_cfg.start_os, sizeof(box_start_os_cfg_t));
 	memcpy((void *)&dts_cfg_64.pmu, (const void *)&dts_cfg.pmu, sizeof(struct pmu_cfg));
 	memcpy((void *)&dts_cfg_64.power, (const void *)&dts_cfg.power, sizeof(struct power_cfg));
 	flush_dcache_range((unsigned long)&dts_cfg_64, ((unsigned long)&dts_cfg_64 + sizeof(struct dts_cfg_64)));
 
 }
-
-
-
 
 int sunxi_arisc_probe(void)
 {
@@ -488,6 +567,7 @@ int sunxi_arisc_probe(void)
 	 * should transform the dts_cfg to dts_cfg_64.
 	 */
 	sunxi_arisc_transform_cfg();
+	ARISC_LOG("arisc para ok\n");
 
 	if (arm_svc_arisc_startup((ulong)&dts_cfg_64)) {
 		/* arisc initialize failed */
@@ -503,11 +583,15 @@ int sunxi_arisc_probe(void)
 int sunxi_arisc_wait_ready(void)
 {
 	if(get_boot_work_mode()!= WORK_MODE_BOOT)
-        {
-                return 0;
-        }
+		return 0;
+
 	arm_svc_arisc_wait_ready();
 	return 0;
 }
 
+int sunxi_arisc_fake_poweroff(void)
+{
+	arm_svc_arisc_fake_poweroff();
 
+	return 0;
+}

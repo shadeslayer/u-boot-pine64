@@ -241,8 +241,13 @@ static inline int BITRATE(struct usb_gadget *g)
  * used with CDC Ethernet, Linux 2.4 hosts will need updates to choose
  * the non-RNDIS configuration.
  */
+#ifdef CONFIG_ALLWINNER
+#define RNDIS_VENDOR_NUM	0x18d1
+#define RNDIS_PRODUCT_NUM	0x000a
+#else
 #define RNDIS_VENDOR_NUM	0x0525	/* NetChip */
 #define RNDIS_PRODUCT_NUM	0xa4a2	/* Ethernet/RNDIS Gadget */
+#endif
 
 /*
  * Some systems will want different product identifers published in the

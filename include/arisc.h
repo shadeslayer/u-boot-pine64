@@ -14,7 +14,7 @@
 #ifndef	__ARISC_H__
 #define	__ARISC_H__
 
-int  sunxi_arisc_probe(void);
+int sunxi_arisc_probe(void);
 int sunxi_arisc_wait_ready(void);
-
+int sunxi_arisc_fake_poweroff(void);
 #endif /* __ARISC_H__ */

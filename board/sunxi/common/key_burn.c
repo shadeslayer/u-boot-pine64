@@ -27,8 +27,11 @@
 #include <power/sunxi/power.h>
 #include <sys_partition.h>
 #include <sys_config.h>
+#include <sys_config_old.h>
 #include <securestorage.h>
 #include <fdt_support.h>
+#include <smc.h>
+#include <sunxi_board.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -55,24 +58,24 @@ extern int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const 
 int sunxi_keydata_burn_by_usb(void)
 {
 	char buffer[512];
-#ifdef   CONFIG_SUNXI_SECURE_STORAGE
-#ifndef  SUNXI_SECURESTORAGE_TEST_ERASE
-	int  data_len;
-#endif
-#endif
-	int  ret = 0;
-	uint burn_private_start, burn_private_len;
+	__maybe_unused int  data_len;
+	__maybe_unused int  ret = 0;
+	__maybe_unused uint burn_private_start;
+	__maybe_unused uint burn_private_len;
+
 	int workmode = uboot_spare_head.boot_data.work_mode;
-	uint32_t if_need_burn_key=0;
-	int nodeoffset;
+	int if_need_burn_key=0;
+//	int nodeoffset;
 
 	//PMU_SUPPLY_DCDC2 is for cpua
-	nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_TARGET);
-	if(nodeoffset >=0)
-	{
-		//ret = script_parser_fetch("target", "burn_key", &if_need_burn_key, 1);
-		fdt_getprop_u32(working_fdt, nodeoffset, "burn_key", &if_need_burn_key);
-	}
+//	nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_TARGET);
+//	if(nodeoffset >=0)
+//	{
+//		//ret = script_parser_fetch("target", "burn_key", &if_need_burn_key, 1);
+//		fdt_getprop_u32(working_fdt, nodeoffset, "burn_key", &if_need_burn_key);
+//	}
+	ret = script_parser_fetch("target", "burn_key", &if_need_burn_key, 1);
+
 	if(if_need_burn_key != 1)
 	{
 		return 0;
@@ -100,6 +103,7 @@ int sunxi_keydata_burn_by_usb(void)
 #endif
 	{
 		printf("sunxi secure storage is not supported\n");
+#ifdef CONFIG_SUNXI_PRIVATE_KEY
 		burn_private_start = sunxi_partition_get_offset_byname("private");
 		burn_private_len   = sunxi_partition_get_size_byname("private");
 
@@ -122,6 +126,9 @@ int sunxi_keydata_burn_by_usb(void)
 				return 0;
 			}
 		}
+#else
+	     return -1;
+#endif
 	}
 #ifdef CONFIG_SUNXI_SECURE_STORAGE
 	else
@@ -149,6 +156,43 @@ int sunxi_keydata_burn_by_usb(void)
 #endif
 	return do_burn_from_boot(NULL, 0, 0, NULL);
 }
+
+
+int do_efuse_read(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+	char *efuse_name;
+	char buffer[32];
+	int  ret;
+
+	if(argc != 2)
+	{
+		printf("the efuse item name is empty\n");
+
+		return -1;
+	}
+	efuse_name = argv[1];
+	printf("try to read %s\n", efuse_name);
+	memset(buffer, 0, 32);
+	printf("buffer addr=0x%x\n", (u32)buffer);
+	ret = arm_svc_efuse_read(efuse_name, buffer);
+	if(ret)
+	{
+		printf("read efuse key [%s] failed\n", efuse_name);
+	}
+	else
+	{
+		printf("read efuse key [%s] successed\n", efuse_name);
+		sunxi_dump(buffer, 32);
+	}
+
+	return 0;
+}
+
+U_BOOT_CMD(
+	efuse_read, 3, 0, do_efuse_read,
+	"read efuse key",
+	"usage: efuse_read efusename"
+);
 
 
 

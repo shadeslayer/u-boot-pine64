@@ -40,7 +40,7 @@ extern  int sunxi_usb_exit(void);
 
 DECLARE_GLOBAL_DATA_PTR;
 
-volatile int sunxi_usb_burn_from_boot_handshake, sunxi_usb_burn_from_boot_init, sunxi_usb_burn_from_boot_setup;
+extern volatile int sunxi_usb_burn_from_boot_handshake, sunxi_usb_burn_from_boot_init, sunxi_usb_burn_from_boot_setup;
 volatile int sunxi_usb_burn_from_boot_overtime;
 /*
 ************************************************************************************************************
@@ -65,8 +65,7 @@ static void probe_usb_overtime(void *p)
 	timer_t = (struct timer_list *)p;
 
 	sunxi_usb_burn_from_boot_overtime = 1;
-	tick_printf("timer occur\n");
-
+	printf("timer occur\n");
 	del_timer(timer_t);
 
 	return;
@@ -87,6 +86,7 @@ static void probe_usb_overtime(void *p)
 *
 ************************************************************************************************************
 */
+#include <asm/arch/platsmp.h>
 int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
 	struct timer_list timer_t;
@@ -99,6 +99,8 @@ int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		return 0;
 	}
 	tick_printf("usb burn from boot\n");
+	printf("wait cpu1 down\n");
+	while (!sunxi_probe_wfi_mode(1));
 
 	if(sunxi_usb_dev_register(4) < 0)
 	{
@@ -146,7 +148,7 @@ int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	tick_printf("usb probe ok\n");				//开始等待加载驱动，这里不需要延时
 	sunxi_usb_burn_from_boot_overtime = 0;
 	tick_printf("usb setup ok\n");
-	timer_t.expires = 3000;
+	timer_t.expires = 1000;
 	add_timer(&timer_t);
 
 	while(1)
@@ -234,7 +236,7 @@ int do_read_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 			return -1;
 		}
-		ret = sunxi_secure_object_read(argv[1], buffer, 4096, &data_len);
+		ret = sunxi_secure_storage_read(argv[1], buffer, 4096, &data_len);
 		if(ret < 0)
 		{
 			printf("private data %s is not exist\n", argv[1]);
@@ -254,5 +256,112 @@ U_BOOT_CMD(
 	pbread, CONFIG_SYS_MAXARGS, 1, do_read_from_boot,
 	"read data from private data",
 	"pread [name]"
+	"NULL"
+);
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+int do_probe_secure_storage(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
+	char *cmd, *name;
+
+	cmd = argv[1];
+	name = argv[2];
+
+	if(!strcmp(cmd, "read"))
+	{
+		if(argc == 2)
+		{
+			return sunxi_secure_storage_list();
+		}
+		if(argc == 3)
+		{
+			char buffer[4096];
+			int ret, data_len;
+
+			memset(buffer, 0, 4096);
+			ret = sunxi_secure_storage_init();
+			if(ret < 0)
+			{
+				printf("%s secure storage init err\n", __func__);
+
+				return -1;
+			}
+			ret = sunxi_secure_storage_read(name, buffer, 4096, &data_len);
+			if(ret < 0)
+			{
+				printf("private data %s is not exist\n", name);
+
+				return -1;
+			}
+			printf("private data:\n");
+			sunxi_dump(buffer, strlen((const char *)buffer));
+
+			return 0;
+		}
+	}
+	else if(!strcmp(cmd, "erase"))
+	{
+		int ret;
+
+		ret = sunxi_secure_storage_init();
+		if(ret < 0)
+		{
+			printf("%s secure storage init err\n", __func__);
+
+			return -1;
+		}
+
+		if(argc == 2)
+		{
+			ret = sunxi_secure_storage_erase_all();
+			if(ret < 0)
+			{
+				printf("erase secure storage failed\n");
+				return -1;
+			}
+		}
+		else if(argc == 3)
+		{
+			if(!strcmp(name, "key_burned_flag"))
+			{
+				if(sunxi_secure_storage_erase_data_only("key_burned_flag"))
+				{
+					printf("erase key_burned_flag failed\n");
+				}
+			}
+		}
+		sunxi_secure_storage_exit();
+
+		return 0;
+	}
+#endif
+	return -1;
+}
+
+U_BOOT_CMD(
+	pst, CONFIG_SYS_MAXARGS, 1, do_probe_secure_storage,
+	"read data from secure storage"
+	"erase flag in secure storage",
+	"pst read|erase [name]\n"
+	"pst read,  then dump all data\n"
+	"pst read name,  then dump the dedicate data\n"
+	"pst erase,  then erase all secure storage data\n"
+	"pst erase key_burned_flag,  then erase the dedicate data\n"
 	"NULL"
 );

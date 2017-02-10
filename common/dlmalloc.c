@@ -2152,11 +2152,50 @@ static void malloc_extend_top(nb) INTERNAL_SIZE_T nb;
 
 */
 
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+__attribute__((section(".data")))
+static unsigned malloc_spin_lock;
+#endif
+
+static Void_t* __malloc(size_t bytes);
+static void __free(Void_t* mem);
+
+
 #if __STD_C
 Void_t* mALLOc(size_t bytes)
 #else
 Void_t* mALLOc(bytes) size_t bytes;
 #endif
+{
+	Void_t* p = NULL;
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	cpu_spin_lock(&malloc_spin_lock);
+#endif
+	p = __malloc(bytes);
+
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	cpu_spin_unlock(&malloc_spin_lock);
+#endif
+	return p;
+}
+
+#if __STD_C
+void fREe(Void_t* mem)
+#else
+void fREe(mem) Void_t* mem;
+#endif
+{
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	cpu_spin_lock(&malloc_spin_lock);
+#endif
+	__free(mem);
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	cpu_spin_unlock(&malloc_spin_lock);
+#endif
+
+}
+
+static Void_t* __malloc(size_t bytes)
 {
   mchunkptr victim;                  /* inspected/selected chunk */
   INTERNAL_SIZE_T victim_size;       /* its size */
@@ -2418,12 +2457,7 @@ Void_t* mALLOc(bytes) size_t bytes;
 
 */
 
-
-#if __STD_C
-void fREe(Void_t* mem)
-#else
-void fREe(mem) Void_t* mem;
-#endif
+static void __free(Void_t* mem)
 {
   mchunkptr p;         /* chunk corresponding to mem */
   INTERNAL_SIZE_T hd;  /* its head field */

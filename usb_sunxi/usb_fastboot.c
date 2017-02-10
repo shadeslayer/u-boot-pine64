@@ -1252,6 +1252,62 @@ static int sunxi_fastboot_nonstandard_req_op(uint cmd, struct usb_device_request
 {
 	return SUNXI_USB_REQ_DEVICE_NOT_SUPPORTED;
 }
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+static void __limited_fastboot(void)
+{
+	char response[64];
+
+	memset(response, 0, 64);
+	tick_printf("secure mode,fastboot limited used\n");
+
+	strcpy(response,"FAIL:secure mode,fastboot limited used");
+
+	__sunxi_fastboot_send_status(response, strlen(response));
+
+	return;
+}
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+static int sunxi_fastboot_locked(void)
+{
+	if ((gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS) || (gd->securemode == SUNXI_SECURE_MODE_NO_SECUREOS))
+	{
+		printf("the system is secure\n");
+		return 0;
+	}
+	return -1;
+}
 /*
 ************************************************************************************************************
 *
@@ -1305,11 +1361,21 @@ static int sunxi_fastboot_state_loop(void  *buffer)
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "erase:", 6) == 0)
 			{
 				tick_printf("erase\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				__erase_part((char *)(sunxi_ubuf->rx_req_buffer + 6));
 			}
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "flash:", 6) == 0)
 			{
 				tick_printf("flash\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				if(memcmp((char *)(sunxi_ubuf->rx_req_buffer + 6),"u-boot",6) == 0)
 					__flash_to_uboot();
 				else
@@ -1318,6 +1384,11 @@ static int sunxi_fastboot_state_loop(void  *buffer)
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "download:", 9) == 0)
 			{
 				tick_printf("download\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				ret = __try_to_download((char *)(sunxi_ubuf->rx_req_buffer + 9), response);
 				if(ret >= 0)
 				{
@@ -1330,16 +1401,31 @@ static int sunxi_fastboot_state_loop(void  *buffer)
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "boot", 4) == 0)
 			{
 				tick_printf("boot\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				__boot();
 			}
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "getvar:", 7) == 0)
 			{
 				tick_printf("getvar\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				__get_var((char *)(sunxi_ubuf->rx_req_buffer + 7));
 			}
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "oem", 3) == 0)
 			{
 				tick_printf("oem operations\n");
+				if(!sunxi_fastboot_locked())
+				{
+					__limited_fastboot();
+					break;
+				}
 				__oem_operation((char *)(sunxi_ubuf->rx_req_buffer + 4));
 			}
 			else if(memcmp(sunxi_ubuf->rx_req_buffer, "continue", 8) == 0)

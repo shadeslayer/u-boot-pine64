@@ -26,7 +26,7 @@ typedef volatile unsigned char	vu_char;
 #include <asm/ptrace.h>
 #include <stdarg.h>
 #include <boot_type.h>
-
+#include <asm/io.h>
 #if defined(CONFIG_PCI) && defined(CONFIG_4xx)
 #include <pci.h>
 #endif
@@ -806,6 +806,10 @@ void	udelay        (unsigned long);
 void mdelay(unsigned long);
 void __msdelay(unsigned long ms);
 void __usdelay(unsigned long usec);
+void cpu_spin_lock(unsigned int *lock);
+unsigned int cpu_spin_trylock(unsigned int *lock);
+void cpu_spin_unlock(unsigned int *lock);
+
 
 /* lib/uuid.c */
 #include <uuid.h>

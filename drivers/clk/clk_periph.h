@@ -142,8 +142,8 @@ static inline void periph_writel(struct sunxi_clk_periph * periph, unsigned int 
     //(((unsigned int)periph->priv_regops)?periph->priv_regops->reg_writel(val,reg):writel(val,reg));
     writel(val,reg);
 }
-int sunxi_clk_register_periph(const char *name, const char **parent_names,
-            int num_parents, unsigned long flags, void  *base, struct sunxi_clk_periph *periph);
+
+int sunxi_clk_register_periph(struct periph_init_data *pd, void *base);
 
 extern void sunxi_clk_get_periph_ops(struct clk_ops* ops);
 #define to_clk_periph(_hw) container_of(_hw, struct sunxi_clk_periph, hw)

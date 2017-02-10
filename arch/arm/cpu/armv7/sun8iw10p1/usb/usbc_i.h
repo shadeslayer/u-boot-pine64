@@ -27,7 +27,7 @@
 
 #include  <common.h>
 #include  <asm/arch/usb.h>
-#include  <asm/arch/cpu.h>
+#include  <asm/arch/platform.h>
 #include  <asm/arch/clock.h>
 
 #define  USBC_MAX_OPEN_NUM    8

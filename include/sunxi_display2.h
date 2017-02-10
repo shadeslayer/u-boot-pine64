@@ -1,10 +1,6 @@
 #ifndef __SUNXI_DISPLAY2_H__
 #define __SUNXI_DISPLAY2_H__
 
-#if !defined(bool)
-#define bool unsigned char
-#endif
-
 struct disp_manager;
 struct disp_device;
 struct disp_smbl;
@@ -80,6 +76,7 @@ enum disp_pixel_format
 	DISP_FORMAT_YUV420_SP_VUVU               = 0x4d,
 	DISP_FORMAT_YUV411_SP_UVUV               = 0x4e,
 	DISP_FORMAT_YUV411_SP_VUVU               = 0x4f,
+	DISP_FORMAT_8BIT_GRAY				= 0x50,
 };
 
 enum disp_3d_out_mode
@@ -157,9 +154,18 @@ enum disp_tv_mode
 	DISP_TV_MOD_3840_2160P_30HZ     = 0x1c,
 	DISP_TV_MOD_3840_2160P_25HZ     = 0x1d,
 	DISP_TV_MOD_3840_2160P_24HZ     = 0x1e,
-	DISP_TV_MODE_NUM                = 0x1f,
+	/* vga */
+	DISP_VGA_MOD_640_480P_60         = 0x50,
+	DISP_VGA_MOD_800_600P_60         = 0x51,
+	DISP_VGA_MOD_1024_768P_60        = 0x52,
+	DISP_VGA_MOD_1280_768P_60        = 0x53,
+	DISP_VGA_MOD_1280_800P_60        = 0x54,
+	DISP_VGA_MOD_1366_768P_60        = 0x55,
+	DISP_VGA_MOD_1440_900P_60        = 0x56,
+	DISP_VGA_MOD_1920_1080P_60       = 0x57,
+	DISP_VGA_MOD_1920_1200P_60       = 0x58,
+	DISP_TV_MODE_NUM                 = 0x59,
 };
-
 
 //FIXME:still need?
 enum disp_exit_mode
@@ -333,15 +339,16 @@ struct disp_tv_func
 {
 		int (*tv_enable)(u32 sel);
 		int (*tv_disable)(u32 sel);
-		int (*tv_suspend)(void);
-		int (*tv_resume)(void);
+		int (*tv_suspend)(u32 sel);
+		int (*tv_resume)(u32 sel);
 		int (*tv_get_mode)(u32 sel);
 		int (*tv_set_mode)(u32 sel, enum disp_tv_mode tv_mod);
-		int (*tv_get_input_csc) (void);
+		int (*tv_get_input_csc) (u32 sel);
 		int (* tv_get_video_timing_info) (u32 sel, struct disp_video_timings **video_info);
-		int (*tv_mode_support) (enum disp_tv_mode mode);
+		int (*tv_mode_support) (u32 sel, enum disp_tv_mode mode);
 		int (*tv_hot_plugging_detect)(u32 state);
 		int (*tv_set_enhance_mode)(u32 sel, u32 mode);
+		int (*tv_get_hpd_status)(u32 sel);
 };
 
 /* disp_vdevice_interface_para - vdevice interaface parameter
@@ -429,6 +436,7 @@ enum disp_tv_output
     DISP_TV_CVBS    = 1,
     DISP_TV_YPBPR   = 2,
     DISP_TV_SVIDEO  = 4,
+    DISP_VGA = 5,
 };
 
 enum tag_DISP_CMD
@@ -469,8 +477,7 @@ enum tag_DISP_CMD
 	DISP_SET_TV_HPD = 0xc5,
 	DISP_HDMI_GET_EDID = 0xc6,
 	DISP_HDMI_GET_HPD_STATUS = 0xc7,
-	DISP_TV_GET_HPD_STATUS = 0xc8,
-
+        DISP_TV_GET_HPD_STATUS = 0xc8,
 	//----lcd----
 	DISP_LCD_ENABLE = 0x100,
 	DISP_LCD_DISABLE = 0x101,
@@ -520,6 +527,10 @@ enum tag_DISP_CMD
 	DISP_MEM_REQUEST = 0x2c0,
 	DISP_MEM_RELEASE = 0x2c1,
 	DISP_MEM_GETADR = 0x2c2,
+
+	DISP_EINK_UPDATE  = 0x402,
+	DISP_EINK_SET_TEMP = 0x403,
+	DISP_EINK_GET_TEMP = 0x404,
 };
 
 #define FBIOGET_LAYER_HDL_0 0x4700

@@ -34,14 +34,17 @@ DECLARE_GLOBAL_DATA_PTR;
 
 static __u32 screen_id = 0;
 static __u32 disp_para = 0;
+static __u32 fb_base_addr = 0;
 extern __s32 disp_delay_ms(__u32 ms);
 extern long disp_ioctl(void *hd, unsigned int cmd, void *arg);
+
+
 
 static int board_display_update_para_for_kernel(char *name, int value)
 {
 	int node;
 	int ret = -1;
-
+#ifdef CONFIG_SUNXI_MULITCORE_BOOT
 	node = fdt_path_offset(working_fdt,"disp");
 	if (node < 0) {
 		printf("%s:disp_fdt_nodeoffset %s fail\n", __func__,"disp");
@@ -52,9 +55,26 @@ static int board_display_update_para_for_kernel(char *name, int value)
 		printf("fdt_setprop_u32 %s.%s(0x%x) fail.err code:%s\n", "disp", name, value,fdt_strerror(ret));
 	else
 		ret = 0;
-
+#else
+	node = fdt_path_offset(working_fdt,"disp");
+	if (node < 0) {
+		printf("%s:disp_fdt_nodeoffset %s fail\n", __func__,"disp");
+		goto exit;
+	}
+	ret = fdt_setprop_u32(working_fdt, node, name, (uint32_t)value);
+	if ( ret < 0)
+		printf("fdt_setprop_u32 %s.%s(0x%x) fail.err code:%s\n", "disp", name, value,fdt_strerror(ret));
+	else
+		ret = 0;
+#endif
 exit:
 	return ret;
+}
+
+void display_update_dtb(void)
+{
+	board_display_update_para_for_kernel("fb_base", fb_base_addr);
+	board_display_update_para_for_kernel("boot_disp", disp_para);
 }
 
 int board_display_layer_request(void)
@@ -454,8 +474,8 @@ int board_display_framebuffer_set(int width, int height, int bitcount, void *buf
 	layer_para->info.b_trd_out		= 0;
 	layer_para->info.out_trd_mode 	= 0;
 	gd->layer_para = (uint)layer_para;
-
-	board_display_update_para_for_kernel("fb_base", (uint)buffer - sizeof(bmp_header_t));
+	fb_base_addr=(uint)buffer - sizeof(bmp_header_t);
+	//board_display_update_para_for_kernel("fb_base", (uint)buffer - sizeof(bmp_header_t));
 
 	return 0;
 }
@@ -533,13 +553,13 @@ int board_display_device_open(void)
 			printf("invalid output_type %d\n", value);
 			return -1;
 		}
-		
+
 		/* getproc output_mode, indicate which kind of mode will be output */
 		if (fdt_getprop_u32(working_fdt, node, "output_mode", (uint32_t*)&output_mode) < 0) {
 			printf("fetch script data boot_disp.output_mode fail\n");
 			err_count ++;
 		} else
-			printf("boot_disp.output_type=%d\n", output_mode);
+			printf("boot_disp.output_mode=%d\n", output_mode);
 
 		/* getproc auto_hpd, indicate output device decided by the hot plug status of device */
 		if (fdt_getprop_u32(working_fdt, node, "auto_hpd", (uint32_t*)&auto_hpd) < 0) {
@@ -568,12 +588,12 @@ int board_display_device_open(void)
 
 
 	disp_para = ((output_type << 8) | (output_mode)) << (screen_id*16);
-	board_display_update_para_for_kernel("boot_disp", disp_para);
+	//board_display_update_para_for_kernel("boot_disp", disp_para);
 
 	return ret;
 }
 
-void board_display_setenv(char *data)	
+void board_display_setenv(char *data)
 {
 	if (!data)
 		return;
@@ -675,7 +695,7 @@ int borad_display_get_screen_height(void)
 	return 0;
 }
 
-void board_display_setenv(char *data)	
+void board_display_setenv(char *data)
 {
 	return;
 }
