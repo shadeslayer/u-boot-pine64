@@ -545,4 +545,6 @@
 #define CONFIG_CMD_SUNXI_UMS
 
 #define CONFIG_PINE64_MODEL
+#define CONFIG_PINEBOOK_MODEL
+
 #endif /* __CONFIG_H */
