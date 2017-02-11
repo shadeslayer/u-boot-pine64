@@ -668,6 +668,7 @@ int board_late_init(void)
 	int ret  = 0;
 	if(get_boot_work_mode() == WORK_MODE_BOOT)
 	{
+    printf("Running in normal work mode\n");
 		sunxi_fastboot_init();
 		update_dram_para_for_ota();
 		sunxi_set_boot_disk();

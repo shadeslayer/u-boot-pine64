@@ -11,6 +11,7 @@
 #include "debug_mode.h"
 #include "sunxi_string.h"
 #include "sunxi_serial.h"
+#include "pine64_model.h"
 #include <fdt_support.h>
 #include <sys_config_old.h>
 #include <fdt_acc.h>
@@ -161,6 +162,10 @@ static int detect_other_boot_mode(void)
 
 	keyvalue = gd->key_pressd_value;
 	printf("key %d\n", keyvalue);
+
+	char buf[8];
+	sprintf(buf, "%d", keyvalue);
+	setenv("boot_key", buf);
 
     ret1 = script_parser_fetch("recovery_key", "key_max", &key_high, 1);
 	ret2 = script_parser_fetch("recovery_key", "key_min", &key_low,  1);
@@ -431,7 +436,7 @@ int update_fdt_para_for_kernel(void* dtb_base)
 	int nodeoffset = 0;
 	uint storage_type = 0;
 	struct mmc *mmc =NULL;
-	int dev_num = 0; 
+	int dev_num = 0;
 
 	display_update_dtb();
 
@@ -454,7 +459,7 @@ int update_fdt_para_for_kernel(void* dtb_base)
 		card0_boot_update_card2();
 	}
 
-	
+
 	//fix nand&sdmmc
 	switch(storage_type)
 	{
@@ -636,7 +641,6 @@ int get_debugmode_flag(void)
 ************************************************************************************************************
 */
 
-
 int update_dram_para_for_ota(void)
 {
 	extern int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
@@ -668,21 +672,54 @@ int update_dram_para_for_ota(void)
 #endif
 }
 
+static void sunxi_set_boot_disk(void)
+{
+    switch(get_boot_storage_type())
+    {
+      case STORAGE_SD:
+        setenv("boot_disk", "0");
+        setenv("boot_part", "0:1");
+        break;
+
+      case STORAGE_EMMC:
+        setenv("boot_disk", "2");
+        setenv("boot_part", "2:1");
+        break;
+
+      default:
+        printf("storage not supported\n");
+        break;
+    }
+}
+
 int board_late_init(void)
 {
 	int ret  = 0;
 	if(get_boot_work_mode() == WORK_MODE_BOOT)
 	{
+    printf("Running in normal work mode\n");
 		sunxi_fastboot_init();
 		update_dram_para_for_ota();
+		sunxi_set_boot_disk();
 		update_bootcmd();
 		ret = update_fdt_para_for_kernel(working_fdt);
 #ifdef CONFIG_SUNXI_SERIAL
-                sunxi_set_serial_num();
+		sunxi_set_serial_num();
+#endif
+#ifdef CONFIG_PINE64_MODEL
+		pine64_set_model();
 #endif
 		return 0;
 	}
-
+  else if(uboot_spare_head.boot_data.work_mode == 0x55)
+  {
+    printf("Running USB mass storage\n");
+    setenv("bootcmd", "sunxi_ums");
+  }
+  else if(uboot_spare_head.boot_data.work_mode == 0x56)
+  {
+    printf("Running USB mass storage\n");
+    setenv("bootcmd", "efex");
+  }
 	return ret;
 }
-
