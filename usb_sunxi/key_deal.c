@@ -131,11 +131,10 @@ int sunxi_deal_hdcp_key(char *keydata, int keylen)
 	}
 	hdcp_key_convert((unsigned char *)raw_hdcp_key, (unsigned char *)buffer_convert);
 
-	ret = sunxi_secure_object_down("hdcpkey", buffer_convert, 288,1,0);
+	ret = sunxi_secure_object_down("hdcpkey", buffer_convert, SUNXI_HDCP_KEY_LEN,1,0);
 	if(ret<0)
 	{
 		printf("sunxi secure storage write failed\n");
-
 		return -1;
 	}
 

@@ -126,15 +126,13 @@ int sunxi_keydata_burn_by_usb(void)
 				return 0;
 			}
 		}
-#else
-	     return -1;
 #endif
 	}
 #ifdef CONFIG_SUNXI_SECURE_STORAGE
 	else
 	{
 #ifndef SUNXI_SECURESTORAGE_TEST_ERASE
-		ret = sunxi_secure_storage_read("key_burned_flag", buffer, 512, &data_len);
+		ret = sunxi_secure_object_read("key_burned_flag", buffer, 512, &data_len);
 		if(ret)
 		{
 			printf("sunxi secure storage has no flag\n");
@@ -143,8 +141,10 @@ int sunxi_keydata_burn_by_usb(void)
 		{
 			if(!strcmp(buffer, "key_burned"))
 			{
+				printf("find key burned flag\n");
 				return 0;
 			}
+			printf("do not find key burned flag\n");
 		}
 #else
 		if(!sunxi_secure_storage_erase("key_burned_flag"))

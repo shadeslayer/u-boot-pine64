@@ -189,7 +189,9 @@
 
 #define CONFIG_SBROMSW_BASE              (CONFIG_SYS_SRAM_BASE)
 //#define CONFIG_STACK_BASE                (CONFIG_SYS_SRAMA2_BASE + CONFIG_SYS_SRAMA2_SIZE - 0x10)
-#define CONFIG_STACK_BASE                (0x3f000)
+#define CONFIG_STACK_BASE                (0x38000)
+#define CONFIG_DEBUG_BASE                (CONFIG_STACK_BASE)
+#define CONFIG_NORMAL_DEBUG_BASE         (0x30000)
 
 #define CONFIG_HEAP_BASE                 (CONFIG_SYS_SDRAM_BASE + 0x800000)
 #define CONFIG_HEAP_SIZE                 (16 * 1024 * 1024)
@@ -348,7 +350,7 @@
 #define CONFIG_SYS_I2C_SPEED    400000
 #define CONFIG_SYS_I2C_SLAVE    0x10
 //#define CONFIG_SUNXI_DMA
-
+#define CONFIG_SUNXI_KEY_SUPPORT
 /*-----------------------------------------------------------------------
  * Stack sizes
  *
@@ -440,7 +442,7 @@
 #define CONFIG_SUNXI_AXP_MAIN        PMU_TYPE_81X
 //#define PMU_SCRIPT_NAME                 "/soc/pmu0"
 #define  PMU_SCRIPT_NAME              "pmu0"
-#define FDT_PATH_REGU                   "/soc/regu"
+#define FDT_PATH_REGU                   "pmu0_regu"
 #define CONFIG_SUNXI_AXP_CONFIG_ONOFF
 #endif
 #define CONFIG_SUNXI_CORE_VOL         1200

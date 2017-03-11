@@ -49,6 +49,8 @@
 #define  SUNXI_AXP_809                   809
 #define  SUNXI_AXP_806                   806
 #define  SUNXI_AXP_81X                   81
+#define  SUNXI_AXP_259                   259
+
 
 #define  RSB_SADDR_AXP22X	         	(0x3A3)
 #define  RSB_SADDR_AXP809		        (0x3A3)
@@ -172,6 +174,10 @@ sunxi_axp_module_ext(SUNXI_AXP_NULL);
 
 #if defined(CONFIG_SUNXI_AXP806)
 	sunxi_axp_module_ext(SUNXI_AXP_806);
+#endif
+
+#if defined(CONFIG_SUNXI_AXP259)
+	sunxi_axp_module_ext(SUNXI_AXP_259);
 #endif
 
 

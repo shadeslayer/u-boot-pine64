@@ -353,10 +353,12 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 	writel(fcr, SPI_FCR);
 	if ((readl(SPI_ISR) & (0xf << 8))|| (timeout==0))	/* (1U << 11) | (1U << 10) | (1U << 9) | (1U << 8)) */
 		return RET_FAIL;
-
-	if(readl(SPI_TCR)&SPI_EXCHANGE)
+	if (!readl(SPI_MBC))
 	{
-		printf("XCH Control Error!!\n");
+		if(readl(SPI_TCR)&SPI_EXCHANGE)
+		{
+			printf("XCH Control Error!!\n");
+		}
 	}
 
 	writel(0xfffff,SPI_ISR);  /* clear  flag */

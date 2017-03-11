@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 #ifndef __DRV_DISPLAY_H__
 #define __DRV_DISPLAY_H__
 

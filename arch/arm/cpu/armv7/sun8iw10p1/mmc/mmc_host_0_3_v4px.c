@@ -193,8 +193,8 @@ static int mmc_get_timing_cfg_tm4(u32 sdc_no, u32 spd_md_id, u32 freq_id, u8 *od
 		}
 		else
 		{
-			if ((sdc_no != 2) || (spd_md_id>4) || (freq_id>5)) {
-				mmcinfo("wrong input para: mmc %d/2, mode %d/[0,4], freq %d/[0,5]\n", sdc_no, spd_md_id, freq_id);
+			if ((sdc_no != 3) || (spd_md_id>4) || (freq_id>5)) {
+				mmcinfo("wrong input para: mmc %d/3, mode %d/[0,4], freq %d/[0,5]\n", sdc_no, spd_md_id, freq_id);
 				ret = -1;
 				goto out;
 			}
@@ -255,7 +255,7 @@ static int mmc_get_timing_cfg(u32 sdc_no, u32 spd_md_id, u32 freq_id, u8 *odly, 
 	s32 ret = 0;
 	u32 tm = mmc_host[sdc_no].timing_mode;
 
-	if ((sdc_no == 2) && (tm == SUNXI_MMC_TIMING_MODE_4))
+	if ((sdc_no == 3) && (tm == SUNXI_MMC_TIMING_MODE_4))
 		return mmc_get_timing_cfg_tm4(sdc_no, spd_md_id, freq_id, odly, sdly);
 	else if ((sdc_no == 0) && (tm == SUNXI_MMC_TIMING_MODE_1)) {
 		if ((spd_md_id <= HSSDR52_SDR25) && (freq_id<=CLK_50M)) {
@@ -1023,14 +1023,19 @@ int mmc_v4px_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_in
 
 	mmcinfo("mmc driver ver %s\n", DRIVER_VER);
 
+	if (!((sdc_no == 0) || (sdc_no == 3))) {
+		mmcinfo("mmc_v4px_init: input sdc no error: %d, return -1\n", sdc_no);
+		return -1;
+	}
+
 	memset(&mmc_dev[sdc_no], 0, sizeof(struct mmc));
 	memset(&mmc_host[sdc_no], 0, sizeof(struct sunxi_mmc_host));
 	mmc = &mmc_dev[sdc_no];
 	mmc_host[sdc_no].mmc = mmc;
 
-	if ((sdc_no == 0) || (sdc_no == 1))
+	if (sdc_no == 0)
 		mmc_host[sdc_no].timing_mode = SUNXI_MMC_TIMING_MODE_1; //SUNXI_MMC_TIMING_MODE_3
-	else if ((sdc_no == 2) || (sdc_no == 3))
+	else if (sdc_no == 3)
 		mmc_host[sdc_no].timing_mode = SUNXI_MMC_TIMING_MODE_4;
 
 	strcpy(mmc->name, "SUNXI SD/MMC");
@@ -1045,13 +1050,14 @@ int mmc_v4px_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_in
 	mmc->host_caps = MMC_MODE_HS_52MHz|MMC_MODE_HS|MMC_MODE_HC;
 	if (bus_width == 4)
 		mmc->host_caps |= MMC_MODE_4BIT;
-	if (((sdc_no == 2) || (sdc_no == 3)) && (bus_width == 8)) {
+	if ((sdc_no == 3) && (bus_width == 8)) {
 		mmc->host_caps |= MMC_MODE_8BIT | MMC_MODE_4BIT;
 	}
 
 	mmc->f_min = 400000;
 	mmc->f_max = 50000000;
 	mmc->f_max_ddr = 50000000;
+
 	if (!mmc_get_timing_cfg(sdc_no, 1, 2, &odly, &sdly)) {
 		if (!((odly != 0xff) && (sdly != 0xff)))
 			mmc->f_max = 25000000;

@@ -682,7 +682,7 @@ U_BOOT_CMD(
 	"- display info of the current MMC device"
 );
 
-static int do_card0_probe(cmd_tbl_t *cmdtp, int flag,
+int do_card0_probe(cmd_tbl_t *cmdtp, int flag,
 			 int argc, char * const argv[])
 {
 	int boot_type = uboot_spare_head.boot_data.storage_type ;

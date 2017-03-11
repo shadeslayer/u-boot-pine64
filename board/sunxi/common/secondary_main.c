@@ -33,6 +33,9 @@
 #include <smc.h>
 #include <asm/arch/platsmp.h>
 #include <cputask.h>
+#include <smc.h>
+#include <securestorage.h>
+
 
 volatile unsigned int secondary_cpu_work_busy = 1;
 volatile unsigned int bmp_decode_ready = 0;
@@ -42,82 +45,7 @@ static unsigned char *ready_to_decode_buf;
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#ifdef  CONFIG_SUNXI_DISPLAY
-static int initr_sunxi_display(void)
-{
-	int workmode = uboot_spare_head.boot_data.work_mode;
-	if(!((workmode == WORK_MODE_BOOT) ||
-		(workmode == WORK_MODE_CARD_PRODUCT) ||
-		(workmode == WORK_MODE_SPRITE_RECOVERY)))
-	{
-		return 0;
-	}
-
-	tick_printf("start\n");
-	drv_disp_init();
-
-#ifdef CONFIG_SUNXI_HDCP_IN_SECURESTORAGE
-{
-	int hdcpkey_enable=0;
-	int ret = 0;
-	ret = script_parser_fetch("hdmi_para", "hdmi_hdcp_enable", &hdcpkey_enable, 1);
-	if((ret) || (hdcpkey_enable != 1))
-	{
-		board_display_device_open();
-		board_display_layer_request();
-	}
-	//here: write key to hardware
-	if(hdcpkey_enable==1)
-	{
-		char buffer[4096];
-		int data_len;
-		int ret0;
-
-		memset(buffer, 0, 4096);
-		ret0 = sunxi_secure_storage_init();
-		if(ret0)
-		{
-			printf("sunxi init secure storage failed\n");
-		}
-		else
-		{
-			ret0 = sunxi_secure_storage_read("hdcpkey", buffer, 4096, &data_len);
-			if(ret0)
-			{
-				printf("probe hdcp key failed\n");
-			}
-			else
-			{
-				ret0 = smc_aes_bssk_decrypt_to_keysram(buffer, data_len);
-				if(ret0)
-				{
-					printf("push hdcp key failed\n");
-				}
-				else
-				{
-					board_display_device_open();
-					board_display_layer_request();
-				}
-			}
-		}
-	}
-}
-#else
-
-#ifndef CONFIG_BOOT_GUI
-	board_display_device_open();
-	board_display_layer_request();
-#else
-	disp_devices_open();
-	fb_init();
-#endif
-
-#endif
-	tick_printf("end\n");
-	return 0;
-}
-#endif
-
+extern int initr_sunxi_display(void);
 
 //check battery and voltage
 static int __battery_ratio_calucate( void)
@@ -169,7 +97,8 @@ static int sunxi_probe_power_state(void)
 //3: allow boot directly  by insert dcin:( do not check battery ratio)
 //3: 关机状态下，插入外部电源，直接开机进入系统；无视电池电量。
 
-	script_parser_fetch("target", "power_start", &power_start, 1);
+	script_parser_fetch(PMU_SCRIPT_NAME, "power_start", &power_start, 1);
+	printf("power_start:%d\n",power_start);
 	//check battery
 	__bat_exist = axp_probe_battery_exist();
 	//check power source，vbus or dcin, if both，treat it as vbus
@@ -178,12 +107,15 @@ static int sunxi_probe_power_state(void)
 		printf("vbus exist\n");
 	else if (__power_source == AXP_DCIN_EXIST)
 		printf("dcin exist\n");
+	printf("PowerBus = %d( %d:vBus %d:acBus other: not exist)\n",
+		__power_source,AXP_VBUS_EXIST,AXP_DCIN_EXIST);
+
 
 	if (__bat_exist <= 0)
 	{
 		printf("no battery exist\n");
 		//EnterNormalBootMode();
-		return SUNXI_STATE_NORMAL_BOOT;
+		return SUNXI_STATE_SHUTDOWN_DIRECTLY;
 	}
 
 	if (PMU_PRE_CHARGE_MODE == gd->pmu_saved_status) {
@@ -287,20 +219,15 @@ static int sunxi_pmu_treatment(void)
 {
 	if (uboot_spare_head.boot_ext[0].data[0] <= 0) {
 		printf("no pmu exist\n");
-
 		return -1;
 	}
-	//设置工厂模式
 	axp_probe_factory_mode();
-	//设置充电限制电流，为vbus
 	axp_set_charge_vol_limit();
-    axp_set_all_limit();
-    //设置开机门限电压
-    axp_set_hardware_poweron_vol();
-    //设置各路输出电压
-    axp_set_power_supply_output();
+	axp_set_all_limit();
+	axp_set_hardware_poweron_vol();
+	axp_set_power_supply_output();
 
-    return 0;
+	return 0;
 }
 
 int sunxi_bmp_decode_from_compress(unsigned char *dst_buf, unsigned char *src_buf)
@@ -335,12 +262,11 @@ int sunxi_secendary_cpu_task(void)
 		ready_to_decode_buf = (unsigned char *)(SUNXI_ANDROID_CHARGE_COMPRESSED_LOGO_BUFF);
 	} else if (next_mode == SUNXI_STATE_SHUTDOWN_DIRECTLY) {
 		gd->need_shutdown = 1;
-		//ready_to_decode_buf = (unsigned char *)(SUNXI_LOW_POWER_COMPRESSED_LOGO_BUFF);
 		goto __secondary_cpu_end;
 	}
-printf("on cpu2\n");
+	printf("on cpu2\n");
 	arm_svc_set_cpu_on(2, (uint)third_cpu_start);
-printf("on end\n");
+	printf("on end\n");
 	enable_interrupts();
 	sunxi_gic_cpu_interface_init(get_core_pos());
 
@@ -351,18 +277,16 @@ printf("on end\n");
 		sunxi_bmp_dipslay_screen(bmp_info);
 		printf("boot logo display ok\n");
 	}
-	board_display_wait_lcd_open();		//add by jerry
+	board_display_wait_lcd_open();
 	board_display_set_exit_mode(1);
 
 	secondary_cpu_work_busy = 0;
 __secondary_cpu_end:
-	printf("kill cpu %d\n", get_core_pos());
 
+	printf("cpu %d enter wfi mode\n", get_core_pos());
 	disable_interrupts();
 	sunxi_gic_cpu_interface_exit();
-
 	cleanup_before_powerdown();
-
 	arm_svc_set_cpu_wfi();
 
 	return 0;
@@ -380,7 +304,7 @@ int sunxi_third_cpu_task(void)
 		goto __third_cpu_end;
 	}
 
-	buf = (unsigned char *)(SUNXI_DISPLAY_FRAME_BUFFER_ADDR - SUNXI_DISPLAY_FRAME_BUFFER_SIZE);
+	buf = (unsigned char *)(SUNXI_DISPLAY_FRAME_BUFFER_ADDR + SUNXI_DISPLAY_FRAME_BUFFER_SIZE);
 
 	ret = sunxi_bmp_decode_from_compress(buf, ready_to_decode_buf);
 	if(ret) {
@@ -400,13 +324,10 @@ int sunxi_third_cpu_task(void)
 
 	bmp_decode_ready = 1;
 __third_cpu_end:
-	printf("kill cpu %d\n", get_core_pos());
-
+	printf("cpu %d enter wfi mode\n", get_core_pos());
 	disable_interrupts();
 	sunxi_gic_cpu_interface_exit();
-
 	cleanup_before_powerdown();
-
 	arm_svc_set_cpu_wfi();
 
 	return 0;
@@ -416,6 +337,7 @@ int sunxi_secondary_cpu_poweroff(void)
 {
 	int count = 0;
 
+	//shutdown cpu2
 	count = 0;
 	while (!sunxi_probe_wfi_mode(2)) {
 		__msdelay(1);
@@ -427,31 +349,29 @@ int sunxi_secondary_cpu_poweroff(void)
 			break;
 		}
 	}
-printf("ready to disbale cpu2\n");
+	printf("ready to disbale cpu2\n");
 	sunxi_disable_cpu(2);
 	while(sunxi_probe_cpu_power_status(2));
-printf("disbale cpu2\n");
+	printf("disbale cpu2\n");
+
+	//shutdown cpu1
 	count = 0;
 	while (!sunxi_probe_wfi_mode(1)) {
 		__msdelay(1);
 		count ++;
-		printf("wait cpu1...delay=%d\n", count);
+		if(!(count & 31))
+			printf("wait cpu1...delay=%d\n", count);
 		if(count > 1000) {
 			printf("cpu1 run bad\n");
 
 			break;
 		}
 	}
-printf("ready to disbale cpu1\n");
+	printf("ready to disbale cpu1\n");
 	sunxi_disable_cpu(1);
 	while(sunxi_probe_cpu_power_status(1));
-printf("disbale cpu1\n");
+	printf("disbale cpu1\n");
 	sunxi_restore_gp_status();
-
-	printf("smp=0x%x\n", readl(0x01700000 + 0x30));
-	printf("cpu1 power=0x%x\n", readl(0x01f01400 + 0x144));
-	printf("cpu2 power=0x%x\n", readl(0x01f01400 + 0x148));
-
 	return 0;
 }
 
@@ -500,3 +420,5 @@ void sunxi_restore_gp_status(void)
 	}
 	while(flag != gp_value);
 }
+
+

@@ -285,9 +285,7 @@ s32 drv_disp_init(void)
 	int i;
 	int ret = 0;
 	int counter = 0;
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	int node_offset = 0;
-#endif
 
 	printf("%s\n", __func__);
 	disp_fdt_init();
@@ -359,7 +357,6 @@ s32 drv_disp_init(void)
 	counter ++;
 #endif
 
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	node_offset = disp_fdt_nodeoffset("disp");
 	of_periph_clk_config_setup(node_offset);
 
@@ -418,114 +415,14 @@ s32 drv_disp_init(void)
 	counter ++;
 #endif
 
-#else
-	/* get clk for display modes */
-	/* de - [device(tcon-top)] - lcd0/1/2.. - lvds - dsi */
-	counter = 0;
-	para->mclk[DISP_MOD_DE] = clk_get(NULL, "de");
-	if (IS_ERR(para->mclk[DISP_MOD_DE])) {
-		__wrn("fail to get clk for de\n");
-	}
-	para->mclk[DISP_MOD_LCD0] = clk_get(NULL, "tcon0");
-	if (IS_ERR(para->mclk[DISP_MOD_LCD0])) {
-		__wrn("fail to get clk for lcd0\n");
-	}
-	para->mclk[DISP_MOD_LCD1] = clk_get(NULL, "tcon1");
-	if (IS_ERR(para->mclk[DISP_MOD_LCD1])) {
-		__wrn("fail to get clk for lcd1\n");
-	}
-	para->mclk[DISP_MOD_LCD2] = clk_get(NULL, "tcon_tv0");
-	if (IS_ERR(para->mclk[DISP_MOD_LCD2])) {
-		__wrn("fail to get clk for lcd1\n");
-	}
-	para->mclk[DISP_MOD_LCD3] = clk_get(NULL, "tcon_tv1");
-	if (IS_ERR(para->mclk[DISP_MOD_LCD3])) {
-		__wrn("fail to get clk for lcd1\n");
-	}
-	para->mclk[DISP_MOD_LVDS] = clk_get(NULL, "lvds");
-	if (IS_ERR(para->mclk[DISP_MOD_LVDS])) {
-		__wrn("fail to get clk for lvds\n");
-	}
-	para->mclk[DISP_MOD_DSI0] = clk_get(NULL, "mipidsi");;
-	if (IS_ERR(para->mclk[DISP_MOD_DSI0])) {
-		__wrn("fail to get clk for dsi\n");
-	}
+#if defined(HAVE_DEVICE_COMMON_MODULE)
+	struct clk* pll;
+	pll = clk_get(NULL, "tcon_top");
+			clk_prepare_enable(pll);
+			clk_put(pll);
 #endif
 
-	/* FIXME: set clk parent for all clk of dipslay modes
-		should remove when clock supoort dts config
-	*/
-#if defined(CONFIG_ARCH_SUN50IW1P1)|| defined(CONFIG_ARCH_SUN8IW11P1)
-	{
-		struct clk* pll;
-
-		pll = clk_get(NULL, "pll_mipi");
-		if (pll) {
-			ret = clk_set_parent(para->mclk[DISP_MOD_LCD0], pll);
-			if (0 != ret) {
-				printf("clk_set parent tcon0 fail\n");
-			}
-		} else
-			printf("clk(pll_mipi) get fail\n");
-		clk_put(pll);
-
-		pll = clk_get(NULL, "pll_video0");
-		if (pll) {
-			ret = clk_set_parent(para->mclk[DISP_MOD_LCD1], pll);
-			if (0 != ret) {
-				printf("clk_set parent tcon1 fail\n");
-			}
-			ret = clk_set_parent(para->mclk[DISP_MOD_LCD0]->parent, pll);
-			if (0 != ret) {
-				printf("clk_set parent pll_mipi fail\n");
-			}
-		} else
-			printf("clk(pll_video0) get fail\n");
-		clk_put(pll);
-
-		pll = clk_get(NULL, "pll_video1");
-		if (pll) {
-			ret = clk_set_parent(para->mclk[DISP_MOD_LCD2], pll);
-			if (0 != ret) {
-				printf("clk_set parent tcon1 fail\n");
-			}
-			ret = clk_set_parent(para->mclk[DISP_MOD_LCD3], pll);
-			if (0 != ret) {
-				printf("clk_set parent pll_mipi fail\n");
-			}
-		} else
-			printf("clk(pll_video1) get fail\n");
-		clk_put(pll);
-
-
-		pll = clk_get(NULL, "pll_de");
-		if (pll) {
-			ret = clk_set_parent(para->mclk[DISP_MOD_DE], pll);
-			if (0 != ret) {
-				printf("clk_set parent de fail\n");
-			}
-		} else
-			printf("clk(pll_de) get fail\n");
-		clk_put(pll);
-#if defined(CONFIG_ARCH_SUN8IW11P1)
-		struct clk *device;
-
-		pll = clk_get(NULL, "tcon_top");
-		clk_prepare_enable(pll);
-		clk_put(pll);
-
-		device = clk_get(NULL, "tve0");
-		pll = clk_get(NULL, "pll_video0");
-		clk_set_parent(device, pll);
-		printf("device name:%s, par name:%s\n", device->name, device->parent->name);
-		device = clk_get(NULL, "tve1");
-		clk_set_parent(device, pll);
-
-		device = clk_get(NULL, "tve_top");
-		clk_set_parent(device, pll);
-#endif
-	}
-#elif defined(CONFIG_ARCH_SUN8IW10)
+#if defined(CONFIG_ARCH_SUN8IW10)
 	{
 		struct clk* pll;
 

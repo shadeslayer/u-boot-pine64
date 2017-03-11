@@ -2,9 +2,9 @@
  * (C) Copyright 2007-2015
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  * sunxi_host0_2_v4p1.c
- * Description: MMC  driver for  mmc controller operations of sun50iw1p1
- * Author: ZhengLei
- * Date: 2015/7/29 15:50:00
+ * Description: MMC  driver for  mmc controller operations of sun50iw2p1
+ * Author: WenJiaqiang
+ * Date: 2016/3/15 20:35:00
  */
 #include <common.h>
 #include <asm/io.h>
@@ -179,7 +179,7 @@ static unsigned mmc_config_delay(struct sunxi_mmc_host* mmchost)
 	struct mmc_reg_v4p1 *reg = (struct mmc_reg_v4p1 *)mmchost->reg;
 	unsigned rval = 0;
 	unsigned mode = mmchost->timing_mode;
-	unsigned spd_md, spd_md_bak, freq;
+	unsigned spd_md, freq;
 	u8 odly, sdly, dsdly=0;
 
 	if (mode == SUNXI_MMC_TIMING_MODE_1)
@@ -237,18 +237,12 @@ static unsigned mmc_config_delay(struct sunxi_mmc_host* mmchost)
 	else if (mode == SUNXI_MMC_TIMING_MODE_4)
 	{
 		spd_md = mmchost->tm4.cur_spd_md;
-		spd_md_bak = spd_md;
 		freq = mmchost->tm4.cur_freq;
-
-		if (spd_md == HS400)
-			spd_md = HS200_SDR104; /* use HS200's sdly for HS400's CMD line */
 
 		if (mmchost->tm4.sdly[spd_md*MAX_CLK_FREQ_NUM+freq] != 0xFF)
 			sdly = mmchost->tm4.sdly[spd_md*MAX_CLK_FREQ_NUM+freq];
 		else
 			sdly = mmchost->tm4.def_sdly[spd_md*MAX_CLK_FREQ_NUM+freq];
-
-		spd_md = spd_md_bak;
 
 		if (mmchost->tm4.odly[spd_md*MAX_CLK_FREQ_NUM+freq] != 0xFF)
 			odly = mmchost->tm4.odly[spd_md*MAX_CLK_FREQ_NUM+freq];
@@ -420,7 +414,6 @@ static int mmc_config_clock_modex(struct sunxi_mmc_host* mmchost, unsigned clk)
 	}
 	if ((mode == SUNXI_MMC_TIMING_MODE_3) || (mode == SUNXI_MMC_TIMING_MODE_4))
 	{
-		
 		if (mode == SUNXI_MMC_TIMING_MODE_3) {
 			if (mmc->io_mode == MMC_MODE_DDR_52MHz)
 				clk_2x = clk << 2; //4xclk
@@ -564,94 +557,88 @@ static void mmc_hs400_mode_onoff(struct mmc *mmc, int on)
 		MMCDBG("set %d dsbd 0x%x to disable hs400 mode\n", mmchost->mmc_no, readl(&reg->dsbd));
 	}
 }
-static void mmc_set_ddr_mode(struct mmc *mmc)
-{
-	/* set ddr mode */
-	if (mmc->speed_mode == HSDDR52_DDR50) {
-		mmc_ddr_mode_onoff(mmc, 1);
-		mmc_hs400_mode_onoff(mmc, 0);
-	} else if (mmc->speed_mode == HS400) {
-		mmc_ddr_mode_onoff(mmc, 0);
-		mmc_hs400_mode_onoff(mmc, 1);
-	} else {
-		mmc_ddr_mode_onoff(mmc, 0);
-		mmc_hs400_mode_onoff(mmc, 0);
-	}
-}
 
 static int mmc_calibrate_delay_unit(struct sunxi_mmc_host* mmchost)
 {
+ #ifndef FPGA_PLATFORM
+
 	struct mmc_reg_v4p1 *reg = (struct mmc_reg_v4p1 *)mmchost->reg;
 	unsigned rval = 0;
-	
-#ifndef FPGA_PLATFORM	
+	unsigned clk[3] = {50*1000*1000, 100*1000*1000, 200*1000*1000};
+	unsigned period[3] = {10*1000, 5*1000, 2500}; //ps, module clk is 2xclk at init phase.
 	unsigned result = 0;
-#endif /*FPGA_PLATFORM*/
+	int i = 0;
 
-	MMCINFO("start %s, don't access device...\n", __FUNCTION__);
+	MMCDBG("start %s, don't access device...\n", __FUNCTION__);
 
-	/* close card clock */
-	rval = readl(&reg->clkcr);
-	rval &= ~(1 << 16);
-	writel(rval, &reg->clkcr);
-	if(mmc_update_clk(mmchost))
-		return -1;
+	for (i=0; i<3; i++)
+	{
+		MMCINFO("%d MHz...\n", clk[i]/1000/1000);
+		/* close card clock */
+		rval = readl(&reg->clkcr);
+		rval &= ~(1 << 16);
+		writel(rval, &reg->clkcr);
+		if(mmc_update_clk(mmchost))
+			return -1;
 
-	/* set card clock to 100MHz */
-	if ((mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_1)
-		|| (mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_3)
-		|| (mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_4) )
+		/* set card clock to 100MHz */
+		if ((mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_1)
+			|| (mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_3)
+			|| (mmchost->timing_mode == SUNXI_MMC_TIMING_MODE_4) )
 
-		mmc_config_clock_modex(mmchost, 100000000);
-	else {
-		MMCINFO("%s: mmc %d wrong timing mode: 0x%x\n",
-			__FUNCTION__, mmchost->mmc_no, mmchost->timing_mode);
-		return -1;
-	}
-
-#ifndef FPGA_PLATFORM				
-	/* start carlibrate delay unit */
-	writel(0xA0, &reg->samp_dl);
-	writel(0x0, &reg->samp_dl);
-	rval = SDXC_StartCal;
-	writel(rval, &reg->samp_dl);
-	while (!(readl(&reg->samp_dl) & SDXC_CalDone));
-
-	if ((mmchost->mmc_no == 2) || (mmchost->mmc_no == 3)) {
-		writel(0xA0, &reg->ds_dl);
-		writel(0x0, &reg->ds_dl);
-		rval = SDXC_StartCal;
-		writel(rval, &reg->ds_dl);
-		while (!(readl(&reg->ds_dl) & SDXC_CalDone));
-	}
-
-	/* update result */
-	rval = readl(&reg->samp_dl);
-	result = (rval & SDXC_CalDly) >> 8;
-	MMCDBG("ds_dl result: 0x%x\n", result);
-	/* 10ns= 10*1000 ps, mod_clk is 5ns */
-	if (result) {
-		rval = 5000 / result;
-		mmchost->tm3.sdly_unit_ps = rval;
-		mmchost->tm3.dly_calibrate_done = 1;
-		mmchost->tm4.sdly_unit_ps = rval;
-		MMCINFO("delay chain cal done, sample: %d(ps)\n", mmchost->tm3.sdly_unit_ps);
-	} else {
-		MMCINFO("%s: cal sample delay fail\n", __FUNCTION__);
-	}
-	if (mmchost->mmc_no == 2) {
-		rval = readl(&reg->ds_dl);
-		result = (rval & SDXC_CalDly) >> 8;
-		MMCDBG("ds_dl result: 0x%x\n", result);
-		if (result) {
-			rval = 5000 / result;
-			mmchost->tm4.dsdly_unit_ps = rval;
-			mmchost->tm4.dly_calibrate_done = 1;
-			MMCINFO("delay chain cal done, ds: %d(ps)\n", mmchost->tm4.dsdly_unit_ps);
-		} else {
-			MMCINFO("%s: cal data strobe delay fail\n", __FUNCTION__);
+			mmc_config_clock_modex(mmchost, clk[i]);
+		else {
+			MMCINFO("%s: mmc %d wrong timing mode: 0x%x\n",
+				__FUNCTION__, mmchost->mmc_no, mmchost->timing_mode);
+			return -1;
 		}
+
+		/* start carlibrate delay unit */
+		writel(0xA0, &reg->samp_dl);
+		writel(0x0, &reg->samp_dl);
+		rval = SDXC_StartCal;
+		writel(rval, &reg->samp_dl);
+		writel(0x0, &reg->samp_dl);
+		while (!(readl(&reg->samp_dl) & SDXC_CalDone));
+
+		if (mmchost->mmc_no == 2) {
+			writel(0xA0, &reg->ds_dl);
+			writel(0x0, &reg->ds_dl);
+			rval = SDXC_StartCal;
+			writel(rval, &reg->ds_dl);
+			writel(0x0, &reg->ds_dl);
+			while (!(readl(&reg->ds_dl) & SDXC_CalDone));
+		}
+
+		/* update result */
+		rval = readl(&reg->samp_dl);
+		result = (rval & SDXC_CalDly) >> 8;
+		MMCDBG("samp_dl result: 0x%x\n", result);
+		if (result) {
+			rval = period[i] / result;
+			mmchost->tm3.sdly_unit_ps = rval;
+			mmchost->tm3.dly_calibrate_done = 1;
+			mmchost->tm4.sdly_unit_ps = rval;
+			MMCINFO("sample: %d - %d(ps)\n", result, mmchost->tm3.sdly_unit_ps);
+		} else {
+			MMCINFO("%s: cal sample delay fail\n", __FUNCTION__);
+		}
+		if (mmchost->mmc_no == 2) {
+			rval = readl(&reg->ds_dl);
+			result = (rval & SDXC_CalDly) >> 8;
+			MMCDBG("ds_dl result: 0x%x\n", result);
+			if (result) {
+				rval = period[i] / result;
+				mmchost->tm4.dsdly_unit_ps = rval;
+				mmchost->tm4.dly_calibrate_done = 1;
+				MMCINFO("ds: %d - %d(ps)\n", result, mmchost->tm4.dsdly_unit_ps);
+			} else {
+				MMCINFO("%s: cal data strobe delay fail\n", __FUNCTION__);
+			}
+		}
+
 	}
+
 #endif	/* FPGA_PLATFORM */
 	return 0;
 }
@@ -680,10 +667,11 @@ static int mmc_core_init(struct mmc *mmc)
 	writel((512<<16)|(1U<<2)|(1U<<0), &reg->thldc);
 	writel(3, &reg->csdc);
 	writel(0xdeb, &reg->dbgc);
-	
+
 	mmc_calibrate_delay_unit(mmchost);
 	return 0;
 }
+
 static void mmc_set_ios(struct mmc *mmc)
 {
 	struct sunxi_mmc_host* mmchost = (struct sunxi_mmc_host *)mmc->priv;
@@ -718,8 +706,7 @@ static void mmc_set_ios(struct mmc *mmc)
 		writel(0, &reg->width);
 	MMCDBG("host bus width register 0x%x\n", readl(&reg->width));
 
-	/* set ddr mode */
-	#if 0
+	/* set speed mode */
 	if (mmc->speed_mode == HSDDR52_DDR50) {
 		mmc_ddr_mode_onoff(mmc, 1);
 		mmc_hs400_mode_onoff(mmc, 0);
@@ -730,16 +717,13 @@ static void mmc_set_ios(struct mmc *mmc)
 		mmc_ddr_mode_onoff(mmc, 0);
 		mmc_hs400_mode_onoff(mmc, 0);
 	}
-	#else	//modified by Leson 20150728
-	mmc_set_ddr_mode(mmc);	
-	#endif
 }
 
 static int mmc_save_regs(struct sunxi_mmc_host* mmchost)
 {
 	struct mmc_reg_v4p1 *reg = (struct mmc_reg_v4p1 *)mmchost->reg;
 	struct mmc_reg_v4p1 *reg_bak = (struct mmc_reg_v4p1 *)mmchost->reg_bak;
-	
+
 	reg_bak->gctrl     = readl(&reg->gctrl  );
 	reg_bak->clkcr     = readl(&reg->clkcr  );
 	reg_bak->timeout   = readl(&reg->timeout);
@@ -763,7 +747,7 @@ static int mmc_save_regs(struct sunxi_mmc_host* mmchost)
 static int mmc_restore_regs(struct sunxi_mmc_host* mmchost)
 {	struct mmc_reg_v4p1 *reg = (struct mmc_reg_v4p1 *)mmchost->reg;
 	struct mmc_reg_v4p1 *reg_bak = (struct mmc_reg_v4p1 *)mmchost->reg_bak;
-	
+
 	writel(reg_bak->gctrl     , &reg->gctrl  );
 	writel(reg_bak->clkcr     , &reg->clkcr  );
 	writel(reg_bak->timeout   , &reg->timeout);
@@ -908,7 +892,7 @@ static int mmc_trans_data_by_dma(struct mmc *mmc, struct mmc_data *data)
 	writel(rval, &reg->idie);
 	writel((unsigned long)pdes, &reg->dlba);
 	if (mmchost->mmc_no == 2)
-		writel((2U<<28)|(15U<<16)|240, &reg->ftrglevel); /* burst-16, rx/tx trigger level=15/240 */
+		writel((3U<<28)|(15U<<16)|240, &reg->ftrglevel); /* burst-16, rx/tx trigger level=15/240 */
 	else
 		writel((2U<<28)|(7U<<16)|248, &reg->ftrglevel); /* burst-8, rx/tx trigger level=7/248 */
 
@@ -935,17 +919,9 @@ static int mmc_send_cmd(struct mmc *mmc, struct mmc_cmd *cmd,
 	if (cmd->resp_type & MMC_RSP_BUSY)
 		MMCDBG("mmc %d mmc cmd %d check rsp busy\n", mmchost->mmc_no,cmd->cmdidx);
 	if ((cmd->cmdidx == 12)&&!(cmd->flags&MMC_CMD_MANUAL)){
-		MMCDBG("note we don't send stop cmd,only check busy here\n");
-		timeout = 500*1000;
-		do {
-			status = readl(&reg->status);
-			if (!timeout--) {
-				error = -1;
-				MMCINFO("mmc %d cmd12 busy timeout\n",mmchost->mmc_no);
-				goto out;
-			}
-			__usdelay(1);
-		} while (status & (1 << 9));
+		MMCDBG("usually, cmd12 is sent after cmd18/cmd25 automantically.\n");
+		/* don't wait write busy here, because no cmd12 will be sent for cmd24.
+		write busy status will be check after sent cmd25. */
 		return 0;
 	}
 	/*
@@ -1086,13 +1062,13 @@ static int mmc_send_cmd(struct mmc *mmc, struct mmc_cmd *cmd,
 		} while (!done);
 	}
 
-	if (cmd->resp_type & MMC_RSP_BUSY) {
+	if ((cmd->resp_type & MMC_RSP_BUSY) || ((data) && (data->flags & MMC_DATA_WRITE) )) {
 		if ((cmd->cmdidx == MMC_CMD_ERASE)
 			|| ((cmd->cmdidx == MMC_CMD_SWITCH)
 				&&(((cmd->cmdarg>>16)&0xFF) == EXT_CSD_SANITIZE_START)))
 			timeout = 0x1fffffff;
 		else
-			timeout = 500*1000;
+			timeout = 50000*1000; /* wait 50 seconds */
 
 		do {
 			status = readl(&reg->status);

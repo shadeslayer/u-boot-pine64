@@ -41,151 +41,86 @@ extern  int sunxi_usb_exit(void);
 DECLARE_GLOBAL_DATA_PTR;
 
 extern volatile int sunxi_usb_burn_from_boot_handshake, sunxi_usb_burn_from_boot_init, sunxi_usb_burn_from_boot_setup;
-volatile int sunxi_usb_burn_from_boot_overtime;
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
-static void probe_usb_overtime(void *p)
-{
-	struct timer_list *timer_t;
 
-	timer_t = (struct timer_list *)p;
 
-	sunxi_usb_burn_from_boot_overtime = 1;
-	printf("timer occur\n");
-	del_timer(timer_t);
-
-	return;
-}
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
-#include <asm/arch/platsmp.h>
 int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
-	struct timer_list timer_t;
 	int    ret;
+	ulong begin_time= 0, over_time = 0;
 
 	if(gd->vbus_status == SUNXI_VBUS_NOT_EXIST)
 	{
 		printf("out of usb burn from boot without usb\n");
-
 		return 0;
 	}
-	tick_printf("usb burn from boot\n");
-	printf("wait cpu1 down\n");
-	while (!sunxi_probe_wfi_mode(1));
 
+	tick_printf("usb burn from boot\n");
 	if(sunxi_usb_dev_register(4) < 0)
 	{
 		printf("usb burn fail: not support burn private data\n");
-
 		return -1;
 	}
 
-	sunxi_usb_burn_from_boot_overtime = 0;
 	if(sunxi_usb_init(0))
 	{
 		printf("%s usb init fail\n", __func__);
-
 		sunxi_usb_exit();
-
 		return 0;
 	}
-	timer_t.data = (unsigned long)&timer_t;
-	timer_t.expires = 800;
-	timer_t.function = probe_usb_overtime;
-	init_timer(&timer_t);
 
 	tick_printf("usb prepare ok\n");
-	add_timer(&timer_t);
-
+	begin_time = get_timer(0);
+	over_time = 800; /* 800ms */
 	while(1)
 	{
-		if(sunxi_usb_burn_from_boot_init)		//当usb sof中断触发，跳出循环
+		if(sunxi_usb_burn_from_boot_init)
 		{
 			printf("usb sof ok\n");
-			del_timer(&timer_t);
 			break;
 		}
-		if(sunxi_usb_burn_from_boot_overtime)	//当定时时间到，还没有中断，跳出循环
+		if(get_timer(begin_time) > over_time)
 		{
 			tick_printf("overtime\n");
-			del_timer(&timer_t);
 			sunxi_usb_exit();
 			tick_printf("%s usb : no usb exist\n", __func__);
 
 			return 0;
 		}
 	}
-	sunxi_usb_burn_from_boot_overtime = 0;
-	tick_printf("usb probe ok\n");				//开始等待加载驱动，这里不需要延时
-	sunxi_usb_burn_from_boot_overtime = 0;
+	tick_printf("usb probe ok\n");
 	tick_printf("usb setup ok\n");
-	timer_t.expires = 1000;
-	add_timer(&timer_t);
 
+	begin_time = get_timer(0);
+	over_time = 3000; /* 3000ms */
 	while(1)
 	{
-		ret = sunxi_usb_extern_loop();			//执行usb主循环
-		if(ret)									//当执行结果非0，表示到了最后一个步骤，需要往后执行
+		ret = sunxi_usb_extern_loop();
+		if(ret)
 		{
 			break;
 		}
-		if(sunxi_usb_burn_from_boot_handshake)	//当握手成功，停止检查定时器
+		if(!sunxi_usb_burn_from_boot_handshake)
 		{
-			del_timer(&timer_t);
-		}
-		if(sunxi_usb_burn_from_boot_overtime)   //当定时时间到，还没有握手成功，跳出循环
-		{
-			del_timer(&timer_t);
-			sunxi_usb_exit();
-			tick_printf("%s usb : have no handshake\n", __func__);
-
-			return 0;
+			if(get_timer(begin_time) > over_time)
+			{
+				sunxi_usb_exit();
+				tick_printf("%s usb : have no handshake\n", __func__);
+				return 0;
+			}
 		}
 		if(ctrlc())
 		{
-			del_timer(&timer_t);
 			ret = SUNXI_UPDATE_NEXT_ACTION_NORMAL;
 			break;
 		}
 		if(sunxi_key_read()>0)
 		{
-			del_timer(&timer_t);
 			ret = SUNXI_UPDATE_NEXT_ACTION_NORMAL;
 			break;
 		}
 	}
 	tick_printf("exit usb burn from boot\n");
 	sunxi_usb_exit();
-
 	sunxi_update_subsequent_processing(ret);
 
 	return 0;
@@ -236,7 +171,7 @@ int do_read_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 			return -1;
 		}
-		ret = sunxi_secure_storage_read(argv[1], buffer, 4096, &data_len);
+		ret = sunxi_secure_object_read(argv[1], buffer, 4096, &data_len);
 		if(ret < 0)
 		{
 			printf("private data %s is not exist\n", argv[1]);
@@ -302,7 +237,7 @@ int do_probe_secure_storage(cmd_tbl_t *cmdtp, int flag, int argc, char * const a
 
 				return -1;
 			}
-			ret = sunxi_secure_storage_read(name, buffer, 4096, &data_len);
+			ret = sunxi_secure_object_read(name, buffer, 4096, &data_len);
 			if(ret < 0)
 			{
 				printf("private data %s is not exist\n", name);

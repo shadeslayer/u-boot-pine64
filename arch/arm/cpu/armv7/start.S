@@ -222,7 +222,6 @@ ENDPROC(cpu_init_crit)
 	.globl  get_core_pos
 	.globl  secondary_cpu_start
 	.globl  third_cpu_start
-	.globl  disable_smp
 
 ENTRY(secondary_cpu_start)
 
@@ -264,12 +263,23 @@ ENTRY(secondary_cpu_start)
 	MCR     p15, 0, r0, c1, c0, 0   @Write SCTLR
 
 	@ set sp
-	ldr r0, =secondary_cpu_svc_stack
-	ldr sp, [r0, #0x4]
+	ldr r0, =secondary_cpu_mode_stack
+	ldr sp, [r0, #0x0]
 
 	@ set r9
 	ldr r0, =secondary_cpu_data_groups
 	ldr r9, [r0, #0x4]
+
+	@ set irq sp
+	mrs r0, cpsr
+	bic	r0, r0, #0x1f		@ clear all mode bits
+	orr	r0, r0, #0x12		@ set IRQ mode
+	msr	cpsr ,r0
+	ldr r1, =secondary_cpu_mode_stack
+	ldr sp, [r1, #0x4]
+	bic	r0, r0, #0x1f		@ clear all mode bits
+	orr	r0, r0, #0x13		@ set SVC mode
+	msr	cpsr, r0
 
 	@ set tlb addr
 	ldr r0, =secondary_cpu_data_groups
@@ -349,7 +359,7 @@ ENTRY(third_cpu_start)
 #endif
 
 	@ set sp
-	ldr r0, =secondary_cpu_svc_stack
+	ldr r0, =secondary_cpu_mode_stack
 	ldr sp, [r0, #0x8]
 
 	@ set r9
@@ -377,36 +387,6 @@ ENTRY(third_cpu_start)
 
 	b  sunxi_third_cpu_task
 ENDPROC(third_cpu_start)
-
-
-ENTRY(get_core_pos)
-
-	mrc	p15, 0, r0, c0, c0, 5
-	and	r1, r0, #0xff
-	and	r0, r0, #0xff00
-	/*
-	 * Number of cores in cluster is 2,
-	 * we should have the following mapping:
-	 * MPIDR     core_pos
-	 * 0x0000 -> 0
-	 * 0x0001 -> 1
-	 * 0x0100 -> 2
-	 * 0x0101 -> 3
-	 */
-	add	r0, r1, r0, LSR #7
-	bx	lr
-ENDPROC(get_core_pos)
-
-ENTRY(disable_smp)
-
-	mrrc p15, 1, r0, r1, c15   @read CPUECTLR
-	bic  r0, r0, #(1<<6)
-	mcrr p15, 1, r0, r1, c15   @write CPUECTLR
-
-	isb
-	dsb
-
-ENDPROC(disable_smp)
 
 /* void cpu_spin_lock(lock address) - lock mutex */
 ENTRY(cpu_spin_lock)
@@ -454,3 +434,38 @@ ENTRY(cpu_spin_unlock)
 ENDPROC(cpu_spin_unlock)
 #endif
 
+ENTRY(get_core_pos)
+
+	mrc	p15, 0, r0, c0, c0, 5
+	and	r1, r0, #0xff
+	and	r0, r0, #0xff00
+	/*
+	 * Number of cores in cluster is 2,
+	 * we should have the following mapping:
+	 * MPIDR     core_pos
+	 * 0x0000 -> 0
+	 * 0x0001 -> 1
+	 * 0x0100 -> 2
+	 * 0x0101 -> 3
+	 */
+	add	r0, r1, r0, LSR #7
+	bx	lr
+ENDPROC(get_core_pos)
+
+.globl  cpu0_set_irq_stack;
+
+ENTRY(cpu0_set_irq_stack)
+
+
+	@ set irq sp
+	mrs r1, cpsr
+	bic	r1, r1, #0x1f		@ clear all mode bits
+	orr	r1, r1, #0x12		@ set IRQ mode
+	msr	cpsr, r1
+	mov sp, r0
+	bic	r1, r1, #0x1f		@ clear all mode bits
+	orr	r1, r1, #0x13		@ set SVC mode
+	msr	cpsr, r1
+
+	bx  lr
+ENDPROC(cpu0_set_irq_stack)

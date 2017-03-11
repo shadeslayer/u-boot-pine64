@@ -703,7 +703,7 @@ endif
 else
 PLATFORM_LIBGCC := -L $(shell dirname `$(CC) $(c_flags) -print-libgcc-file-name`) -lgcc
 endif
-PLATFORM_LIBS += $(PLATFORM_LIBGCC) 
+PLATFORM_LIBS += $(PLATFORM_LIBGCC)
 ifdef CONFIG_SUNXI_MODULE_NAND
 #if nand_sunxi/$(SOC)/lib-nand not exist ,then use the exist library
 PLATFORM_LIBS += $(shell if [ ! -d nand_sunxi/$(SOC)/lib-nand ];  then  echo "nand_sunxi/$(SOC)/libnand-$(SOC)";  fi )
@@ -786,7 +786,7 @@ endif
 
 LDFLAGS_u-boot += $(LDFLAGS_FINAL)
 ifneq ($(CONFIG_SYS_TEXT_BASE),)
-#LDFLAGS_u-boot += -Ttext $(CONFIG_SYS_TEXT_BASE)  
+#LDFLAGS_u-boot += -Ttext $(CONFIG_SYS_TEXT_BASE)
 endif
 
 quiet_cmd_objcopy = OBJCOPY $@
@@ -831,7 +831,7 @@ u-boot.hex u-boot.srec: u-boot FORCE
 
 OBJCOPYFLAGS_u-boot.bin := -O binary
 
-#0x600 is the size of uboot head data 
+#0x600 is the size of uboot head data
 binary_size_check: u-boot.bin System.map FORCE
 	@file_size=`stat -c %s u-boot.bin` ; \
 	map_size=$(shell cat System.map | \
@@ -1332,6 +1332,9 @@ ifeq ($(SPLSUPPORT), y)
 		-o -name '*.bin' \
 		-o -name '*.map' \) -print \
 		| xargs rm -f
+	@rm -f $(SPLDIR)/boot0/boot0.lds
+	@rm -f $(SPLDIR)/fes_init/fes_init.lds
+	@rm -f $(SPLDIR)/sbrom/sboot.lds
 endif
 
 # clobber

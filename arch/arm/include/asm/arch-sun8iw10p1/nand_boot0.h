@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 ************************************************************************************************************************
 *                                                         eGON
 *                                         the Embedded GO-ON Bootloader System
@@ -51,7 +57,7 @@ extern __u32 NF_PAGE_SIZE;
 extern __u32 NF_PG_SZ_WIDTH;
 extern __u32 BOOT1_LAST_BLK_NUM;
 extern __u32 page_with_bad_block;
-
+extern __u32 BOOT1_START_BLK;
 
 #define NF_SECTOR_SIZE                  512U
 #define NF_SCT_SZ_WIDTH                 9U

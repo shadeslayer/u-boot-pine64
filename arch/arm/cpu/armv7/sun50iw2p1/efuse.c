@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -147,5 +153,25 @@ int sid_probe_security_mode(void)
 	return ((sid_read_key(EFUSE_LCJS)>>11) & 1);
 }
 
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :we can use this function in non-secure&secure mode
+*
+*
+************************************************************************************************************
+*/
+int sid_get_security_status(void)
+{
+	return readl(SID_SECURE_MODE)& 0x1;
+}
 
 

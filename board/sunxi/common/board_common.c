@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 #include <common.h>
 #include <spare_head.h>
 #include <sunxi_mbr.h>
@@ -17,14 +23,31 @@
 #include <sunxi_nand.h>
 #include <mmc.h>
 #include <asm/arch/dram.h>
+#ifdef CONFIG_SUNXI_MULITCORE_BOOT
+#include <cputask.h>
+#endif
 
 
 DECLARE_GLOBAL_DATA_PTR;
 
 #define PARTITION_SETS_MAX_SIZE	 1024
 
-
-
+int __attribute__((weak)) mmc_request_update_boot0(int dev_num)
+{
+	return 0;
+}
+void  __attribute__((weak)) mmc_update_config_for_sdly(struct mmc *mmc)
+{
+	return;
+}
+void  __attribute__((weak)) mmc_update_config_for_dragonboard(int card_no)
+{
+	return;
+}
+struct mmc *  __attribute__((weak)) find_mmc_device(int dev_num)
+{
+	return NULL;
+}
 
 void sunxi_update_subsequent_processing(int next_work)
 {
@@ -255,7 +278,11 @@ int update_bootcmd(void)
 			break;
 		case ANDROID_NULL_MODE:
 			{
+#ifdef CONFIG_SUNXI_MULITCORE_BOOT
+				pmu_value = gd->pmu_saved_status;
+#else
 				pmu_value = axp_probe_pre_sys_mode();
+#endif
 				if(pmu_value == PMU_PRE_FASTBOOT_MODE)
 				{
 					puts("PMU : ready to enter fastboot mode\n");
@@ -305,6 +332,7 @@ int update_bootcmd(void)
 		{
 			puts("recovery detected, will sprite recovery\n");
 			strncpy(boot_commond, "sprite_recovery", sizeof("sprite_recovery"));
+			uboot_spare_head.boot_data.work_mode = WORK_MODE_SPRITE_RECOVERY;//misc cmd must update work_mode
 			sunxi_flash_write(misc_offset, 2048/512, misc_fill);
 		}
 		else
@@ -340,8 +368,16 @@ int update_bootcmd(void)
 
 	}
 
+#ifdef CONFIG_SUNXI_MULITCORE_BOOT
+	if (gd->need_shutdown) {
+		sunxi_secondary_cpu_poweroff();
+		sunxi_board_shutdown();
+		for(;;);
+	}
+#endif
+
 	setenv("bootcmd", boot_commond);
-	printf("to be run cmd=%s\n", boot_commond);
+	tick_printf("to be run cmd=%s\n", boot_commond);
 
 	return 0;
 }
@@ -422,9 +458,27 @@ int update_fdt_para_for_kernel(void* dtb_base)
 	int ret;
 	int nodeoffset = 0;
 	uint storage_type = 0;
-
+	struct mmc *mmc =NULL;
+	int dev_num = 0;
+	extern void display_update_dtb(void);
 
 	storage_type = uboot_spare_head.boot_data.storage_type;
+
+	//update sdhc dbt para
+	if(storage_type == STORAGE_EMMC || storage_type == STORAGE_EMMC3)
+	{
+		dev_num = (storage_type == STORAGE_EMMC)? 2:3;
+		mmc = find_mmc_device(dev_num);
+		if(mmc == NULL)
+		{
+			printf("can't find valid mmc %d\n", dev_num);
+			return -1;
+		}
+		if(mmc->cfg->platform_caps.sample_mode == AUTO_SAMPLE_MODE)
+		{
+			mmc_update_config_for_sdly(mmc);
+		}
+	}
 
 	//fix nand&sdmmc
 	switch(storage_type)
@@ -448,6 +502,10 @@ int update_fdt_para_for_kernel(void* dtb_base)
 			if(dragonboard_test == 1)
 			{
 				dragonboard_handler(dtb_base);
+				mmc_update_config_for_dragonboard(2);
+				#ifdef CONFIG_MMC3_SUPPORT
+				mmc_update_config_for_dragonboard(3);
+				#endif
 			}
 			else
 			{
@@ -472,7 +530,7 @@ int update_fdt_para_for_kernel(void* dtb_base)
 	//fix dram para
 	uint32_t *dram_para = NULL;
 	dram_para = (uint32_t *)uboot_spare_head.boot_data.dram_para;
-	puts("update dtb dram start\n");
+	tick_printf("update dtb dram start\n");
 	nodeoffset = fdt_path_offset(dtb_base, "/dram");
 	if(nodeoffset<0)
 	{
@@ -503,7 +561,7 @@ int update_fdt_para_for_kernel(void* dtb_base)
 	fdt_setprop_u32(dtb_base,nodeoffset, "dram_tpr11", dram_para[21]);
 	fdt_setprop_u32(dtb_base,nodeoffset, "dram_tpr12", dram_para[22]);
 	fdt_setprop_u32(dtb_base,nodeoffset, "dram_tpr13", dram_para[23]);
-	puts("update dtb dram  end\n");
+	tick_printf("update dtb dram  end\n");
 
 	return 0;
 }
@@ -606,7 +664,6 @@ int get_debugmode_flag(void)
 ************************************************************************************************************
 */
 
-
 int update_dram_para_for_ota(void)
 {
 	extern int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
@@ -619,10 +676,17 @@ int update_dram_para_for_ota(void)
 	return 0;
 #else
 	int ret = 0;
+	int card_num = 2;
+
+	if (uboot_spare_head.boot_data.storage_type == STORAGE_EMMC3)
+	{
+		card_num = 3;
+	}
+
 	if( (get_boot_work_mode() == WORK_MODE_BOOT) &&
 		(STORAGE_SD != get_boot_storage_type()))
 	{
-		if(get_boot_dram_update_flag())
+		if(get_boot_dram_update_flag()|| mmc_request_update_boot0(card_num))
 		{
 			printf("begin to update boot0 atfer ota\n");
 			ret = sunxi_flash_update_boot0();

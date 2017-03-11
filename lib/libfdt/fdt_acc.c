@@ -224,7 +224,7 @@ int fdtfast_setprop_u32(void *fdt, int nodeoffset, const char *name,
 		return -1;
 	}
 	data = (uint32_t *)prop_node->data;
-	*data = cpu_to_be32(val);
+	*data = val;
 
 	return 0;
 }

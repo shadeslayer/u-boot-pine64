@@ -42,4 +42,6 @@ obj-y += sprite_storage_crypt.o
 
 obj-$(CONFIG_SUNXI_SECURE_STORAGE) += sprite_secstorage.o
 obj-$(CONFIG_SUNXI_SECURE_STORAGE) += sprite_secure_object.o
+obj-$(CONFIG_SUNXI_SECURE_SYSTEM) += sprite_storage_crypt.o
+obj-$(CONFIG_AUTO_UPDATE) += sprite_auto_update.o
 

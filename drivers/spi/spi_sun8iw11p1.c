@@ -59,6 +59,7 @@ static sunxi_dma_setting_t *spi_rx_dma;
 static  uint  spi_tx_dma_hd;
 static  uint  spi_rx_dma_hd;
 
+
 void ccm_module_disable_bak(u32 clk_id)
 {
 	switch(clk_id>>8) {
@@ -103,6 +104,7 @@ void ccm_clock_disable_bak(u32 clk_id)
 			break;
 	}
 }
+
 #ifdef USE_DMA
 /*
 ************************************************************************************************************
@@ -274,6 +276,13 @@ void spi_gpio_cfg(int spi_no)
 	reg_val |= 0x3<<28;
 	writel(reg_val, reg_addr);
 
+	//PIO SETTING,PortC0:2 SPI0 multi-driving
+	reg_addr = SUNXI_PIO_BASE + 0x5C;
+	reg_val = readl(reg_addr);
+	reg_val &= ~(0x3F);
+	reg_val |= 0x3F;
+	writel(reg_val, reg_addr);
+
 	// PIO SETTING,PortC SPI0 pull reg
 	reg_val = readl(SUNXI_PIO_BASE + 0x68);
 	reg_val &= ~(0x03 << 14);
@@ -362,40 +371,37 @@ int spic_init(u32 spi_no)
 		return -1;
 	}
 	//config spi rx dma
-	//spi_rx_dma->pgsz   = 0;
-	//spi_rx_dma->pgstp  = 0;
-	//spi_rx_dma->cmt_blk_cnt = 0;
-	//config recv(from spi fifo to dram)
+	spi_rx_dma->loop_mode = 0;
+	spi_rx_dma->wait_cyc  = 0x20;
+	//spi_rx_dma->data_block_size = 1 * DMAC_CFG_SRC_DATA_WIDTH_8BIT/8;
+	spi_rx_dma->data_block_size = 1 * 32/8;
+
 	spi_rx_dma->cfg.src_drq_type     = DMAC_CFG_TYPE_SPI0;  //SPI0
 	spi_rx_dma->cfg.src_addr_mode    = DMAC_CFG_SRC_ADDR_TYPE_IO_MODE;
 	spi_rx_dma->cfg.src_burst_length = DMAC_CFG_SRC_1_BURST;
-	spi_rx_dma->cfg.src_data_width   = DMAC_CFG_SRC_DATA_WIDTH_8BIT;
+	spi_rx_dma->cfg.src_data_width   = DMAC_CFG_SRC_DATA_WIDTH_32BIT;
 
 	spi_rx_dma->cfg.dst_drq_type     = DMAC_CFG_TYPE_DRAM;  //DRAM
 	spi_rx_dma->cfg.dst_addr_mode    = DMAC_CFG_DEST_ADDR_TYPE_LINEAR_MODE;
 	spi_rx_dma->cfg.dst_burst_length = DMAC_CFG_DEST_1_BURST;
-	spi_rx_dma->cfg.dst_data_width   = DMAC_CFG_DEST_DATA_WIDTH_8BIT;
+	spi_rx_dma->cfg.dst_data_width   = DMAC_CFG_DEST_DATA_WIDTH_32BIT;
 
-	//spi_rx_dma->cfg.wait_state       = 4;
-	//spi_rx_dma->cfg.continuous_mode  = 0;
-	//config spi tx dma
-	//spi_tx_dma->pgsz   = 0;
-	//spi_tx_dma->pgstp  = 0;
-	//spi_tx_dma->cmt_blk_cnt = 0;
-	//spi_tx_dma.
-	//config send(from dram to spi fifo)
-	spi_tx_dma->cfg.src_drq_type     = DMAC_CFG_TYPE_SRAM;  //
+
+	spi_tx_dma->loop_mode = 0;
+	spi_tx_dma->wait_cyc  = 0x20;
+	//spi_tx_dma->data_block_size = 1 * DMAC_CFG_SRC_DATA_WIDTH_8BIT/8;
+	spi_tx_dma->data_block_size = 1 * 32/8;
+	spi_tx_dma->cfg.src_drq_type     = DMAC_CFG_TYPE_DRAM;  //
 	spi_tx_dma->cfg.src_addr_mode    = DMAC_CFG_SRC_ADDR_TYPE_LINEAR_MODE;
 	spi_tx_dma->cfg.src_burst_length = DMAC_CFG_SRC_1_BURST;
-	spi_tx_dma->cfg.src_data_width   = DMAC_CFG_SRC_DATA_WIDTH_8BIT;
+	spi_tx_dma->cfg.src_data_width   = DMAC_CFG_SRC_DATA_WIDTH_32BIT;
 	
 	spi_tx_dma->cfg.dst_drq_type     = DMAC_CFG_TYPE_SPI0;  //SPI0
 	spi_tx_dma->cfg.dst_addr_mode    = DMAC_CFG_DEST_ADDR_TYPE_IO_MODE;
 	spi_tx_dma->cfg.dst_burst_length = DMAC_CFG_DEST_1_BURST;
-	spi_tx_dma->cfg.dst_data_width   = DMAC_CFG_DEST_DATA_WIDTH_8BIT;
-	spi_tx_dma->wait_cyc = 0x10;
-	//spi_tx_dma->cfg.wait_state       = 4;
-	//spi_tx_dma->cfg.continuous_mode  = 0;
+	spi_tx_dma->cfg.dst_data_width   = DMAC_CFG_DEST_DATA_WIDTH_32BIT;
+	//spi_tx_dma->wait_cyc = 0x10;
+
 
 	sunxi_dma_setting(spi_rx_dma_hd, (void *)spi_rx_dma);
 	sunxi_dma_setting(spi_tx_dma_hd, (void *)spi_tx_dma);
@@ -419,25 +425,28 @@ int spic_init(u32 spi_no)
 	writel(SPI_TXFIFO_RST|(SPI_TX_WL<<16)|(SPI_RX_WL), SPI_FCR);
 	return 0;    
 }
-#if 0
+
+#ifdef USE_DMA
 int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf) 
 {
 	u32 i = 0,fcr;
 	int timeout = 0xfffff;
-	//uint ret = 0;
-
 	u8 *tx_buffer = txbuf ;
 	u8 *rx_buffer = rxbuf;
+
 	writel(0, SPI_IER);
 	writel(0xffffffff, SPI_ISR );//clear status register
 
 	writel(tcnt, SPI_MTC);
 	writel(tcnt+rcnt, SPI_MBC);
 	writel(readl(SPI_TCR)|SPI_EXCHANGE, SPI_TCR);
+
+	/* start transmit */
+	timeout = 0xfffff;
 	if(tcnt)
 	{
 		if(tcnt < 64 )
-    	{
+		{
 			i = 0;
 			while (i < tcnt)
 			{
@@ -449,22 +458,20 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 		}
 		else
 		{
-	    	//spi_no = 0;
 			writel((readl(SPI_FCR)|SPI_TXDMAREQ_EN), SPI_FCR);
 			spi_dma_send_start(0, txbuf, tcnt);
-            /* wait DMA finish */
+
+			/* wait DMA finish */
 			while ((timeout-- > 0) && spi_wait_dma_send_over(0));
 			if (timeout <= 0)
 			{
 				printf("tx wait_dma_send_over fail\n");
 				return -1;
 			}
-		//	printf("timeout %d,count_send %d \n",timeout,count_send);
 		}
 	}
+
 	timeout = 0xfffff;
-	/* start transmit */
-	//writel(readl(SPI_TCR)|SPI_EXCHANGE, SPI_TCR);
 	if(rcnt)
 	{
 		if(rcnt < 64)
@@ -480,21 +487,25 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 		}
 		else
 		{
-            pattern_goto(115);
+			pattern_goto(115);
 			timeout = 0xfffff;
 			writel((readl(SPI_FCR)|SPI_RXDMAREQ_EN), SPI_FCR);
 			spi_dma_recv_start(0, rxbuf, rcnt);
-            /* wait DMA finish */
+			/* wait DMA finish */
 			while ((timeout-- > 0) && spi_wait_dma_recv_over(0));
 			if (timeout <= 0)
 			{
 				printf("rx wait_dma_recv_over fail\n");
 				return -1;
 			}
-		//	printf("count_recv %d \n",count_recv);
 		}
 	}
-#if 1
+
+	//check fifo error
+	if ((readl(SPI_ISR) & (0xf << 8)))
+		return RET_FAIL;
+
+	//check tx/rx finish:fifo<-->nor
 	timeout = 0xfffff;
 	while(!(readl(SPI_ISR)&(0x1<<12)))//wait transfer complete
 	{
@@ -502,9 +513,11 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 		if (!timeout)
 		{
 			printf("SPI_ISR time_out \n");
-			break;
+			return RET_FAIL;
 		}
 	}
+
+	//check dma status
 	timeout = 0xfffff;
 	while(DMA_CHAN_STA_REG & 0x1)
 	{
@@ -515,29 +528,37 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 			break;
 		}
 	}
-	pattern_goto(121);
-#endif
 
-    fcr = readl(SPI_FCR);
-    fcr &= ~(SPI_TXDMAREQ_EN|SPI_RXDMAREQ_EN);
+	//disable dma req
+	fcr = readl(SPI_FCR);
+	fcr &= ~(SPI_TXDMAREQ_EN|SPI_RXDMAREQ_EN);
 	writel(fcr, SPI_FCR);
-	if ((readl(SPI_ISR) & (0xf << 8))|| (timeout==0))	/* (1U << 11) | (1U << 10) | (1U << 9) | (1U << 8)) */
-			return RET_FAIL;
 
-	if(readl(SPI_TCR)&SPI_EXCHANGE)
+	//check SPI_EXCHANGE when SPI_MBC is 0
+	if(readl(SPI_MBC) == 0)
 	{
-		printf("XCH Control Error!!\n");
+		if(readl(SPI_TCR)&SPI_EXCHANGE)
+		{
+			printf("XCH Control Error!!\n");
+			return RET_FAIL;
+		}
+	}
+	else
+	{
+		printf("SPI_MBC Error!\n");
+		return RET_FAIL;
 	}
 
 	writel(0xfffff,SPI_ISR);  /* clear  flag */
 	return RET_OK;
 
 }
+
 #else
 
 int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 {
-	u32 i = 0,fcr;
+	u32 i = 0;
 	int timeout = 0xfffff;
 	//uint ret = 0;
 
@@ -561,7 +582,6 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 		}
 	}
 
-	timeout = 0xfffff;
 	/* start transmit */
 	if(rcnt)
 	{
@@ -575,15 +595,35 @@ int spic_rw( u32 tcnt, void* txbuf, u32 rcnt, void* rxbuf)
 		}
 	}
 
-	fcr = readl(SPI_FCR);
-	fcr &= ~(SPI_TXDMAREQ_EN|SPI_RXDMAREQ_EN);
-	writel(fcr, SPI_FCR);
-	if ((readl(SPI_ISR) & (0xf << 8))|| (timeout==0))	/* (1U << 11) | (1U << 10) | (1U << 9) | (1U << 8)) */
+	//check fifo error
+	if ((readl(SPI_ISR) & (0xf << 8)))
 		return RET_FAIL;
 
-	if(readl(SPI_TCR)&SPI_EXCHANGE)
+	//check tx/rx finish
+	timeout = 0xfffff;
+	while(!(readl(SPI_ISR)&(0x1<<12)))//wait transfer complete
 	{
-		printf("XCH Control Error!!\n");
+		timeout--;
+		if (!timeout)
+		{
+			printf("SPI_ISR time_out \n");
+			return RET_FAIL;
+		}
+	}
+
+	//check SPI_EXCHANGE when SPI_MBC is 0
+	if(readl(SPI_MBC) == 0)
+	{
+		if(readl(SPI_TCR)&SPI_EXCHANGE)
+		{
+			printf("XCH Control Error!!\n");
+			return RET_FAIL;
+		}
+	}
+	else
+	{
+		printf("SPI_MBC Error!\n");
+		return RET_FAIL;
 	}
 
 	writel(0xfffff,SPI_ISR);  /* clear  flag */

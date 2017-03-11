@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -89,7 +95,7 @@ void set_mmc_para(int smc_no, void *addr)
 	memcpy((void *)(uboot_buf->boot_data.sdcard_spare_data), (addr+SDMMC_PRIV_INFO_ADDR_OFFSET), sizeof(struct boot_sdmmc_private_info_t));
 
 	p = (u32 *)(uboot_buf->boot_data.sdcard_spare_data);
-	for (i=0; i<5; i++)
+	for (i=0; i<6; i++)
 		printf("0x%x 0x%x\n", p[i*2 + 0], p[i*2 + 1]);
 
 	return;
@@ -187,6 +193,7 @@ static int mmc_update_phase(struct mmc *mmc)
 	return 0;
 }
 
+#ifndef FPGA_PLATFORM
 /*
  -- speed mode --
 sm0: DS26_SDR12
@@ -316,7 +323,7 @@ static int mmc_get_timing_cfg_tm4(u32 sdc_no, u32 spd_md_id, u32 freq_id, u8 *od
 			spd_md_sdly = tune_sdly->tm4_smx_fx[spd_md_id*2 + freq_id/4];
 			dly = ((spd_md_sdly>>((freq_id%4)*8)) & 0xff);
 
-			if (dly == 0xff)
+			if ((dly == 0xff) ||(dly == 0)) //0 is also considered as invalid delay config
 			{
 				if (spd_md_id == DS26_SDR12)
 				{
@@ -669,6 +676,58 @@ static int mmc_config_clock_modex(struct sunxi_mmc_host* mmchost, unsigned clk)
 	//dumphex32("mmc", (char*)mmchost->reg, 0x100);
 	return 0;
 }
+#else
+static int mmc_config_clock_modex(struct sunxi_mmc_host* mmchost, unsigned clk)
+{
+	unsigned div, sclk= 24000000;
+	unsigned clk_2x = 0;
+	unsigned rval = 0;
+	unsigned mode = mmchost->timing_mode;
+
+	if (mode == SUNXI_MMC_TIMING_MODE_1)
+	{
+		div = (2 * sclk + clk) / (2 * clk);
+		rval = readl(&mmchost->reg->clkcr) & (~0xff);
+		//if (mmc->io_mode == MMC_MODE_DDR_52MHz)
+		//	rval |= 0x1;
+		//else
+			rval |= div >> 1;
+		writel(rval, &mmchost->reg->clkcr);
+
+		rval = readl(&mmchost->reg->ntsr);
+		rval |= (1<<31);
+		writel(rval, &mmchost->reg->ntsr);
+		mmcinfo("mmc %d ntsr 0x%x, ckcr 0x%x\n", mmchost->mmc_no,
+			readl(&mmchost->reg->ntsr), readl(&mmchost->reg->clkcr));
+	}
+	if ((mode == SUNXI_MMC_TIMING_MODE_3) || (mode == SUNXI_MMC_TIMING_MODE_4))
+	{
+		if (mode == SUNXI_MMC_TIMING_MODE_3) {
+			//if (mmc->io_mode == MMC_MODE_DDR_52MHz)
+			//	clk_2x = clk << 2; //4xclk
+			//else
+				clk_2x = clk << 1; //2xclk
+		} else if (mode == SUNXI_MMC_TIMING_MODE_4) {
+			//if (mmc->io_mode == MMC_MODE_DDR_52MHz && mmc->bus_width == 8)
+			//	clk_2x = clk << 2; //4xclk: DDR8(HS)
+			//
+			//else
+				clk_2x = clk << 1; //2xclk: SDR 1/4/8; DDR4(HS); DDR8(HS400)
+		}
+
+		div = (2 * sclk + clk_2x) / (2 * clk_2x);
+		rval = readl(&mmchost->reg->clkcr) & (~0xff);
+		//if (mmc->io_mode == MMC_MODE_DDR_52MHz)
+		//	rval |= 0x1;
+		//else
+			rval |= div >> 1;
+		writel(rval, &mmchost->reg->clkcr);
+
+
+	}
+	return 0;
+}
+#endif
 
 static int mmc_config_clock(struct mmc *mmc, unsigned clk)
 {
@@ -1166,14 +1225,42 @@ out:
 		return 0;
 }
 
+
+void mmc_update_host_caps(int sdc_no)
+{
+#ifndef FPGA_PLATFORM
+	u8 sdly=0xff, odly=0xff;
+	struct mmc *mmc;
+	struct boot_sdmmc_private_info_t *priv_info =
+		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
+	u8 ext_f_max = priv_info->boot_mmc_cfg.boot_hs_f_max;
+	mmc = &mmc_dev[sdc_no];
+
+	if (!mmc_get_timing_cfg(sdc_no, 1, 2, &odly, &sdly)) {
+		if (!((odly != 0xff) && (sdly != 0xff)))
+			mmc->f_max = 25000000;
+	} else
+		mmc->f_max = 25000000;
+
+	if ( !mmc_get_timing_cfg(sdc_no, 2, 2, &odly, &sdly) ) {
+		if ((odly != 0xff) && (sdly != 0xff))
+			mmc->host_caps |= MMC_MODE_DDR_52MHz;
+		else
+			mmc->f_max_ddr = 25000000;
+	} else
+		mmc->f_max_ddr = 25000000;
+
+	if (ext_f_max && ((mmc->f_max_ddr/1000000) > ext_f_max))
+		mmc->f_max_ddr = ext_f_max * 1000000;
+	if (ext_f_max && ((mmc->f_max/1000000) > ext_f_max))
+		mmc->f_max = ext_f_max * 1000000;
+#endif
+}
+
 int sunxi_mmc_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_info, int offset ,void *extra_data)
 {
 	struct mmc *mmc;
 	int ret;
-	u8 sdly=0xff, odly=0xff;
-	struct boot_sdmmc_private_info_t *priv_info =
-		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
-	u8 ext_f_max = priv_info->boot_mmc_cfg.boot_hs_f_max;
 
 	mmcinfo("mmc driver ver %s\n", DRIVER_VER);
 
@@ -1206,28 +1293,10 @@ int sunxi_mmc_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_i
 	mmc->f_min = 400000;
 	mmc->f_max = 50000000;
 	mmc->f_max_ddr = 50000000;
-	if (!mmc_get_timing_cfg(sdc_no, 1, 2, &odly, &sdly)) {
-		if (!((odly != 0xff) && (sdly != 0xff)))
-			mmc->f_max = 25000000;
-	} else
-		mmc->f_max = 25000000;
-
-	if ( !mmc_get_timing_cfg(sdc_no, 2, 2, &odly, &sdly) ) {
-		if ((odly != 0xff) && (sdly != 0xff))
-			mmc->host_caps |= MMC_MODE_DDR_52MHz;
-		else
-			mmc->f_max_ddr = 25000000;
-	} else
-		mmc->f_max_ddr = 25000000;
-
-	if (ext_f_max && ((mmc->f_max_ddr/1000000) > ext_f_max))
-		mmc->f_max_ddr = ext_f_max * 1000000;
-	if (ext_f_max && ((mmc->f_max/1000000) > ext_f_max))
-		mmc->f_max = ext_f_max * 1000000;
-
+	mmc_update_host_caps(sdc_no);
 	mmc->control_num = sdc_no;
 
-    mmc_host[sdc_no].pdes = (struct sunxi_mmc_des*)DMAC_DES_BASE_IN_SDRAM;
+	mmc_host[sdc_no].pdes = (struct sunxi_mmc_des*)DMAC_DES_BASE_IN_SDRAM;
 	if (mmc_resource_init(sdc_no)){
 		mmcinfo("mmc %d resource init failed\n",sdc_no);
 		return -1;

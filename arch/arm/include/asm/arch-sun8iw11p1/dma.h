@@ -96,7 +96,7 @@
 #define DMAC_DMATYPE_NORMAL                             (0)
 #define DMAC_CFG_SRC_TYPE_NAND                          (5)
 #define	DMAC_CFG_SRC_TYPE_CODEC                         (15)
-#define DMAC_CFG_TYPE_SPI0                              (23)
+#define DMAC_CFG_TYPE_SPI0                              (24)
 
 #define DMAC_CFG_TYPE_SRAM                              (0)
 #define DMAC_CFG_TYPE_DRAM                              (1)
@@ -105,6 +105,7 @@
 /* register difine */
 #define DMA_IRQ_EN_REG                          (SUNXI_DMA_BASE + 0x00)
 #define DMA_IRQ_PEND_REG                        (SUNXI_DMA_BASE + 0x10)
+#define DMA_AUTO_GATE_REG                       (SUNXI_DMA_BASE + 0x28)
 #define DMA_CHAN_STA_REG                        (SUNXI_DMA_BASE + 0x30)
 
 

@@ -856,7 +856,8 @@ int	printf(const char *fmt, ...)
 int	vprintf(const char *fmt, va_list args);
 int	tick_printf(const char *fmt, ...);
 int	sunxi_tick_printf(const char *fmt, ...);
-
+void printf_all(void);
+int dprintf(const char *fmt, ...);
 
 /* stderr */
 #define eputc(c)		fputc(stderr, c)
@@ -1077,5 +1078,7 @@ static inline phys_addr_t map_to_sysmem(const void *ptr)
 #ifdef DO_DEPS_ONLY
 # include <environment.h>
 #endif
+
+#define CACHE_LINE_SIZE (64)
 
 #endif	/* __COMMON_H_ */

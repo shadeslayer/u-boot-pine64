@@ -145,11 +145,13 @@ static void sunxi_clk_fators_disable(struct clk_hw *hw)
 	struct sunxi_clk_factors_config *config = factor->config;
 	unsigned long reg = factor_readl(factor,factor->reg);
 
-	if(factor->flags & CLK_IGNORE_DISABLE)
-		return;
-
 	if(!GET_BITS(config->enshift, 1, reg)) {
 		printf("clk %s is already disable.\n", factor->hw.clk->name);
+		return;
+	}
+	/* When the pll is not in use, just set it to the minimum frequency */
+	if (factor->flags & CLK_IGNORE_DISABLE) {
+		clk_set_rate(hw->clk, 0);
 		return;
 	}
 
@@ -279,7 +281,7 @@ static int sunxi_clk_factors_set_flat_facotrs(struct sunxi_clk_factors *pfactor 
 		reg = SET_BITS( config->nshift , config->nwidth , reg, values->factorn );
 
 	if( config->kwidth )
-		reg = SET_BITS( config->kshift , config->kwidth , reg, values->factork );		
+		reg = SET_BITS( config->kshift , config->kwidth , reg, values->factork );
 
 	factor_writel(factor,reg, factor->reg);
 	/* 4. do pair things for 2). decease factor m */
@@ -289,7 +291,7 @@ static int sunxi_clk_factors_set_flat_facotrs(struct sunxi_clk_factors *pfactor 
 		factor_writel(factor,reg, factor->reg);
 		if( factor->flags & CLK_RATE_FLAT_DELAY)
 			udelay(config->delay);
-	}	
+	}
 
 	/* 5. wait for PLL state stable */
 #ifdef CONFIG_EVB_PLATFORM

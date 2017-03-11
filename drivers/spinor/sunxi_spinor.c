@@ -255,7 +255,7 @@ static int __spinor_erase_all(void)
 		 	return -1;
 		}
 		count ++;
-		__msdelay(500);
+		__msdelay(1000);
 		printf(".");
 	} while (status & 0x01);
 	printf("\nstatus = %d\n",status);
@@ -433,11 +433,11 @@ static int __spinor_sector_write(uint sector_start, uint sector_cnt, void *buf)
 	printf("nor_page_cnt=%d\n", nor_page_cnt);
 	for (i = 0; i < nor_page_cnt; i++)
 	{
-		//printf("spinor program page : 0x%x\n", page_addr + SPINOR_PAGE_SIZE * i);
-		if((i & 0x1ff) == 0x1ff)
-		{
-			printf("nor_page_cnt=%d\n", i);
-		}
+//		//printf("spinor program page : 0x%x\n", page_addr + SPINOR_PAGE_SIZE * i);
+//		if((i & 0x1ff) == 0x1ff)
+//		{
+//			printf("current cnt=%d\n", i);
+//		}
 		ret = __spinor_pp(page_addr + SPINOR_PAGE_SIZE * i, (void *)((uint)buf + SPINOR_PAGE_SIZE * i), SPINOR_PAGE_SIZE);
 		if (-1 == ret)
 		{
@@ -761,10 +761,38 @@ int spinor_erase_all_blocks(int erase)
 	return 0;
 }
 
+int spinor_erase(int erase, void *mbr_buffer)
+{
+	int i = 0,start = 0;
+	int ret =-1;
+	unsigned int from, nr,erase_block;
+	sunxi_mbr_t *mbr = (sunxi_mbr_t *)mbr_buffer;
 
+	if (!erase)
+		return 0;
 
+	for (i=0;i<mbr->PartCount;i++)
+	{
+		printf("erase %s part\n", mbr->array[i].name);
 
+		from = mbr->array[i].addrlo + CONFIG_SPINOR_LOGICAL_OFFSET;
+		nr = mbr->array[i].lenlo;
+		printf("from:0x%x,nblock:0x%x \n",from,nr);
 
+		for (start=from;start<(from+nr);start+=SPINOR_BLOCK_SECTORS)
+		{
+			erase_block = start/SPINOR_BLOCK_SECTORS;
+			 printf("erasing block index:%x (0x%x)\n",erase_block,(from+nr)/SPINOR_BLOCK_SECTORS);
+			ret = __spinor_erase_block(erase_block);
+			 if (ret <0)
+			{
+			    printf("erase %s part fail\n", mbr->array[i].name);
+			    return -1;
+			}
+		}
+	}
+	return 0;
+}
 
 /*
 ************************************************************************************************************
@@ -801,30 +829,85 @@ int spinor_size(void)
 
 	return size;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
+
+static int __spinor_sprite_sector_write(uint start,uint nsector,void* buffer)
+{
+	int sector_index;
+
+	debug("start: 0x%x, nsector: 0x%x \n",start,nsector);
+
+	if (nsector > SPINOR_BLOCK_SECTORS-start % SPINOR_BLOCK_SECTORS)
+	{
+	    printf("sector cnt error\n");
+	    return -1;
+	}
+
+	sector_index = start/SPINOR_BLOCK_SECTORS;
+	if ((start % SPINOR_BLOCK_SECTORS)||(nsector < SPINOR_BLOCK_SECTORS))
+	{
+	    if (__spinor_sector_read(sector_index * SPINOR_BLOCK_SECTORS, SPINOR_BLOCK_SECTORS, spinor_store_buffer))
+	    {
+	        printf("spinor read  sector fail\n");
+	       return -1;
+	    }
+	}
+
+	memcpy((spinor_store_buffer + ((start % SPINOR_BLOCK_SECTORS) * 512)), buffer, nsector*512);
+
+	if (__spinor_erase_block(sector_index))
+	{
+	    printf("erase 0x%x sector fail\n",sector_index);
+	    return -1;
+	}
+
+	if (__spinor_sector_write(sector_index*SPINOR_BLOCK_SECTORS,SPINOR_BLOCK_SECTORS,spinor_store_buffer))
+	{
+	    printf("spinor write  0x%x sector fail\n",sector_index);
+	   return -1;
+	}
+
+	return SPINOR_BLOCK_SECTORS;
+}
+
 int spinor_sprite_write(uint start, uint nblock, void *buffer)
 {
-	//printf("spinor burn write: start 0x%x, sector 0x%x\n", start, nblock);
+	uint start_sector;
+	int ret;
+	int offset;
+	int nsector = 0;
+	int sector_once_write = SPINOR_BLOCK_SECTORS;
 
-	memcpy(spinor_store_buffer + start*512, buffer, nblock*512);
+	if (nblock < SPINOR_BLOCK_SECTORS)
+	{
+		sector_once_write = nblock;
+	}
 
-	total_write_bytes += nblock * 512;
+	offset = start%SPINOR_BLOCK_SECTORS;
+	/*  deal with first sector,make it align with 64k */
+	if (offset)
+	{
+		nsector = SPINOR_BLOCK_SECTORS - offset;
+		ret =  __spinor_sprite_sector_write(start, nsector, buffer);
+		if (ret < 0)
+		{
+			printf("spinor sprite write fail\n");
+			return 0;
+		}
 
+	}
+
+	for (start_sector =start+nsector;start_sector<start+nblock;start_sector+= SPINOR_BLOCK_SECTORS)
+	{
+		if (start+nblock - start_sector < SPINOR_BLOCK_SECTORS)
+			sector_once_write = start+nblock - start_sector;
+
+		ret = __spinor_sprite_sector_write(start_sector,sector_once_write, (void *)((uint)buffer + (start_sector -start) * 512));
+		if (ret < 0)
+		{
+			printf("spinor sprite write fail\n");
+			return 0;
+		}
+	}
 	return nblock;
 }
 /*
@@ -898,6 +981,37 @@ int update_boot0_dram_para(char *buffer)
 
 }
 
+int spinor_download_uboot(uint length, void *buffer)
+{
+	int ret = -1;
+	ret = spinor_sprite_write(UBOOT_START_SECTOR_IN_SPINOR, length/512, buffer);
+	if (ret < 0)
+	{
+		printf("spinor download uboot fail\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int spinor_download_boot0(uint length, void *buffer)
+{
+	int ret = -1;
+
+	if(update_boot0_dram_para(buffer))
+	{
+		return -1;
+	}
+
+	ret = spinor_sprite_write(0, length/512, buffer);
+	if (ret < 0)
+	{
+		printf("spinor download boot0 fail\n");
+		return -1;
+	}
+
+	return 0;
+}
 
 int spinor_datafinish(void)
 {
@@ -918,7 +1032,7 @@ int spinor_datafinish(void)
 		return -1;
 	}
 
-	flush_cache((unsigned long)spinor_store_buffer,SPINOR_STORE_BUFFER_SIZE);
+	flush_cache((unsigned long)spinor_store_buffer,total_write_bytes);
 	printf("total write bytes = %d\n", total_write_bytes);
 	ret = __spinor_sector_write(0, total_write_bytes/512, spinor_store_buffer);
 	if(ret)
@@ -1134,3 +1248,4 @@ static void spinor_config_addr_mode(u8 *sdata, uint page_addr, uint *num, u8 cmd
 	}
 
 }
+

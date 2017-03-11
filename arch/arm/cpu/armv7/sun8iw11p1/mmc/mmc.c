@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -569,6 +575,9 @@ int mmc_send_ext_csd(struct mmc *mmc, char *ext_csd)
 
 int mmc_update_phase(struct mmc *mmc)
 {
+	if(mmc->update_phase == NULL)
+		return 0;
+
 	return mmc->update_phase(mmc);
 }
 
@@ -621,7 +630,6 @@ int mmc_change_freq(struct mmc *mmc)
 		return 0;
 
 	mmc->card_caps |= MMC_MODE_4BIT|MMC_MODE_8BIT;
-
 	err = mmc_send_ext_csd(mmc, ext_csd);
 
 	if (err){
@@ -1038,7 +1046,6 @@ int mmc_startup(struct mmc *mmc)
 	if (!IS_SD(mmc) && (mmc->version >= MMC_VERSION_4)) {
 		/* check  ext_csd version and capacity */
 		err = mmc_send_ext_csd(mmc, ext_csd);
-
 		if(!err){
 				/* update mmc version */
 			switch (ext_csd[192]) {
@@ -1068,7 +1075,6 @@ int mmc_startup(struct mmc *mmc)
 					break;
 			}
 		}
-
 
 		if (!err & (ext_csd[192] >= 2)) {
 			/*
@@ -1228,7 +1234,6 @@ int mmc_startup(struct mmc *mmc)
 			mmc->tran_speed = 26000000;
 		}
 	}
-
 	mmcdbg("%s: set clock %d\n", __FUNCTION__, mmc->tran_speed);
 	mmc_set_clock(mmc, mmc->tran_speed);
 
@@ -1437,7 +1442,6 @@ int mmc_init(struct mmc *mmc)
 		}
 	}
 #endif
-
 	err = mmc_startup(mmc);
 	if (err){
 		mmcinfo("***SD/MMC %d init error!!!***\n",mmc->control_num);

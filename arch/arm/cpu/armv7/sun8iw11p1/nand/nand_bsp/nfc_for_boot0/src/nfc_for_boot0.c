@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 *********************************************************************************************************
 *											        eBIOS
 *						                the Base Input Output Subrutines
@@ -799,6 +805,8 @@ __s32 NFC_ChangMode(NFC_INIT_INFO *nand_info )
 	   cfg |= ( 0x2 << 8 );
     else if(nand_info->pagesize == 16 )       /*  8K  */
 	   cfg |= ( 0x3 << 8 );
+	else if((nand_info->pagesize > 16 )&&(nand_info->pagesize < 32 ))       /*  12K  */
+	   cfg |= ( 0x4 << 8 );
 	else if(nand_info->pagesize == 32 )       /*  16K  */
 	   cfg |= ( 0x4 << 8 );
 	else                                      /* default 4K */

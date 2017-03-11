@@ -122,8 +122,9 @@ int dram_init(void)
 		gd->ram_size = get_ram_size((long *)PHYS_SDRAM_1, PHYS_SDRAM_1_SIZE);
 	}
 	//reserve trusted dram
-	if(gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS)
-		gd->ram_size -= 64 * 1024 * 1024;
+	//what is this used for?
+	//if(gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS)
+	//	gd->ram_size -= 64 * 1024 * 1024;
 
 	print_size(gd->ram_size, "");
 	putc('\n');
@@ -156,7 +157,7 @@ void board_mmc_pre_init(int card_num)
 	bd = gd->bd;
 	gd->bd->bi_card_num = card_num;
 	mmc_initialize(bd);
-  
+
 }
 
 int board_mmc_get_num(void)
@@ -197,25 +198,36 @@ extern int axp81_probe(void);
 /**
  * platform_axp_probe -detect the pmu on  board
  * @sunxi_axp_dev_pt: pointer to the axp array
- * @max_dev: offset of the property to retrieve
+ * @max_dev: the max num of pmu
  * returns:
  *	the num of pmu
  */
 
-int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int max_dev)
+int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int probe_flag)
 {
+	int pmu_id;
+
+	//axp has been probe by boot0
+	pmu_id = uboot_spare_head.boot_ext[0].data[0];
+	if(pmu_id > 0)
+	{
+		printf("boot0 probe pmu_type = 0x%x\n", pmu_id);
+		sunxi_axp_dev_pt[0] = &sunxi_axp_81;
+		return 1;
+	}
+
 	if(axp81_probe())
 	{
 		printf("probe axp81X failed\n");
 		sunxi_axp_dev_pt[0] = &sunxi_axp_null;
 		return 0;
 	}
-	
+
 	/* pmu type AXP81X */
 	tick_printf("PMU: AXP81X found\n");
 
 	sunxi_axp_dev_pt[0] = &sunxi_axp_81;
-	//sunxi_axp_dev_pt[PMU_TYPE_81X] = &sunxi_axp_81;
+
 	//find one axp
 	return 1;
 

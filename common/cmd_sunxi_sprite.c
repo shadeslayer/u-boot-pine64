@@ -10,9 +10,20 @@ extern int sunxi_usb_dev_register(uint dev_name);
 extern void sunxi_usb_main_loop(int mode);
 extern int sunxi_card_sprite_main(int workmode, char *name);
 extern int sprite_form_sysrecovery(void);
-
 extern int sprite_led_init(void);
 extern int sprite_led_exit(int status);
+#ifdef CONFIG_AUTO_UPDATE
+extern int sunxi_card_update_main(void);
+#endif
+
+int  __attribute__((weak)) sunxi_usb_dev_register(uint dev_name)
+{
+	return -1;
+}
+void __attribute__((weak)) sunxi_usb_main_loop(int delaytime)
+{
+	return;
+}
 
 int do_sprite_test(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
@@ -35,6 +46,21 @@ int do_sprite_test(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		sprite_led_exit(ret);
 		return ret;
 	}
+#ifdef CONFIG_AUTO_UPDATE
+	else if(uboot_spare_head.boot_data.work_mode == WORK_MODE_CARD_UPDATE)
+	{
+		printf("run card update\n");
+		sprite_led_init();
+		ret = sunxi_card_update_main();
+		sprite_led_exit(ret);
+		if (!ret)
+		{
+			printf("update finish,going to reboot the system...\n");
+			reset_cpu(0);
+		}
+		return ret;
+	}
+#endif
 	else if(uboot_spare_head.boot_data.work_mode == WORK_MODE_USB_DEBUG)
 	{
 		unsigned int val;

@@ -63,6 +63,8 @@ typedef struct _boot_dram_para_t
 
 extern unsigned int mctl_init(void *para);
 extern int init_DRAM( int type, __dram_para_t *buff );
+extern void dram_enable_all_master(void);
+extern void dram_disable_all_master(void);
 #endif
 
 

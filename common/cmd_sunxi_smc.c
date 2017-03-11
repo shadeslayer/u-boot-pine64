@@ -92,10 +92,11 @@ int do_sunxi_aes(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	char aes_key[256] = {0};
 	int i = 0 ;
 	int len = sizeof(in_buff);
+	int align_len = 0;
 	for(i =0; i < sizeof(in_buff); i++)
 		in_buff[i] = i;
 
-	if(smc_tee_ssk_encrypt(out_buff, in_buff, len))
+	if(smc_tee_ssk_encrypt(out_buff, in_buff, len, &align_len))
 	{
 		printf("aes ssk encrypt fail\n");
 		return -1;
@@ -105,7 +106,7 @@ int do_sunxi_aes(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	memset(in_buff, 0, len);
 
 #ifdef DEBUG
-	if(smc_aes_bssk_decrypt_to_keysram(out_buff,len))
+	if(smc_aes_bssk_decrypt_to_keysram())
 	{
 		printf("aes ssk decrypt to sram fail\n");
 		return -1;
@@ -150,3 +151,4 @@ U_BOOT_CMD(
 	"do a aes test",
 	"sunxi_aes "
 );
+

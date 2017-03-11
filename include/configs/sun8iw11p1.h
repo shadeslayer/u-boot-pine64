@@ -52,9 +52,6 @@
 #define CONFIG_TARGET_NAME      sun8iw11p1
 #endif
 
-#define CONFIG_STORAGE_MEDIA_NAND
-#define CONFIG_STORAGE_MEDIA_MMC
-#define CONFIG_STORAGE_MEDIA_SPINOR
 
 
 #define CONFIG_SYS_GENERIC_BOARD
@@ -140,7 +137,7 @@
 #define FEL_BASE                         0xffff0020
 #define SUNXI_RUN_EFEX_FLAG              (0x5AA5A55A)
 
-
+#define CONFIG_NORMAL_DEBUG_BASE         (CONFIG_SYS_SRAMA3_BASE)
 
 #define SUNXI_RUN_EFEX_ADDR              (SUNXI_RTC_BASE + 0x108)
 #define DRAM_PARA_STORE_ADDR             (CONFIG_SYS_SDRAM_BASE + 0x00800000)
@@ -175,7 +172,7 @@
 #define CONFIG_BOOT0_RUN_ADDR            (0x00000)
 
 #define CONFIG_FES1_RET_ADDR             (CONFIG_SYS_SRAM_BASE + 0x7210)
-#define CONFIG_FES1_RUN_ADDR             (0x2000)
+#define CONFIG_FES1_RUN_ADDR             (0x8000)
 
 #define CONFIG_SUNXI_CHIPID
 //boot0 fes --end
@@ -213,7 +210,7 @@
 /****************************************************************************************/
 
 
-#define SUNXI_DMA_LINK_NULL       (0x1ffff800)
+#define SUNXI_DMA_LINK_NULL       (0xfffff800)
 
 #define CONFIG_USE_ARCH_MEMCPY
 #define CONFIG_USE_ARCH_MEMSET
@@ -234,6 +231,7 @@
 #define CONFIG_SYS_NS16550_COM2		SUNXI_UART1_BASE
 #define CONFIG_SYS_NS16550_COM3		SUNXI_UART2_BASE
 #define CONFIG_SYS_NS16550_COM4		SUNXI_UART3_BASE
+#define CONFIG_NS16550_FIFO_ENABLE	(1)
 
 #define CONFIG_CONS_INDEX			1			/* which serial channel for console */
 
@@ -364,7 +362,9 @@
 #define CONFIG_SUNXI_MODULE_SPINOR
 #define CONFIG_SUNXI_MODULE_AXP
 #define CONFIG_SUNXI_MODULE_USB
-//#define CONFIG_SUNXI_MODULE_DISPLAY
+#define CONFIG_SUNXI_MODULE_DISPLAY
+#define CONFIG_SUNXI_MODULE_HDMI
+#define CONFIG_SUNXI_MODULE_TV
 #else
 #define CONFIG_SUNXI_MODULE_SPINOR
 #define CONFIG_SUNXI_MODULE_AXP
@@ -399,12 +399,19 @@
 #endif
 #define CONFIG_CMD_SUNXI_MEMTEST
 
-
-
 #endif
 
+//#define CONFIG_AUTO_UPDATE
+
+#ifdef CONFIG_AUTO_UPDATE
+#define CONFIG_SUNXI_MODULE_SDMMC
+#define CONFIG_CMD_SUNXI_SPRITE
+#define CONFIG_SUNXI_MODULE_SPRITE
+#define CONFIG_CMD_FAT
+#endif
 
 #ifdef CONFIG_SUNXI_MODULE_SDMMC
+#define CONFIG_STORAGE_MEDIA_MMC
 /* mmc config */
 #define CONFIG_MMC
 #define CONFIG_GENERIC_MMC
@@ -416,6 +423,7 @@
 #endif
 
 #ifdef CONFIG_SUNXI_MODULE_NAND
+#define CONFIG_STORAGE_MEDIA_NAND
 /* Nand config */
 #define CONFIG_NAND
 #define CONFIG_STORAGE_NAND
@@ -444,12 +452,25 @@
 #define CONFIG_SUNXI_SPINOR
 #define CONFIG_SPINOR_LOGICAL_OFFSET        ((512 - 16) * 1024/512)
 #define UBOOT_START_SECTOR_IN_SPINOR        (24*1024/512)
-#define SPINOR_STORE_BUFFER_SIZE            (8<<20)
+#define SPINOR_STORE_BUFFER_SIZE            (2<<20)
+#define CONFIG_STORAGE_MEDIA_SPINOR
+#define ALIGN_SIZE_8K
+
 #endif
 
 #ifdef CONFIG_SUNXI_MODULE_USB
 /* USB SUSPORT */
-#define CONFIG_USB_ETHER
+#define CONFIG_USB_EHCI_SUNXI
+//for usb host
+#ifdef CONFIG_USB_EHCI_SUNXI
+#define CONFIG_EHCI_DCACHE
+#define CONFIG_CMD_USB
+#define CONFIG_USB_STORAGE
+#define CONFIG_USB_EHCI
+#endif
+
+//#define CONFIG_USB_ETHER
+#ifdef CONFIG_USB_ETHER
 #define CONFIG_USB_ETH_RNDIS
 #define CONFIG_USB_SUNXI_UDC0
 #define CONFIG_USB_GADGET_DUALSPEED
@@ -459,9 +480,23 @@
 #define CONFIG_NET_MULTI
 #define CONFIG_CMD_PING
 #define CONFIG_CMD_NFS
-
+#endif
 #endif
 
 //#define CONFIG_SYS_DCACHE_OFF
+
+/* net support */
+//#define CONFIG_SUNXI_GETH
+#ifdef CONFIG_SUNXI_GETH
+#define CONFIG_SUNXI_EXT_PHY
+#define CONFIG_CMD_NET
+#define CONFIG_CMD_PING
+#define CONFIG_CMD_MII
+//#define CONFIG_ETHADDR 	72:D6:05:4F:B9:3B
+//#define CONFIG_IPADDR   	192.168.200.254
+//#define CONFIG_SERVERIP      	192.168.200.20
+//#define CONFIG_NETMASK       	255.255.255.0
+//#define CONFIG_GATEWAYIP     	192.168.200.1
+#endif
 
 #endif /* __CONFIG_H */

@@ -102,5 +102,34 @@
 #define CCMU_AHB1_RST_REG0                (CCMU_BUS_SOFT_RST_REG0)
 #define CCMU_AHB1_GATE0_CTRL              (CCMU_BUS_CLK_GATING_REG0)
 
+/*CE*/
+#define CE_CLK_SRC_MASK                     (0x3)
+#define CE_CLK_SRC_SEL_BIT                  (24)
+#define CE_CLK_SRC                          (0x01)
+
+#define CE_CLK_DIV_RATION_N_BIT             (16)
+#define CE_CLK_DIV_RATION_N_MASK            (0x3)
+#define CE_CLK_DIV_RATION_N                 (0)
+
+#define CE_CLK_DIV_RATION_M_BIT             (0)
+#define CE_CLK_DIV_RATION_M_MASK            (0xF)
+#define CE_CLK_DIV_RATION_M                 (3)
+
+#define CE_SCLK_ONOFF_BIT                   (31)
+#define CE_SCLK_ON                          (1)
+
+#define CE_GATING_BASE                      CCMU_BUS_CLK_GATING_REG0
+#define CE_GATING_PASS                      (1)
+#define CE_GATING_BIT                       (5)
+
+#define CE_RST_REG_BASE                     CCMU_BUS_SOFT_RST_REG0
+#define CE_RST_BIT                          (5)
+#define CE_DEASSERT                         (1)
+
+/*DMA*/
+#define DMA_GATING_BASE                     CCMU_BUS_CLK_GATING_REG0
+#define DMA_GATING_PASS                     (1)
+#define DMA_GATING_BIT                      (6)
+
 #endif
 

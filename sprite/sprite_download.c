@@ -37,6 +37,37 @@ DECLARE_GLOBAL_DATA_PTR;
 
 extern int sunxi_set_secure_mode(void);
 
+int  __attribute__((weak)) nand_force_download_uboot(uint length,void *buffer)
+{
+	return -1;
+}
+
+int  __attribute__((weak))  nand_download_uboot(uint length, void *buffer)
+{
+	return -1;
+}
+
+int  __attribute__((weak))  nand_write_boot0(void *buffer,uint length)
+{
+	return -1;
+}
+uint __attribute__((weak)) nand_uboot_get_flash_info(void *buffer, uint length)
+{
+	return 0;
+}
+int __attribute__((weak)) nand_download_boot0(uint length, void *buffer)
+{
+	return -1;
+}
+int __attribute__((weak)) spinor_download_uboot(uint length, void *buffer)
+{
+	return -1;
+}
+int __attribute__((weak)) spinor_download_boot0(uint length, void *buffer)
+{
+	return -1;
+}
+
 /*
 ************************************************************************************************************
 *
@@ -84,8 +115,14 @@ int sunxi_sprite_download_mbr(void *buffer, uint buffer_size)
 {
 	int ret;
 	int storage_type = 0;
+	int mbr_num = SUNXI_MBR_COPY_NUM;
 
-	if(buffer_size != (SUNXI_MBR_SIZE * SUNXI_MBR_COPY_NUM))
+	if (get_boot_storage_type() == STORAGE_NOR)
+	{
+		  mbr_num = 1;
+	}
+
+	if(buffer_size != (SUNXI_MBR_SIZE * mbr_num))
 	{
 		printf("the mbr size is bad\n");
 
@@ -152,10 +189,8 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate
 	int length = 0;
 	if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL)
 	{
-    		struct spare_boot_head_t    *uboot  = (struct spare_boot_head_t *)buffer;
-
-		//
-		printf("%s\n", uboot->boot_head.magic);
+		struct spare_boot_head_t    *uboot  = (struct spare_boot_head_t *)buffer;
+		printf("uboot magic %s\n", uboot->boot_head.magic);
 		if(strncmp((const char *)uboot->boot_head.magic, UBOOT_MAGIC, MAGIC_SIZE))
 		{
 			printf("sunxi sprite: uboot magic is error\n");
@@ -167,7 +202,14 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate
 	else
 	{
 		sbrom_toc1_head_info_t *toc1 = (sbrom_toc1_head_info_t *)buffer;
-		printf("toc magic 0x%x\n", toc1->magic);
+		if(gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG )
+		{
+			printf("uboot_pkg magic 0x%x\n", toc1->magic);
+		}
+		else
+		{
+			printf("toc magic 0x%x\n", toc1->magic);
+		}
 		if(toc1->magic != TOC_MAIN_INFO_MAGIC)
 		{
 			printf("sunxi sprite: toc magic is error\n");
@@ -183,7 +225,7 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate
 
 	printf("uboot size = 0x%x\n", length);
 	printf("storage type = %d\n", production_media);
-	if(!production_media)
+	if (production_media == STORAGE_NAND)
 	{
 		debug("nand down uboot\n");
 		if(uboot_spare_head.boot_data.work_mode == WORK_MODE_BOOT)
@@ -195,6 +237,11 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate
 		{
 			return nand_download_uboot(length, buffer);
 		}
+	}
+	else if (production_media == STORAGE_NOR)
+	{
+		printf("spinor down uboot\n");
+		return spinor_download_uboot(length, buffer);
 	}
 	else
 	{
@@ -247,8 +294,6 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 		}
 		else
 		{
-			extern int mmc_write_info(int dev_num, void *buffer,u32 buffer_size);
-
 			if (production_media == STORAGE_EMMC) {
 				if (mmc_write_info(2,(void *)boot0->prvt_head.storage_data, STORAGE_BUFFER_SIZE)) {
 					printf("add sdmmc2 private info fail!\n");
@@ -262,9 +307,12 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 				}
 			}
 		}
-		memcpy((void *)&boot0->prvt_head.dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
-		/*update dram flag*/
-		set_boot_dram_update_flag(boot0->prvt_head.dram_para);
+		if (uboot_spare_head.boot_data.work_mode != WORK_MODE_SPRITE_RECOVERY)
+		{
+			memcpy((void *)&boot0->prvt_head.dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+			/*update dram flag*/
+			set_boot_dram_update_flag(boot0->prvt_head.dram_para);
+		}
 		dump_dram_para(boot0->prvt_head.dram_para,32);
 
 		/* regenerate check sum */
@@ -276,9 +324,13 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 			return -1;
 		}
 		printf("storage type = %d\n", production_media);
-		if(!production_media)
+		if (production_media == STORAGE_NAND)
 		{
 			return nand_download_boot0(boot0->boot_head.length, buffer);
+		}
+		else if (production_media == STORAGE_NOR)
+		{
+			return  spinor_download_boot0(boot0->boot_head.length, buffer);
 		}
 		else
 		{
@@ -310,7 +362,6 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 		{
 			nand_uboot_get_flash_info((void *)toc0_config->storage_data, STORAGE_BUFFER_SIZE);
 		}else{
-			extern int mmc_write_info(int dev_num,void *buffer,u32 buffer_size);
 			//storage_data[384];  // 0-159:nand info  160-255:card info
 			if (production_media == STORAGE_EMMC) {
 				if (mmc_write_info(2,(void *)(toc0_config->storage_data+160),384-160)){
@@ -326,17 +377,24 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 		}
 
 		//update dram param
-		if((uboot_spare_head.boot_data.work_mode == WORK_MODE_CARD_PRODUCT) || ((uboot_spare_head.boot_data.work_mode == WORK_MODE_SPRITE_RECOVERY)))
+		if(uboot_spare_head.boot_data.work_mode == WORK_MODE_CARD_PRODUCT)
 		{
 			memcpy((void *)toc0_config->dram_para, (void *)(uboot_spare_head.boot_data.dram_para), 32 * 4);
 			//toc0_config->dram_para[4] += toc0_config->secure_dram_mbytes;
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
+		}
+		else if (uboot_spare_head.boot_data.work_mode == WORK_MODE_SPRITE_RECOVERY)
+		{
+			printf("skip memcpy dram para for work_mode recovery\n");
 		}
 		else
 		{
 			memcpy((void *)toc0_config->dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
 		}
-		/*update dram flag*/
-		set_boot_dram_update_flag(toc0_config->dram_para);
+
 		dump_dram_para( toc0_config->dram_para,32);
 
 		/* regenerate check sum */
@@ -348,9 +406,13 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 			return -1;
 		}
 		printf("storage type = %d\n", production_media);
-		if(!production_media)
+		if (production_media == STORAGE_NAND)
 		{
 			ret = nand_download_boot0(toc0->length, buffer);
+		}
+		else if (production_media == STORAGE_NOR)
+		{
+			ret = spinor_download_boot0(toc0->length, buffer);
 		}
 		else
 		{
@@ -384,6 +446,12 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 int sunxi_download_boot0_atfter_ota(void *buffer, int production_media)
 {
 	u32 length;
+	int card_num = 2;
+
+	if (production_media == STORAGE_EMMC3)
+	{
+		card_num = 3;
+	}
 
 	if(SUNXI_NORMAL_MODE == sunxi_get_securemode())
 	{
@@ -401,11 +469,24 @@ int sunxi_download_boot0_atfter_ota(void *buffer, int production_media)
 			printf("sunxi sprite: boot0 checksum is error\n");
 			return -1;
 		}
-		memcpy((void *)&boot0->prvt_head.dram_para,
-			(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
-		/*update ota flag*/
-		set_boot_dram_update_flag(boot0->prvt_head.dram_para);
-		dump_dram_para(boot0->prvt_head.dram_para,32);
+
+		if(get_boot_dram_update_flag())
+		{
+			memcpy((void *)&boot0->prvt_head.dram_para,
+				(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
+			/*update ota flag*/
+			set_boot_dram_update_flag(boot0->prvt_head.dram_para);
+			dump_dram_para(boot0->prvt_head.dram_para,32);
+		}
+
+		/* udpate mmc private info */
+		if (mmc_request_update_boot0(card_num))
+		{
+			if (mmc_write_info(card_num,(void *)boot0->prvt_head.storage_data, STORAGE_BUFFER_SIZE)) {
+				printf("%s: update mmc private info fail!\n", __FUNCTION__);
+				return -1;
+			}
+		}
 
 		/* regenerate check sum */
 		boot0->boot_head.check_sum = sunxi_sprite_generate_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum);
@@ -437,11 +518,24 @@ int sunxi_download_boot0_atfter_ota(void *buffer, int production_media)
 		}
 
 		//update dram param
-		memcpy((void *)toc0_config->dram_para,
-			(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
-		/*update dram flag*/
-		set_boot_dram_update_flag(toc0_config->dram_para);
-		dump_dram_para(toc0_config->dram_para,32);
+		if(get_boot_dram_update_flag())
+		{
+			memcpy((void *)toc0_config->dram_para,
+				(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
+			dump_dram_para(toc0_config->dram_para,32);
+		}
+
+
+		/* udpate mmc private info */
+		if (mmc_request_update_boot0(card_num))
+		{
+			if (mmc_write_info(2,(void *)(toc0_config->storage_data+160),384-160)){
+				printf("%s: update sdmmc2 gpio info fail!\n", __FUNCTION__);
+				return -1;
+			}
+		}
 
 		/* regenerate check sum */
 		toc0->check_sum = sunxi_sprite_generate_checksum(buffer, toc0->length, toc0->check_sum);

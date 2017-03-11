@@ -60,7 +60,7 @@ sunxi_flash_spinor_size(void){
 
 static int sunxi_flash_spinor_erase(int erase,void *mbr_buffer)
 {
-	return spinor_erase_all_blocks(erase);
+	return spinor_erase(erase,mbr_buffer);
 }
 
 static int
@@ -93,7 +93,7 @@ sunxi_sprite_spinor_write(unsigned int start_block, unsigned int nblock, void *b
 {
 	debug("burn spinor write: start 0x%x, sector 0x%x\n", start_block, nblock);
 
-	return spinor_sprite_write(start_block, nblock, buffer);
+	return spinor_sprite_write(start_block+CONFIG_SPINOR_LOGICAL_OFFSET, nblock, buffer);
 }
 
 /*
@@ -129,9 +129,8 @@ int spinor_init_for_boot(int workmode, int spino)
 	sunxi_flash_size_pt  = sunxi_flash_spinor_size;
 	sunxi_flash_flush_pt = sunxi_flash_spinor_flush;
 	tick_printf("sunxi flash init ok\n");
-
 	return ret;
-	
+
 }
 int  spinor_init_for_sprite(int workmode)
 {
@@ -149,7 +148,8 @@ int  spinor_init_for_sprite(int workmode)
 	sunxi_sprite_flush_pt = sunxi_flash_spinor_flush;
 	//sunxi_sprite_datafinish_pt = sunxi_flash_spinor_datafinish;
 	debug("sunxi sprite has installed spi function\n");
-	
+
 	uboot_spare_head.boot_data.storage_type = STORAGE_NOR;
 	return 0;
 }
+

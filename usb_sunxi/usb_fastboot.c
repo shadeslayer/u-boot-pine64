@@ -35,6 +35,7 @@
 #include <private_uboot.h>
 #include "../sprite/sparse/sparse.h"
 #include "../sprite/sprite_download.h"
+#include <private_toc.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -480,7 +481,7 @@ static int __erase_part(char *name)
 	start            = sunxi_partition_get_offset_byname(name);
 	unerased_sectors = sunxi_partition_get_size_byname(name);
 
-    if(gd->lockflag == SUNXI_LOCKING || gd->lockflag == SUNXI_RELOCKING)
+    if(gd->lockflag == SUNXI_LOCKED)
     {
         printf("in lock state, sunxi fastboot erase is disabled\n");
 		__sunxi_fastboot_send_status(response, strlen(response));
@@ -552,49 +553,31 @@ static int __erase_part(char *name)
 */
 static void __flash_to_uboot(void)
 {
-	struct spare_boot_head_t * temp_buf = (struct spare_boot_head_t *)trans_data.base_recv_buffer;
+	sbrom_toc1_head_info_t *temp_buf = (sbrom_toc1_head_info_t *)trans_data.base_recv_buffer;
 	char  response[68];
-	u32 uboot_length = 0;
-	u32 align_size = 0;
-	u32 old_uboot_length = 0;
-	u32 old_total_length = 0;
+	int ret = -1;
 
-	if(strcmp((char*)temp_buf->boot_head.magic,"uboot"))
+	if(strcmp((char*)temp_buf->name,"sunxi-package"))
 	{
-		printf("sunxi fastboot error: there is not uboot file\n");
-		sprintf(response, "FAILdownload:there is not uboot file \n");
+		printf("sunxi fastboot error: there is not sunxi-package file\n");
+		sprintf(response, "FAILdownload:there is not boot package file \n");
 		__sunxi_fastboot_send_status(response, strlen(response));
 		return ;
 	}
+
 	printf("ready to download bytes 0x%x\n", trans_data.try_to_recv);
-	if(temp_buf->boot_head.uboot_length == 0)
+	ret = sunxi_sprite_download_uboot((char *)temp_buf,uboot_spare_head.boot_data.storage_type ,1);
+	if (!ret)
 	{
-		printf("==== uboot.bin ====\n");
-		memcpy((char *)temp_buf , (char *)CONFIG_SYS_TEXT_BASE ,sizeof(struct spare_boot_head_t));
-		old_uboot_length = temp_buf->boot_head.uboot_length;
-		old_total_length = temp_buf->boot_head.length ;
-		debug("old_uboot_length = %x \n",old_uboot_length);
-		debug("old_total_length = %x \n",old_total_length);
-		//align uboot
-		align_size = temp_buf->boot_head.align_size;
-		printf("align_size is 0x%x \n",align_size);
-
-		uboot_length = (trans_data.try_to_recv + align_size) & (~(align_size - 1));
-		temp_buf->boot_head.uboot_length = uboot_length;
-		//copy sys_config from old uboot
-		memcpy((char *)temp_buf + uboot_length , (char *)CONFIG_SYS_TEXT_BASE + old_uboot_length,old_total_length - old_uboot_length);
-		//make check_sum again
-		temp_buf->boot_head.check_sum = STAMP_VALUE;
-		temp_buf->boot_head.length     = uboot_length +old_total_length - old_uboot_length;
-		temp_buf->boot_head.check_sum = add_sum((char *)temp_buf,temp_buf->boot_head.length);
+		printf("sunxi fastboot: successed in downloading uboot package\n");
+		sprintf(response, "OKAY");
 	}
-	printf("uboot checksum is 0x%x \n",temp_buf->boot_head.check_sum);
-	printf("download uboot ing ....\n");
-	sunxi_sprite_download_uboot((char *)temp_buf,uboot_spare_head.boot_data.storage_type ,1);
-	printf("sunxi fastboot: successed in downloading uboot \n");
-	sprintf(response, "OKAY");
+	else
+	{
+		printf("sunxi fastboot: fail in downloading uboot package\n");
+		sprintf(response, "FAIL");
+	}
 	__sunxi_fastboot_send_status(response, strlen(response));
-
 	return ;
 }
 
@@ -609,7 +592,7 @@ static int __flash_to_part(char *name)
 	start        = sunxi_partition_get_offset_byname(name);
 	part_sectors = sunxi_partition_get_size_byname(name);
 
-    if(gd->lockflag == SUNXI_LOCKING || gd->lockflag == SUNXI_RELOCKING)
+    if(gd->lockflag == SUNXI_LOCKED)
     {
         printf("in lock state, sunxi fastboot flash is disabled\n");
 		__sunxi_fastboot_send_status(response, strlen(response));
@@ -890,6 +873,45 @@ static void __get_var(char *ver_name)
 
 	return ;
 }
+
+static void __limited_fastboot_unlock(void)
+{
+	char response[64];
+
+	memset(response, 0, 64);
+	tick_printf("GMS,fastboot unlock limited used!!!\n");
+
+	strcpy(response,"FAILability is 0. Permission denied for this command!");
+
+	__sunxi_fastboot_send_status(response, strlen(response));
+
+	return;
+}
+static char sunxi_read_oem_unlock_ability(void)
+{
+    u32 start_block,part_sectors;
+	u8 addr[512] = {0};
+    int  ret;
+
+	start_block = sunxi_partition_get_offset_byname("frp");
+	if(!start_block)
+	{
+		printf("cant find part named frp\n");
+	}
+	else
+	{
+		part_sectors = sunxi_partition_get_size_byname("frp");
+#if DEBUG
+		printf("start block = 0x%x,part_sectors = %d\n", start_block,part_sectors);
+#endif
+        /* read the last block of frp part to addr[] */
+		ret = sunxi_flash_read(start_block+part_sectors-1, 1, addr);
+
+		printf("sunxi flash read :offset %x, %d bytes %s\n", ((start_block+part_sectors-1)<<9), ((part_sectors-1023)<<9),
+				ret ? "OK" : "ERROR");
+	}
+    return addr[511];
+}
 /*
 ************************************************************************************************************
 *
@@ -908,7 +930,6 @@ static void __get_var(char *ver_name)
 */
 static void __oem_operation(char *operation)
 {
-	#if 0
 	char response[68];
 	char lock_info[64];
 	int  lockflag;
@@ -919,11 +940,16 @@ static void __oem_operation(char *operation)
 
 	if(!strncmp(operation, "lock", 4))
 	{
-		lockflag = SUNXI_RELOCKING;
+		lockflag = SUNXI_LOCKED;
 	}
 	else if(!strncmp(operation, "unlock", 6))
 	{
-		lockflag = SUNXI_UNLOCK;
+        if(sunxi_read_oem_unlock_ability() == 0x00)
+        {
+            __limited_fastboot_unlock();
+			return ;
+        }
+		lockflag = SUNXI_UNLOCKED;
 	}
 	else
 	{
@@ -963,8 +989,6 @@ static void __oem_operation(char *operation)
 	__sunxi_fastboot_send_status(response, strlen(response));
 
 	return ;
-	#endif
-	printf("not implement yet \n");
 }
 /*
 ************************************************************************************************************

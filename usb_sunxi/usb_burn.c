@@ -37,17 +37,49 @@
 DECLARE_GLOBAL_DATA_PTR;
 volatile int sunxi_usb_burn_from_boot_handshake, sunxi_usb_burn_from_boot_init, sunxi_usb_burn_from_boot_setup;
 
-int __smc_set_sst_crypt_name(char *name)
+
+__attribute__((weak))
+int smc_set_sst_crypt_name(char *name)
 {
 	printf("call weak fun: %s\n",__func__);
 	return 0;
 }
 
-int smc_set_sst_crypt_name(char *name)
+__attribute__((weak))
+int sunxi_verify_rotpk_hash(void *input_hash_buf, int len)
+{
+	printf("call weak fun: %s\n",__func__);
+	return -1;
+}
 
-__attribute__((weak, alias("__smc_set_sst_crypt_name")));
+__attribute__((weak))
+int sunxi_deal_hdcp_key(char *keydata, int keylen)
+{
+	printf("call weak fun: %s\n",__func__);
+	return 0;
+}
 
+__attribute__((weak))
+int sunxi_secure_object_down( const char *name , char *buf, int len, int encrypt, int write_protect)
 
+{
+	printf("call weak fun: %s\n",__func__);
+	return 0;
+}
+
+__attribute__((weak))
+int sunxi_efuse_write(void *key_buf)
+{
+	printf("call weak fun: %s\n",__func__);
+	return -1;
+}
+
+__attribute__((weak))
+int sunxi_efuse_read(void *key_name, void *read_buf,int *len)
+{
+	printf("call weak fun: %s\n",__func__);
+	return -1;
+}
 
 static  int sunxi_usb_pburn_write_enable = 0;
 #if defined(SUNXI_USB_30)
@@ -61,12 +93,36 @@ static  pburn_trans_set_t  trans_data;
 static  u8 *private_data_ext_buff_step = NULL;
 static u8 *private_data_ext_buff = NULL;
 
-static int burn_part_result_state = ERR_NO_SUCCESS; 
+static int burn_part_result_state = ERR_NO_SUCCESS;
 long long burn_part_bytes = 0;
 extern volatile int sunxi_usb_burn_from_boot_handshake;
 extern volatile int sunxi_usb_burn_from_boot_setup;
 static uint burn_private_start, burn_private_len;
 static uint burn_part_start, burn_part_len;
+extern int sunxi_get_securemode(void);
+#ifdef CONFIG_BURN_NORMAL_EFUSE
+extern int sunxi_efuse_write(void *key_buf);
+extern int  sunxi_efuse_read(void *key_name, void *read_buf,int *len);
+#endif
+
+static int hex2char(void *dst, void *src,int len)
+{
+	int i;
+	char *p_out = dst ,*p_in = src;
+
+	if ((src ==NULL)||(dst == NULL))
+		return -1;
+
+	memset(dst,0x00,len*2);
+	for(i=0;i<len;i++)
+	{
+		sprintf(p_out,"%02x",p_in[i]);
+		p_out += 2;
+	}
+
+	return 0;
+}
+
 /*
 *******************************************************************************
 *                     do_usb_req_set_interface
@@ -446,8 +502,9 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 {
 	sunxi_usb_burn_main_info_t *key_main = (sunxi_usb_burn_main_info_t *)buff;
 	sunxi_usb_burn_key_info_t  *key_list;
+	__attribute__((unused)) int ret;
 	sunxi_efuse_key_info_t      efuse_key_info;
-	 __attribute__((unused)) int ret;
+
 	int key_count;
 	int offset;
 	u8  *p_buff = (u8 *)&key_main->key_info;
@@ -504,36 +561,51 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 				}
 			}
 
-			if(arm_svc_efuse_write(&efuse_key_info))
+			if (sunxi_get_securemode() == SUNXI_NORMAL_MODE)
 			{
-				return -1;
+				if (sunxi_efuse_write(&efuse_key_info))
+				{
+					return -1;
+				}
+			}
+			else
+			{
+				if(arm_svc_efuse_write(&efuse_key_info))
+				{
+					return -1;
+				}
 			}
 		}
 		else
 		{
-#ifdef CONFIG_SUNXI_HDCP_IN_SECURESTORAGE
-
 			if(!strcmp("hdcpkey", key_list->name))
 			{
 				ret = sunxi_deal_hdcp_key((char *)key_list->key_data, key_list->len);
 				if(ret)
 				{
 					printf("sunxi deal with hdcp key failed\n");
-
+					return -1;
+				}
+			}else if(!strcmp("widevine", key_list->name))
+			{
+				ret = sunxi_secure_object_down("widevine", (char *)key_list->key_data,key_list->len,
+					key_list->if_crypt,key_list->if_replace);
+				if(ret)
+				{
+					printf("sunxi deal with widevine key failed\n");
 					return -1;
 				}
 			}
 			else
-#endif
 			{
 #ifdef CONFIG_SUNXI_SECURE_STORAGE
-				ret = sunxi_secure_object_down(key_list->name,
-										(char *)key_list->key_data,
-										key_list->len,
+				sunxi_secure_object_set(key_list->name,
 										key_list->if_crypt,
-										key_list->if_replace); /*set secure storage feature*/
+										key_list->if_replace,
+										0,0,0 ); /*set secure storage feature*/
 
 				printf("write key to secure storage\n");
+				ret = sunxi_secure_object_write(key_list->name, (char *)key_list->key_data, key_list->len);
 				if(ret)
 				{
 					printf("write key to secure storage failed\n");
@@ -549,7 +621,7 @@ int __sunxi_burn_key(u8 *buff, uint buff_len)
 					printf("write key to private failed\n");
 					return -1;
 				}
-				else if(ret == 1)	//烧写的key数据长度过大,无法存储在private分区 
+				else if(ret == 1)	//烧写的key数据长度过大,无法存储在private分区
 				{
 					printf("the fuck thing had happened\n");
 				}
@@ -589,12 +661,8 @@ int __sunxi_read_key_by_name(void *buffer, uint buff_len, int *read_len)
 	sunxi_usb_burn_key_info_t *key_info = NULL;
 
 	__attribute__((unused)) int ret = -1;
-	int key_data_len = 0;
+	__attribute__((unused)) int key_data_len = 0;
 	char data_buff[4096]={0};
-
-#ifdef CONFIG_SUNXI_SECURE_SYSTEM
-	sunxi_efuse_key_info_t      *efuse_key_temp;
-#endif
 
 	if(buffer == NULL)
 	{
@@ -620,55 +688,57 @@ int __sunxi_read_key_by_name(void *buffer, uint buff_len, int *read_len)
 
 	*read_len = sizeof(sunxi_usb_burn_key_info_t);
 
-#ifdef CONFIG_SUNXI_SECURE_SYSTEM
 	if(!key_info->type)
 	{
-		//read from efuse
 		if ((gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS) || (gd->securemode == SUNXI_SECURE_MODE_NO_SECUREOS))
 		{
-			if(arm_svc_efuse_read(key_info->name, (void *)data_buff))
+			key_data_len = arm_svc_efuse_read(key_info->name, (void *)data_buff);
+			if (key_data_len <= 0)
+			{
+				printf("efuse read %s err\n", key_info->name);
+				return -1;
+			}
+		}
+		else
+		{
+			if (sunxi_efuse_read(key_info->name, (void *)data_buff,&key_data_len))
 			{
 				printf("efuse read %s err\n", key_info->name);
 				return -1;
 			}
 		}
 
-		efuse_key_temp = (sunxi_efuse_key_info_t *)data_buff;
-		key_info->len = efuse_key_temp->len;
-		memcpy((void *)(key_info->key_data), (void *)(efuse_key_temp->key_data), efuse_key_temp->len);
-		*read_len += efuse_key_temp->len;
+		/* convert hex key to char,so that dragonkey tool can display it */
+		hex2char((void *)(key_info->key_data), (void *)(data_buff), key_data_len);
+		*read_len +=key_data_len*2;
 	}
 	else
-#endif
 	{
 #ifdef CONFIG_SUNXI_SECURE_STORAGE
 		printf("read key form securestorage\n");
-		ret = sunxi_secure_storage_read(key_info->name, data_buff, sizeof(sunxi_usb_burn_key_info_t), &key_data_len);
+		ret = sunxi_secure_object_read(key_info->name, data_buff, sizeof(sunxi_usb_burn_key_info_t), &key_data_len);
 		if(ret < 0)
 		{
 			printf("read %s form securestorage failed\n", key_info->name);
 		}
 #endif
-
 #ifdef CONFIG_SUNXI_PRIVATE_KEY
-		if (ret < 0 )
+		printf("read key form private\n");
+		memset(data_buff, 0, 4096);
+		ret = read_private_key_by_name(key_info->name, data_buff, sizeof(sunxi_usb_burn_key_info_t), &key_data_len);
+		if(ret < 0)
 		{
-			printf("read key form private\n");
-			memset(data_buff, 0, 4096);
-			ret = read_private_key_by_name(key_info->name, data_buff, sizeof(sunxi_usb_burn_key_info_t), &key_data_len);
-			if(ret < 0)
-			{
-				printf("read %s form private failed\n", key_info->name);
-				return -1;
-			}
+			printf("read %s form private failed\n", key_info->name);
+			return -1;
 		}
 #endif
+
 		//组装读取出来的key数据
 		key_info->len = key_data_len;
 	    memcpy((void *)(key_info->key_data), (void *)data_buff, key_data_len);
 	    *read_len += key_data_len;
 	}
-	return ret;
+	return 0;
 }
 
 /*
@@ -747,7 +817,7 @@ int __sunxi_burn_flag(void)
 		printf("secure storage init err\n");
 		return -1;
 	}
-	if(sunxi_secure_storage_write("key_burned_flag", "key_burned", strlen("key_burned")))
+	if(sunxi_secure_object_write("key_burned_flag", "key_burned", strlen("key_burned")))
 	{
 		printf("save burned flag to securestorage failed\n");
 		return -1;
@@ -1612,7 +1682,7 @@ static int sunxi_pburn_state_loop(void  *buffer)
 							}
 		  					else
 		  					{
-		  						if(sunxi_secure_storage_write("key_burned_flag", "key_burned", strlen("key_burned")))
+		  						if(sunxi_secure_object_write("key_burned_flag", "key_burned", strlen("key_burned")))
 		  						{
 		  							printf("save burned flag err\n");
 
@@ -1751,7 +1821,7 @@ static int sunxi_pburn_state_loop(void  *buffer)
 								break;
 							}
 		  					sunxi_usb_pburn_status = SUNXI_USB_PBURN_SEND_DATA;
-		  					if(sunxi_secure_storage_write("key_burned_flag", "key_burned", strlen("key_burned")))
+		  					if(sunxi_secure_object_write("key_burned_flag", "key_burned", strlen("key_burned")))
 		  					{
 		  						printf("save burned flag err\n");
 

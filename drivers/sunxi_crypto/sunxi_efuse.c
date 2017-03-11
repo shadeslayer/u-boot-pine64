@@ -1,23 +1,10 @@
 /*
-**********************************************************************************************************************
-*
-*						           the Embedded Secure Bootloader System
-*
-*
-*						       Copyright(C), 2006-2014, Allwinnertech Co., Ltd.
-*                                           All Rights Reserved
-*
-* File    :
-*
-* By      :
-*
-* Version : V2.00
-*
-* Date	  :
-*
-* Descript:
-**********************************************************************************************************************
-*/
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+
 #include "common.h"
 #include "asm/io.h"
 #include "asm/arch/sid.h"
@@ -147,7 +134,6 @@ int sid_probe_security_mode(void)
 	return ((sid_read_key(EFUSE_LCJS)>>11) & 1);
 }
 
-#ifdef CONFIG_SUNXI_SID_SECURITY_STATUS
 /*
 ************************************************************************************************************
 *
@@ -166,6 +152,9 @@ int sid_probe_security_mode(void)
 */
 int sid_get_security_status(void)
 {
+#ifdef SID_SECURE_MODE
 	return readl(SID_SECURE_MODE)& 0x1;
-}
+#else
+	return 0;
 #endif
+}

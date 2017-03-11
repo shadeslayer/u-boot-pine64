@@ -44,6 +44,9 @@
 #define SUNXI_SMHC1_BASE		(0x01c10000)
 #define SUNXI_SMHC2_BASE		(0x01c11000)
 #define SUNXI_SMHC3_BASE		(0x01c12000)
+
+#define SUNXI_SID_BASE                (0x01c14000L)
+#define SUNXI_SID_SRAM                SUNXI_SID_BASE
 #define SUNXI_SS_BASE				0X01C15000
 #define SUNXI_HDMI_BASE				0X01C16000
 #define SUNXI_MSGBOX_BASE			0X01C17000
@@ -116,6 +119,7 @@
 #define RTC_GENERAL_PURPOSE_REG(n)  (SUNXI_RTC_BASE + 0x100 + (n) * 0x4)
 #define RTC_STANDBY_FLAG_REG        ( SUNXI_RTC_BASE + 0x1f8 )
 #define RTC_STANDBY_SOFT_ENTRY_REG  ( SUNXI_RTC_BASE + 0x1e4 )
+#define DRAM_CRC_REG_ADDR                        (SUNXI_RTC_BASE + 0x10c) /* 0x01c2050c */
 
 #define SUNXI_RPRCM_BASE            0x01f01400
 

@@ -35,13 +35,9 @@ obj-y += bootretry.o
 endif
 
 # boards
-ifdef CONFIG_SUNXI_MULITCORE_BOOT
-obj-$(CONFIG_SYS_GENERIC_BOARD) += board_f_smp.o
-obj-$(CONFIG_SYS_GENERIC_BOARD) += board_r_smp.o
-else
-obj-$(CONFIG_SYS_GENERIC_BOARD) += board_f.o
 obj-$(CONFIG_SYS_GENERIC_BOARD) += board_r.o
-endif
+obj-$(CONFIG_SYS_GENERIC_BOARD) += board_f.o
+
 # core command
 obj-y += cmd_boot.o
 obj-$(CONFIG_CMD_BOOTM) += cmd_bootm.o bootm.o bootm_os.o
@@ -284,6 +280,7 @@ obj-$(CONFIG_IO_TRACE) += iotrace.o
 obj-y += memsize.o
 obj-y += stdio.o
 obj-y += sunxi_mem_alloc.o
+obj-y += cmd_sunxi_signature.o
 obj-$(CONFIG_SUNXI_CMD_SMC) += cmd_sunxi_smc.o
 obj-$(CONFIG_SUNXI_CMD_DMA) += cmd_sunxi_dma.o
 obj-$(CONFIG_SUNXI_PRIVATE_KEY) += cmd_svudata.o

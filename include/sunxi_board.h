@@ -121,6 +121,8 @@ extern int check_physical_key_early(void);
 extern void sunxi_set_fel_flag(void);
 extern void sunxi_clear_fel_flag(void);
 
+extern int sunxi_verify_embed_signature(void *buff, unsigned int len, const char *cert_name,\
+										void *cert, unsigned cert_len);
 extern int sunxi_verify_signature(void *buff, uint len, const char *cert_name);
 extern int sunxi_verify_rotpk_hash(void *input_hash_buf, int len);
 
@@ -133,6 +135,8 @@ extern u32 get_boot_dram_para_size(void);
 extern u32 get_boot_dram_update_flag(void);
 extern void set_boot_dram_update_flag(u32 *dram_para);
 
+extern int mmc_request_update_boot0(int dev_num);
+extern int mmc_write_info(int dev_num,void *buffer,u32 buffer_size);
 
 extern int get_debugmode_flag(void);
 
@@ -155,5 +159,6 @@ extern void sunxi_set_gp_status(void);
 extern void sunxi_restore_gp_status(void);
 
 extern int  cleanup_before_powerdown(void);
+void sunxi_dump(void *addr, unsigned int size);
 
 #endif /*_SUNXI_BOARD_H_ */

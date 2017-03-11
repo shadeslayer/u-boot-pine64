@@ -51,15 +51,15 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 extern void power_limit_init(void);
-
-
 extern int sunxi_arisc_probe(void);
+
+
 int power_source_init(void)
 {
-	//int pll_cpux;
+	int pll_cpux;
 	int axp_exist = 0;
+	extern void set_pll_periph0_ahb_apb(void);
 
-	printf("u0:%x\n", readl(0x44000));
 #ifdef CONFIG_SUNXI_ARISC_EXIST
 	sunxi_arisc_probe();
 #endif
@@ -67,6 +67,7 @@ int power_source_init(void)
 	axp_exist =  axp_probe();
 	if(axp_exist)
 	{
+		gd->pmu_saved_status = axp_probe_pre_sys_mode();
 		axp_probe_factory_mode();
 		if(axp_probe_power_supply_condition())
 		{
@@ -89,16 +90,17 @@ int power_source_init(void)
 	}
 
 	sunxi_clock_set_corepll(uboot_spare_head.boot_data.run_clock);
+	set_pll_periph0_ahb_apb();
 
-	//pll_cpux = sunxi_clock_get_corepll();
-	//tick_printf("PMU: cpux %d Mhz,AXI=%d Mhz\n", pll_cpux,sunxi_clock_get_axi());
-	//printf("PLL6=%d Mhz,AHB1=%d Mhz, APB1=%dMhz MBus=%dMhz\n", sunxi_clock_get_pll6(),
-	//	sunxi_clock_get_ahb(),
-	//	sunxi_clock_get_apb1(),
-	//	sunxi_clock_get_mbus());
-
+	pll_cpux = sunxi_clock_get_corepll();
+	tick_printf("PMU: cpux %d Mhz,AXI=%d Mhz\n", pll_cpux,sunxi_clock_get_axi());
+	printf("PLL6=%d Mhz,AHB1=%d Mhz, APB1=%dMhz MBus=%dMhz\n", sunxi_clock_get_pll6(),
+		sunxi_clock_get_ahb(),
+		sunxi_clock_get_apb1(),
+		sunxi_clock_get_mbus());
 	return 0;
 }
+
 /*
 ************************************************************************************************************
 *

@@ -15,7 +15,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -226,6 +226,8 @@ static int mmc_get_sdly_auto_sample(int sdc_no)
 	int spd_md, f;
 	u32 val;
 	int work_mode = uboot_spare_head.boot_data.work_mode;
+	struct boot_sdmmc_private_info_t *priv_info =
+		(struct boot_sdmmc_private_info_t *)(uboot_spare_head.boot_data.sdcard_spare_data);
 
 	if (sdc_no != 2) {
 		MMCINFO("don't support auto sample\n");
@@ -234,6 +236,10 @@ static int mmc_get_sdly_auto_sample(int sdc_no)
 
 	/* sdly is invalid */
 	if (work_mode != WORK_MODE_BOOT)
+		return 0;
+
+	if (!(((priv_info->ext_para0 & 0xFF000000) == EXT_PARA0_ID)
+		&& (priv_info->ext_para0 & EXT_PARA0_TUNING_SUCCESS_FLAG)))
 		return 0;
 
 #if 0
@@ -382,16 +388,17 @@ static int mmc_update_timing_para(int sdc_no)
 	return ret;
 }
 
+
 static void mmc_get_para_from_fex(int sdc_no)
 {
 	int rval, ret = 0;
-	//int rval_ker, ret1 = 0;
 	struct sunxi_mmc_host* mmchost = &mmc_host[sdc_no];
 	struct mmc_config *cfg = &mmchost->cfg;
 	int nodeoffset=0;
 	int i, imd, ifreq;
 	char ctmp[30];
-	
+
+
 	if (sdc_no == 0)
 	{
 		nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_CARD0_BOOT_PARA);
@@ -660,10 +667,19 @@ static void mmc_get_para_from_fex(int sdc_no)
 					MMCINFO("current is product mode, it will tune sdly later\n");
 				} else {
 					/* copy sample point cfg from uboot header to internal variable */
-					if (sdly != NULL)
-						memcpy(p, sdly, sizeof(struct tune_sdly));
+					if (((priv_info->ext_para0 & 0xFF000000) == EXT_PARA0_ID)
+						&& (priv_info->ext_para0 & EXT_PARA0_TUNING_SUCCESS_FLAG))
+					{
+						if (sdly != NULL)
+							memcpy(p, sdly, sizeof(struct tune_sdly));
+						else
+							memset(p, 0xFF, sizeof(struct tune_sdly));
+					}
 					else
+					{
+						memset(p, 0xFF, sizeof(struct tune_sdly));
 						MMCINFO("get sdly from uboot header fail\n");
+					}
 				}
 			} else if (rval == 1) {  /* maual sample point from fex */
 				cfg->platform_caps.sample_mode = MAUNAL_SAMPLE_MODE;
@@ -673,6 +689,19 @@ static void mmc_get_para_from_fex(int sdc_no)
 				MMCINFO("undefined value %d, use default dly\n", rval);
 			}
 		}
+
+		ret = fdt_getprop_u32(working_fdt,nodeoffset,"sdc_force_boot_tuning", (uint32_t*)(&rval));
+		if (ret < 0)
+			MMCDBG("get card2_boot_para:sdc_force_boot_tuning fail\n");
+		else {
+			if (rval == 1) {
+				MMCINFO("card2 force to execute tuning during boot.\n");
+				cfg->platform_caps.force_boot_tuning = 1;
+			} else {
+				MMCDBG("card2 don't force to execute tuning during boot.\n");
+				cfg->platform_caps.force_boot_tuning = 0;
+			}
+        }
 
 		ret = fdt_getprop_u32(working_fdt,nodeoffset,"sdc_io_1v8", (uint32_t*)(&rval));
 		if (ret < 0)
@@ -850,6 +879,18 @@ static void mmc_get_para_from_fex(int sdc_no)
 			MMCINFO("get sdc2 sdc_dis_host_caps 0x%x.\n", cfg->platform_caps.host_caps_mask);
 		}
 
+		ret = fdt_getprop_u32(working_fdt,nodeoffset,"sdc_kernel_no_limit", (uint32_t*)(&rval));
+		if (ret<0) {
+			MMCDBG("get sdc2 sdc_kernel_no_limit fail.\n");
+			cfg->platform_caps.tune_limit_kernel_timing = 0x1;
+		} else {
+			if (rval == 1)
+				cfg->platform_caps.tune_limit_kernel_timing = 0x0;
+			else
+				cfg->platform_caps.tune_limit_kernel_timing = 0x1;
+			MMCINFO("get sdc2 sdc_kernel_no_limit 0x%x, limit 0x%x.\n", rval, cfg->platform_caps.tune_limit_kernel_timing);
+		}
+
 		/* fmax, fmax_ddr */
 	}
 	else {
@@ -981,7 +1022,7 @@ int sunxi_mmc_init(int sdc_no)
 	struct sunxi_mmc_host *host = NULL;
 
 	MMCINFO("mmc driver ver %s\n", DRIVER_VER);
-	
+
 	if ((sdc_no != 2) && (sdc_no != 0)) {
 		MMCINFO("sdc_on error, %d\n", sdc_no);
 		return -1;
@@ -991,7 +1032,7 @@ int sunxi_mmc_init(int sdc_no)
 	host = &mmc_host[sdc_no];
 	memset(&mmc_host_reg_bak[sdc_no], 0, sizeof(struct mmc_reg_v4p1));
 	host->reg_bak =  &mmc_host_reg_bak[sdc_no];
-	
+
 	if ((sdc_no == 2)) {
 		host->cfg.platform_caps.odly_spd_freq = &ext_odly_spd_freq[0];
 		host->cfg.platform_caps.sdly_spd_freq = &ext_sdly_spd_freq[0];
@@ -1014,17 +1055,17 @@ int sunxi_mmc_init(int sdc_no)
 	if (sdc_no == 0) {
 		host->cfg.f_min = 400000;
 #ifdef FPGA_PLATFORM
-		host->cfg.f_max = 12000000;
+		host->cfg.f_max = 6000000;
 #else
 		host->cfg.f_max = 50000000;
 #endif
 	} else if ((sdc_no == 2)) {
 		host->cfg.f_min = 400000;
 #ifdef FPGA_PLATFORM
-		host->cfg.f_max = 12000000;
+		host->cfg.f_max = 6000000;
 #else
 		host->cfg.f_max = 200000000;
-#endif	
+#endif
 	}
 
 	if ((sdc_no == 0) || (sdc_no == 1))
@@ -1085,7 +1126,7 @@ int sunxi_mmc_init(int sdc_no)
 	} else
 		MMCDBG("%s: register mmc %d ok\n", __FUNCTION__, __LINE__);
 
-	return 0;	
+	return 0;
 }
 
 int sunxi_mmc_exit(int sdc_no)

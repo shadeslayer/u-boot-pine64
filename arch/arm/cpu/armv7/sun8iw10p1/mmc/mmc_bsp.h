@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 #ifndef _MMC_BSP_H_
 #define _MMC_BSP_H_
 
@@ -71,11 +77,14 @@ struct tuning_sdly{
 /*
 	timing mode
 	1: output and input are both based on phase
+	2: output and input are both based on phase except hs400 mode.
+	    output is based on phase, input is based on delay chain on hs400 mode.
 	3: output is based on phase, input is based on delay chain
 	4: output is based on phase, input is based on delay chain.
 	    it also support to use delay chain on data strobe signal.
 */
 #define SUNXI_MMC_TIMING_MODE_1 1U
+#define SUNXI_MMC_TIMING_MODE_2 2U
 #define SUNXI_MMC_TIMING_MODE_3 3U
 #define SUNXI_MMC_TIMING_MODE_4 4U
 

@@ -38,6 +38,8 @@ extern int mmc_init_blk_ops(struct mmc *mmc);
 extern unsigned int mmc_mmc_update_timeout(struct mmc *mmc);
 extern char *spd_name[];
 
+extern int sunxi_mmc_ffu(struct mmc *mmc);
+
 LIST_HEAD(mmc_devices);
 
 int __weak board_mmc_getwp(struct mmc *mmc)
@@ -698,6 +700,45 @@ int mmc_do_switch(struct mmc *mmc, u8 set, u8 index, u8 value, u32 timeout)
 
 	return 0;
 }
+
+#ifdef SUPPORT_SUNXI_MMC_FFU
+int mmc_switch_ffu(struct mmc *mmc, u8 set, u8 index, u8 value, u32 timeout, u8 check_status)
+{
+	struct mmc_cmd cmd;
+	int ret;
+
+	cmd.cmdidx = MMC_CMD_SWITCH;
+	cmd.resp_type = MMC_RSP_R1b;
+	cmd.cmdarg = (MMC_SWITCH_MODE_WRITE_BYTE << 24) |
+				 (index << 16) |
+				 (value << 8);
+	cmd.flags = 0;
+
+	ret = mmc_send_cmd(mmc, &cmd, NULL);
+	if (ret) {
+		MMCINFO("mmc switch failed\n");
+	}
+
+	mmc_set_ios(mmc);
+
+	ret = mmc_update_phase(mmc);
+	if (ret) {
+		MMCINFO("update clock failed after send switch cmd\n");
+		return ret;
+	}
+
+	/* Waiting for the ready status */
+	if (check_status) {
+		ret = mmc_send_status(mmc, timeout);
+		if (ret) {
+			MMCINFO("mmc swtich status error\n");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+#endif
 
 int mmc_switch(struct mmc *mmc, u8 set, u8 index, u8 value)
 {
@@ -2280,6 +2321,7 @@ static int mmc_complete_init(struct mmc *mmc)
 {
 	int err = 0;
 
+
 	if (mmc->op_cond_pending)
 		err = mmc_complete_op_cond(mmc);
 
@@ -2294,18 +2336,91 @@ static int mmc_complete_init(struct mmc *mmc)
 	}
 
 	mmc->init_in_progress = 0;
-	err = sunxi_switch_to_best_bus(mmc);
-	if (err) {
-		MMCINFO("switch to best speed mode fail\n");
-		return err;
-	}
-
 	init_part(&mmc->block_dev); /* it will send cmd17 */
 
 	return err;
 }
 
-void mmc_update_sdly_to_sysconfig(struct mmc *mmc)
+void mmc_update_config_for_dragonboard(int card_no)
+{
+	int ret = 0;
+	int nodeoffset=0;
+	char prop_path[128] = {0};
+
+	/* For dragon board test, boot sdc0 firstly, try sdc2 at uboot. if sdc2 is invalid(not emmc/sd), modify device tree to disable sdc2.
+	    Because boot from sdc0, there is no valid timing parameters for sdc2 in boot0's header. Updating timing parameters from boot0's header is wrong.
+	    Therefore, change sdc2's "sdc_ex_dly_used" in device tree to 0 to cancel update timing parameters.
+	    It is also necessary to delete flowing items from device tree:
+	    mmc-ddr-1_8v	   =
+	    mmc-hs200-1_8v	   =
+	    mmc-hs400-1_8v	   =
+	    max-frequency	   = 150000000
+	*/
+	if(card_no == 2)
+		nodeoffset = fdt_path_offset(working_fdt, FDT_PATH_CARD2_BOOT_PARA);
+	else
+		nodeoffset = fdt_path_offset(working_fdt, FDT_PATH_CARD3_BOOT_PARA);
+	if(nodeoffset < 0 ) {
+		MMCINFO("get card2_boot_para para fail --- 0\n");
+		return ;
+	}
+
+	ret = fdt_setprop_u32(working_fdt, nodeoffset, "sdc_ex_dly_used", 0);
+	if(ret < 0) {
+		MMCINFO("update card2_boot_para:dtb sdc_ex_dly_used, %d\n", ret);
+		return ;
+	}
+
+	if (card_no == 2)
+		strcpy(prop_path, "mmc2");
+	else
+		strcpy(prop_path, "mmc3");
+
+	nodeoffset = fdt_path_offset(working_fdt, prop_path);
+	if (nodeoffset < 0) {
+		MMCINFO("can't find node \"%s\" \n", prop_path);
+		return ;
+	}
+	ret = fdt_delprop(working_fdt, nodeoffset, "mmc-hs400-1_8v");
+	if (ret == 0) {
+		MMCINFO("delete mmc-hs400-1_8v from dtb\n");
+	} else if (ret == -FDT_ERR_NOTFOUND){
+		MMCINFO("no mmc-hs400-1_8v!\n");
+	} else {
+		MMCINFO("update dtb fail, delete mmc-hs400-1_8v fail\n");
+	}
+
+	ret = fdt_delprop(working_fdt, nodeoffset, "mmc-hs200-1_8v");
+	if (ret == 0) {
+		MMCINFO("delete mmc-hs200-1_8v from dtb\n");
+	} else if (ret == -FDT_ERR_NOTFOUND){
+		MMCINFO("no mmc-hs200-1_8v!\n");
+	} else {
+		MMCINFO("update dtb fail, delete mmc-hs200-1_8v fail\n");
+	}
+
+	ret = fdt_delprop(working_fdt, nodeoffset, "mmc-ddr-1_8v");
+	if (ret == 0) {
+		MMCINFO("delete mmc-ddr-1_8v from dtb\n");
+	} else if (ret == -FDT_ERR_NOTFOUND){
+		MMCINFO("no mmc-ddr-1_8v!\n");
+	} else {
+		MMCINFO("update dtb fail, delete mmc-ddr-1_8v fail\n");
+	}
+
+	ret = fdt_delprop(working_fdt, nodeoffset, "max-frequency");
+	if (ret == 0) {
+		MMCINFO("delete max-frequency from dtb\n");
+	} else if (ret == -FDT_ERR_NOTFOUND){
+		MMCINFO("no max-frequency!\n");
+	} else {
+		MMCINFO("update dtb fail, delete max-frequency fail\n");
+	}
+
+}
+
+
+void mmc_update_config_for_sdly(struct mmc *mmc)
 {
 	int ret = 0;
 	int nodeoffset;
@@ -2322,19 +2437,15 @@ void mmc_update_sdly_to_sysconfig(struct mmc *mmc)
 	int clear_hs200, clear_hs400, clear_hsddr;
 	u32 max_hs200=0, max_hs400=0, max_hsddr=0, min_val, defval;
 
-	strcpy(prop_path, "mmc2");
+	if (host->mmc_no == 2)
+		strcpy(prop_path, "mmc2");
+	else
+		strcpy(prop_path, "mmc3");
 	nodeoffset = fdt_path_offset(working_fdt, prop_path);
 	if (nodeoffset < 0) {
 		MMCINFO("can't find node \"%s\",will add new node\n", prop_path);
 		goto __ERROR_END;
 	}
-
-#if 0
-	ret = fdt_getprop_u32(working_fdt, nodeoffset, "", &prop_val);
-	if(ret < 0){
-		goto __ERROR_END;
-	}
-#endif
 
 	f3210 = sdly->tm4_smx_fx[0*2 + 0]; //sdly->tm4_sm0_f3210;
 	ret = fdt_setprop_u32(working_fdt, nodeoffset, "sdc_tm4_sm0_freq0", f3210);
@@ -2667,6 +2778,9 @@ int mmc_init_boot(struct mmc *mmc)
 {
 	int err = 0;
 	int work_mode = uboot_spare_head.boot_data.work_mode;
+	struct boot_sdmmc_private_info_t *priv_info =
+		(struct boot_sdmmc_private_info_t *)(uboot_spare_head.boot_data.sdcard_spare_data);
+	int need_tuning = 0;
 
 	MMCDBG("=============== start mmc_init_boot...\n");
 
@@ -2678,13 +2792,76 @@ int mmc_init_boot(struct mmc *mmc)
 	if (!err || err == IN_PROGRESS)
 		err = mmc_complete_init(mmc);
 
+	if (err) {
+		MMCINFO("%s: mmc int fail\n", __FUNCTION__);
+		return err;
+	}
+
+#ifdef SUPPORT_SUNXI_MMC_FFU
+	if ( sunxi_mmc_ffu(mmc) ) {
+		MMCINFO("%s, try to execute ffu flow fail\n",  __FUNCTION__);
+		return err;
+	}
+#endif
+
+	if ((work_mode == WORK_MODE_BOOT)
+		&& (mmc->cfg->platform_caps.sample_mode == AUTO_SAMPLE_MODE))
+	{
+		if (mmc->cfg->platform_caps.force_boot_tuning)
+			need_tuning = 1;
+		else
+		{
+			if (((priv_info->ext_para0 & 0xFF000000) == EXT_PARA0_ID)
+				&& (priv_info->ext_para0 & EXT_PARA0_TUNING_SUCCESS_FLAG))
+				MMCINFO("%s: tuning procedure is executed!\n", __FUNCTION__);
+			else
+				need_tuning = 1;
+		}
+
+		if (need_tuning)
+		{
+			MMCINFO("%s: start tuning ...\n", __FUNCTION__);
+
+			mmc->msglevel = 0x0;
+			mmc->do_tuning = 0x1;
+			mmc->tuning_end = 0x0;
+			err = sunxi_mmc_tuning_init();
+			if (err) {
+				MMCINFO("%s: init tuning failed\n", __FUNCTION__);
+				return err;
+			}
+
+			err = sunxi_write_tuning(mmc);
+			if (err) {
+				MMCINFO("%s: write pattern failed\n", __FUNCTION__);
+				return err;
+			}
+
+			err = sunxi_bus_tuning(mmc);
+			if (err) {
+				MMCINFO("%s: bus tuning fail, err %d\n", __FUNCTION__, err);
+				return err;
+			}
+
+			mmc->msglevel = 0x1;
+			mmc->do_tuning = 0x0;
+			mmc->tuning_end = 0x1;
+		}
+	}
+
+	err = sunxi_switch_to_best_bus(mmc);
+	if (err) {
+		MMCINFO("%s: switch to best speed mode fail\n", __FUNCTION__);
+		return err;
+	}
+
 	if((work_mode == WORK_MODE_BOOT)
 		&& (mmc->cfg->platform_caps.sample_mode == AUTO_SAMPLE_MODE))
 	{
-		#ifndef CONFIG_SUNXI_MULITCORE_BOOT
-			mmc_update_sdly_to_sysconfig(mmc);
-		#endif
+		/*call this function in board_common.c*/
+		//mmc_update_config_for_sdly(mmc);
 	}
+
 
 	/* update some feature */
 	if (mmc->cfg->platform_caps.drv_wipe_feature & DRV_PARA_DISABLE_EMMC_SANITIZE)
@@ -2723,6 +2900,7 @@ int mmc_init_product(struct mmc *mmc)
 
 	mmc->msglevel = 0x0;
 	mmc->do_tuning = 0x1;
+	mmc->tuning_end = 0x0;
 
 retry:
 	MMCDBG("=============== start mmc_init_product...\n");
@@ -2814,6 +2992,7 @@ retry:
 
 	mmc->msglevel = 0x1;
 	mmc->do_tuning = 0x0;
+	mmc->tuning_end = 0x1; //comment this line for debug, test tuning during boot.
 
 	err = sunxi_mmc_tuning_exit();
 	if (err) {
@@ -2964,7 +3143,17 @@ int mmc_exit(void)
 
 	if (mmc == NULL) {
 		MMCINFO("mmc %d not find, so not exit\n", sdc_no);
-		return -1;
+
+		#ifdef CONFIG_MMC3_SUPPORT
+			sdc_no = 3;
+			mmc = find_mmc_device(sdc_no);
+			if (mmc == NULL) {
+				MMCINFO("mmc %d not find, so not exit\n", sdc_no);
+				return -1;
+			}
+		#else
+			return -1;
+		#endif
 	}
 
 	MMCINFO("mmc exit start\n");

@@ -111,8 +111,10 @@ typedef struct sbrom_toc0_config
 	unsigned int       boot_cpu;           //
 	special_gpio_cfg    a15_power_gpio;  //the gpio config is to a15 extern power enable gpio
 	unsigned int       next_exe_pa;
-    unsigned int       secure_without_OS;   //secure boot without semelis
-    unsigned int       debug_mode;         //1:turn on printf; 0 :turn off printf
+	unsigned int       secure_without_OS;   //secure boot without semelis
+	unsigned char       debug_mode;         //1:turn on printf; 0 :turn off printf
+	unsigned char       power_mode;          /* 0:axp , 1: dummy pmu  */
+	unsigned char       reserver[2];
 	unsigned int		card_work_mode;
 	unsigned int      	res[2];   			// 总共1024字节
 
@@ -123,8 +125,12 @@ sbrom_toc0_config_t;
 #define ITEM_MONITOR_NAME         "monitor"
 #define ITEM_UBOOT_NAME           "u-boot"
 #define ITEM_LOGO_NAME            "logo"
+#define ITEM_DTB_NAME         "dtb"
+#define ITEM_SOCCFG_NAME           "soc-cfg"
+#define ITEM_BDCFG_NAME            "board-cfg"
 #define ITEM_SHUTDOWNCHARGE_LOGO_NAME   "shutdowncharge"
 #define ITEM_ANDROIDCHARGE_LOGO_NAME    "androidcharge"
+#define ITEM_EMMC_FW_NAME         "emmc-fw"
 
 #endif     //  ifndef __toc_h
 

@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 #ifndef __NAND_OSAL_H__
 #define __NAND_OSAL_H__
 

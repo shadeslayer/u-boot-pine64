@@ -59,6 +59,9 @@ char *IGNORE_ENV_VARIABLE[] = { "console",
 								"vmalloc",
 								"earlyprintk",
 								"ion_reserve",
+								"enforcing",
+								"cma",
+								"initcall_debug",
 							};
 
 int USER_DATA_NUM;									//用户的环境变量个擿
@@ -294,18 +297,18 @@ int read_private_key_by_name(const char * name, char *buffer, int buffer_len, in
 }
 
 
-#if 0//def CONFIG_SUNXI_SECURE_STORAGE
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
 static int save_user_data_to_secure_storage(const char * name, char *data)
 {
 	char buffer[512];
 	int  data_len;
 	int  ret;
-
+    memset(buffer,0x00,sizeof(buffer));
 	printf("Also save user data %s to secure storage\n", (char*)name);
 	if(sunxi_secure_storage_init()){
 		printf("secure storage init fail\n");
 	}else{
-		ret = sunxi_secure_storage_read("key_burned_flag", buffer, 512, &data_len);
+		ret = sunxi_secure_object_read("key_burned_flag", buffer, 512, &data_len);
 		if(ret)
 		{
 			printf("sunxi secure storage has no flag\n");
@@ -313,7 +316,11 @@ static int save_user_data_to_secure_storage(const char * name, char *data)
 		else
 		{
 			if(!strcmp(buffer, "key_burned"))
+			{
+				printf("find key burned flag\n");
 				return 0;
+			}
+			printf("do not find key burned flag\n");
 		}
 		sunxi_secure_object_write(name, data, strnlen(data, 512));	
 		sunxi_secure_storage_exit();
@@ -334,7 +341,7 @@ int do_save_user_data (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]
 		save_user_private_data(argv[1], argv[2], strnlen(argv[2], VALUE_SIZE));
 #endif
 
-#if 0//def CONFIG_SUNXI_SECURE_STORAGE
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
 		save_user_data_to_secure_storage( argv[1], argv[2]);
 #endif
 	}
@@ -484,7 +491,7 @@ int update_user_data(void)
 
 	check_user_data();											//从env中检测用户的环境变量
 
-#if 0//def CONFIG_SUNXI_SECURE_STORAGE
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
 	int data_len;
 	int ret, k;
 	char buffer[512];

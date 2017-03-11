@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -89,7 +95,7 @@ void set_mmc_para(int smc_no, void *addr)
 	memcpy((void *)(uboot_buf->boot_data.sdcard_spare_data), (addr+SDMMC_PRIV_INFO_ADDR_OFFSET), sizeof(struct boot_sdmmc_private_info_t));
 
 	p = (u32 *)(uboot_buf->boot_data.sdcard_spare_data);
-	for (i=0; i<5; i++)
+	for (i=0; i<6; i++)
 		printf("0x%x 0x%x\n", p[i*2 + 0], p[i*2 + 1]);
 
 	return;

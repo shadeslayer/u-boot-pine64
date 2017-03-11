@@ -38,6 +38,9 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+extern int sunxi_clock_get_ahb(void);
+extern int sunxi_clock_get_apb(void);
+
 void enable_smp(void)
 {
        //SMP status is controlled by bit 6 of the CP15 Aux Ctrl Reg
@@ -75,9 +78,44 @@ int board_init(void)
 
 		/* enable pll_de clk, because de and ee clks have enabled */
 		writel(readl(0x01c20048) | 0x80000000, 0x01c20048);
+
+		extern void set_pll_ahb_apb(void);
+		//sramc map to de|ee, so set ahb clk to 200M here
+		//when sram map to cpu,the clock of AHB max to 100M
+		//notice: not call this function in clock.c because of the SP
+		//of uboot at sramc before relocation.
+		set_pll_ahb_apb();
 	}
+
+	//* mask eink engine gating clock *
+	writel(readl(0x01c20064) & 0xffffdfff, 0x01c20064);
+	//* assert eink engine *
+	writel(readl(0x01c202c4) & 0xffffdfff, 0x01c202c4);
+
 	//set smp bit before mmu&dcache enable.
 	enable_smp();
+	return 0;
+}
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+int show_platform_info(void)
+{
+	printf("After SRAMC Map to DE|EE,AHB=%dM APB=%dM\n", sunxi_clock_get_ahb(),sunxi_clock_get_apb());
 	return 0;
 }
 /*
@@ -193,6 +231,8 @@ int cpu0_set_detected_paras(void)
 
 extern int axp22_probe(void);
 extern int axp15_probe(void);
+extern int axp259_probe(void);
+
 
 int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int max_dev)
 {
@@ -209,6 +249,17 @@ int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int max_dev)
 		/* pmu type AXP15X */
 		tick_printf("PMU: AXP15X found\n");
 		sunxi_axp_dev_pt[0] = &sunxi_axp_15;
+
+		if(!axp259_probe())
+		{
+			/* pmu type AXP259 */
+			tick_printf("PMU: AXP259 found\n");
+			sunxi_axp_dev_pt[1] = &sunxi_axp_259;
+		}
+		else
+		{
+			sunxi_axp_dev_pt[1] = &sunxi_axp_null;
+		}
 		return 0;
 	}
 

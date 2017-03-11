@@ -334,6 +334,7 @@ void do_irq (struct pt_regs *pt_regs)
 		printf("irq NO.(%d) > GIC_IRQ_NUM(%d) !!\n", idnum, GIC_IRQ_NUM-32);
 		return;
 	}
+
 	if (idnum < 16)
 		gic_sgi_handler(idnum);
 	else if (idnum < 32)

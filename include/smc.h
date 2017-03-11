@@ -55,9 +55,10 @@ int arm_svc_probe_secure_mode(void);
 int smc_init(void);
 
 
-int smc_tee_ssk_encrypt(char *out_buf, char *in_buf, int len);
+int smc_tee_ssk_encrypt(char *out_buf, char *in_buf, int len, int *out_len);
 int smc_tee_ssk_decrypt(char *out_buf, char *in_buf, int len);
-int smc_aes_bssk_decrypt_to_keysram(void *in_buf, int len);
+int smc_tee_rssk_encrypt(char *out_buf, char *in_buf, int len, int *out_len);
+int smc_aes_rssk_decrypt_to_keysram(void);
 int smc_aes_algorithm(char *out_buf, char *in_buf, int data_len, char* pkey, int key_mode, int decrypt);
 int smc_tee_keybox_store(const char *name, char *in_buf, int len);
 

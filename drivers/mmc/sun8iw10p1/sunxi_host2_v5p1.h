@@ -109,6 +109,7 @@ struct mmc2_reg_v5p1{
 #define CmdInhibitCmd   (0x1U<<0)
 
 /*0x30*/
+#define DSFO              (0x1U<<30)
 #define BootDataStart     (0x1U<<29)
 #define BootAckRcv        (0x1U<<28)
 //
@@ -135,6 +136,14 @@ struct mmc2_reg_v5p1{
 #define RxDatIntBit       ( DmaInt | TransOverInt | DmaErrInt | ErrInt)
 #define DmaIntBit         (DmaInt | DmaErrInt)
 #define ErrIntBit         (0x1ff<<16)
+
+/*0x3C Auto CMD Error Status */
+#define NoAcmd12          (0x1U<<7)
+#define AcmdIdxErr        (0x1U<<4)
+#define AcmdEndBitErr     (0x1U<<3)
+#define AcmdCRCErr        (0x1U<<2)
+#define AcmdTimeoutErr    (0x1U<<1)
+#define NotIssueAcmd      (0x0<<0)
 
 /*0x204*/
 #define SendInitSeq     (0x1U<<4)

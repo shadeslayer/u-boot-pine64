@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 #ifndef _SUNXI_MMC_BOOT0_H
 #define _SUNXI_MMC_BOOT0_H
 

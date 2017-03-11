@@ -60,8 +60,10 @@
 #define TEESMC_KEYBOX_STORE      1
 #define TEESMC_PROBE_SHM_BASE    2
 #define TEESMC_SSK_DECRYPT       3
-#define TEESMC_SSK_DECRYPT_FOR_HDCP 4
-#define TEESMC_AES_CBC           5
+#define TEESMC_RSSK_ENCRYPT      4
+#define TEESMC_RSSK_DECRYPT      5
+#define TEESMC_AES_CBC           6
+
 
 
 struct smc_param {

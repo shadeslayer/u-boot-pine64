@@ -62,17 +62,17 @@ struct map_info{
 
 static int check_secure_storage_key(unsigned char *buffer)
 {
-//	store_object_t *obj = (store_object_t *)buffer;
-//
-//	if( obj->magic != STORE_OBJECT_MAGIC ){
-//		printf("Input object magic fail [0x%x]\n", obj->magic);
-//		return -1 ;
-//	}
-//
-//	if( obj->crc != crc32( 0 , (void *)obj, sizeof(*obj)-4 ) ){
-//		printf("Input object crc fail [0x%x]\n", obj->crc);
-//		return -1 ;
-//	}
+	store_object_t *obj = (store_object_t *)buffer;
+	
+	if( obj->magic != STORE_OBJECT_MAGIC ){
+		printf("Input object magic fail [0x%x]\n", obj->magic);
+		return -1 ;
+	}
+
+	if( obj->crc != crc32( 0 , (void *)obj, sizeof(*obj)-4 ) ){
+		printf("Input object crc fail [0x%x]\n", obj->crc);
+		return -1 ;
+	}
 	return 0;
 }
 

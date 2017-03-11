@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -44,13 +50,13 @@
 #endif
 
 #ifdef MMC_DEBUG
-#define mmcinfo(fmt...)	printf("[mmc]: "fmt)
-#define mmcdbg(fmt...)	printf("[mmc]: "fmt)
-#define mmcmsg(fmt...)	printf(fmt)
+#define mmcinfo(fmt,args...)     printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcdbg(fmt,args...)      printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcmsg(fmt,args...)      printf("[mmc]: "fmt,##args) //printf(fmt,##args)
 #else
-#define mmcinfo(fmt...)	printf("[mmc]: "fmt)
-#define mmcdbg(fmt...)
-#define mmcmsg(fmt...)
+#define mmcinfo(fmt,args...)     printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcdbg(fmt,args...)
+#define mmcmsg(fmt,args...)
 #endif
 
 //#define readb(addr)		(*((volatile unsigned char  *)(addr)))
@@ -66,6 +72,6 @@
 #define DRAM_START_ADDR				(0x40000000)
 
 
-#define DRIVER_VER  "2015-09-24 17:25"
+#define DRIVER_VER  "2016-07-01 17:00"
 
 #endif /* _MMC_H_ */

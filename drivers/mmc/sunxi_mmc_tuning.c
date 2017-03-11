@@ -91,6 +91,7 @@ u32 tuning_blk_cnt_8b = 0;
 __attribute__((section(".data")))
 u32 tuning_blk_cnt_4b = 0;
 
+u32 freq_def = 6*1000*1000;
 
 u32 freq_ds26_sdr12[8] = {
 	400*1000, 25*1000*1000, 50*1000*1000,
@@ -112,7 +113,7 @@ u32 freq_hs400[8] = {
 
 u32 freq_range_ds26_sdr12[2]    = {400*1000, 26*1000*1000};
 u32 freq_range_hssdr52_sdr25[2] = {50*1000*1000, 52*1000*1000};
-u32 freq_range_hsddr52_ddr50[2] = {50*1000*1000, 52*1000*1000};
+u32 freq_range_hsddr52_ddr50[2] = {25*1000*1000, 52*1000*1000};
 u32 freq_range_hs200_sdr104[2]  = {50*1000*1000, 200*1000*1000};
 u32 freq_range_hs400[2]         = {50*1000*1000, 150*1000*1000};
 
@@ -475,6 +476,31 @@ OUT:
 	return ret;
 }
 
+static int sunxi_tuning_method_1(struct mmc *mmc, int retry_times)
+{
+	struct mmc_cmd cmd;
+	int err, retry = 0;
+
+	/* set cmd13 to get status */
+	cmd.cmdidx = MMC_CMD_SEND_STATUS;
+	cmd.resp_type = MMC_RSP_R1;
+	if (!mmc_host_is_spi(mmc))
+		cmd.cmdarg = mmc->rca << 16;
+	cmd.flags = 0;
+
+	do {
+		err = mmc_send_cmd(mmc, &cmd, NULL);
+		if (err)
+			break;
+
+		udelay(10);
+		retry++;
+	} while (retry < retry_times);
+
+	return err;
+}
+
+
 static int _skip_curr_freq(struct mmc *mmc, int spd_md, int freq)
 {
 	u32 min, max;
@@ -516,72 +542,85 @@ static int _skip_curr_freq(struct mmc *mmc, int spd_md, int freq)
 
 static int _get_best_sdly(int sdly_cnt, u8 win_th, u8 *p)
 {
-	int i;
-	int s0=0, e0=0, s1=0, e1=0;
-	int window0=0, window1=0;
+	int i, j, max, group;
+	int s[15]={0}; //start
+	int e[15]={0}; //end
+	int w[15]={0}; //window
+	int in_group = 0;
 	u8 best = 0;
 
-	for (i=0; i<sdly_cnt; i++) {
-		if (p[i] == 1)
-			break;
-	}
-	if (i == sdly_cnt) {
-		s0 = 0xFF; /* 0xFF, invalid sample point position */
-		goto OUT;
-	} else
-		s0 = i;
-
-	for (i=s0+1; i<sdly_cnt; i++)
-		if (p[i] != 1)
-			break;
-	if (i == sdly_cnt) {
-		e0 = sdly_cnt - 1;
-		goto OUT;
-	} else
-		e0 = i;
-
-
-	for (i=e0+1; i<sdly_cnt; i++)
-		if (p[i] == 1)
-			break;
-	if (i == sdly_cnt) {
-		s1 = 0xFF;
-		goto OUT;
-	} else
-		s1 = i;
-
-	for (i=s1+1; i<sdly_cnt; i++)
-		if (p[i] != 1)
-			break;
-	if (i == sdly_cnt) {
-		e1 = sdly_cnt - 1;
-		goto OUT;
-	} else
-		e1 = i;
-
-OUT:
-	MMCINFO("s0-%d e0-%d s1-%d e1-%d\n", s0, e0, s1, e1);
-	if (e0 >= s0)
-		window0 = e0 - s0 + 1;
-	if (e1 >= s1)
-		window1 = e1 - s1 + 1;
-
-	if (s0 == 0xFF) /* don't do tuning or don't get right sample point */
-		best = 0xFF;
-	else
+	/* get window boundary */
+	i = 0;
+	group = 0; //group
+	in_group = 0;
+	while (i<sdly_cnt)
 	{
-		if (window0 >= window1) {
-			if (window0 >= win_th)
-				best = s0 + (window0>>1);
-			else
-				best = 0xff;
+		if (in_group) {
+			if (p[i] == 0) {
+				in_group = 0;
+				group++;
+			} else {
+				e[group] = i;
+				if (i == (sdly_cnt-1)) {
+					in_group = 0;
+					group++;
+				}
+			}
 		} else {
-			if (window1 >= win_th)
-				best = s1 + (window1>>1);
-			else
-				best = 0xff;
+			if (p[i] == 1) {
+				in_group = 1;
+				s[group] = i;
+				e[group] = i;
+			}
+		}
+
+		i++;
+	};
+
+	/* get window size */
+	for (i=0; i<group; i++)
+	{
+		if (e[i] >= s[i])
+			w[i] = e[i] - s[i] + 1;
+		else
+			w[i] = 0;
+	}
+
+	if (group)
+		printf("[mmc]: ");
+	for (i=0; i<group; i++)
+	{
+		printf("[%d-%d|%d] ", s[i], e[i], w[i]);
+		if (group && (i==(group-1)))
+			printf("\n");
+	}
+
+	/*
+	* in theory, the first two sample delay sections should include a max or almost max sections.
+	* we check and choose best sample delay from these two sections. it will reduce impact on sample delay
+	* caused by temperature and voltage variation partly.
+	*/
+	if (group > 2)
+		group = 2;
+
+	/* get max window */
+	j = 0;
+	max = w[0];
+	for (i=1; i<group; i++)
+	{
+		if (w[i] > max) {
+			j = i;
+			max = w[i];
 		}
 	}
+
+	/*get best point */
+	if (w[j] >= win_th)
+		best = s[j] + (w[j]>>1);
+	else
+		best = 0xff;
+
+	MMCDBG("---- %d-%d: %d - %d,  best: 0x%x\n", j, w[j], s[j], e[j], best);
 
 	return best;
 }
@@ -589,7 +628,7 @@ OUT:
 static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_mode, int retry_times)
 {
 	int freq_index=0, freq = 0;
-	int i;
+	int i, ret = 0;
 	struct sunxi_mmc_host *host = (struct sunxi_mmc_host *)mmc->priv;
 	int tm = host->timing_mode;
 	u8 tm4_win_th = host->cfg.platform_caps.tm4_timing_window_th;
@@ -611,6 +650,15 @@ static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_m
 			MMCDBG("%s: current is HS400 mode, dsdly:0x%x\n", __FUNCTION__, (u32)sdly_cfg);
 		} else
 			sdly_cfg = (u8 *)host->tm4.sdly;
+	} else if (tm == SUNXI_MMC_TIMING_MODE_2) {
+		if (speed_mode == HS400) {
+			sdly_cnt = host->tm2.sample_point_cnt_hs400;
+			sdly_cfg = (u8 *)host->tm2.dsdly;
+			MMCDBG("%s: current is HS400 mode, dsdly:0x%x\n", __FUNCTION__, (u32)sdly_cfg);
+		} else {
+			sdly_cnt = host->tm2.sample_point_cnt;
+			sdly_cfg = (u8 *)host->tm2.sdly;
+		}
 	}
 
 	if (NULL == (p = malloc(sdly_cnt*MAX_CLK_FREQ_NUM))) {
@@ -628,7 +676,7 @@ static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_m
 		{
 			/* do tuning  */
 			//MMCINFO("start tuning spd_md: %d-%s, freq: %d-%d\n", speed_mode, spd_name[speed_mode], freq_index, freq);
-			MMCINFO("start tuning freq: %d-%d\n", freq_index, freq);
+			MMCINFO("freq: %d-%d\n", freq_index, freq);
 			for (sdly=0; sdly<sdly_cnt; sdly++)
 			{
 				/* modify sample point cfg*/
@@ -650,7 +698,7 @@ static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_m
 		}
 		else
 		{
-			MMCINFO("skip current freq %d\n", freq);
+			MMCINFO("skip freq %d\n", freq);
 			for (sdly=0; sdly<sdly_cnt; sdly++)
 				p[freq_index*sdly_cnt + sdly] = 0xFF;
 		}
@@ -672,7 +720,25 @@ static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_m
 		}
 		printf("\n");
 		#endif
-		best = _get_best_sdly(sdly_cnt, tm4_win_th, (p + i*sdly_cnt));
+
+		if (speed_mode == HSDDR52_DDR50)
+			tm4_win_th = 8;
+
+		if (tm == SUNXI_MMC_TIMING_MODE_2) {
+			if (speed_mode == HS400) {
+				/* get best delay for hs400 data strobe delay chain */
+				best = _get_best_sdly(sdly_cnt, tm4_win_th, (p + i*sdly_cnt));
+			} else {
+				if (p[i*sdly_cnt + 0] == 1)
+					best = 0;
+				else if (p[i*sdly_cnt + 1] == 1)
+					best = 1;
+				else
+					best = 0xFF;
+			}
+		} else {
+			best = _get_best_sdly(sdly_cnt, tm4_win_th, (p + i*sdly_cnt));
+		}
 		MMCMSG(mmc, "--best %d\n", best);
 
 		/* record best sample point to result[] */
@@ -683,27 +749,148 @@ static int sunxi_tuning_speed_mode(struct mmc *mmc, int speed_mode, int tuning_m
 	}
 
 	/* set proper sample cfg and clock to tune next speed mode */
-	if (speed_mode == DS26_SDR12)
-		freq_index = 1;
-	else
-		freq_index = 2;
-	if ((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0) {
+	freq_index = 2;
+	if (((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0)
+		&& (sdly_cfg[speed_mode*MAX_CLK_FREQ_NUM + freq_index] != 0xFF)) {
 		mmc->tran_speed = freq;
 	} else {
-		freq_index++;
+		freq_index--;
 		MMCINFO("try next freq...%d\n", freq_index);
-		if ((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0)
+		if (((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0)
+			&& (sdly_cfg[speed_mode*MAX_CLK_FREQ_NUM + freq_index] != 0xFF))
 			mmc->tran_speed = freq;
-		else
-			MMCINFO("invalid freq!!!\n");
+		else {
+			ret = -ERR_NO_BEST_DLY;
+			mmc->tran_speed = freq_def;
+			MMCINFO("invalid freq, switch to %d\n", freq_def);
+		}
 	}
 	/* update sample point cfg */
 	mmc_set_clock(mmc, mmc->tran_speed);
 
 	free(p);
 
-	return 0;
+	return ret;
 }
+
+static int sunxi_tuning_hs400_cmd(struct mmc *mmc, int speed_mode, int tuning_mode, int retry_times)
+{
+	int freq_index=0, freq = 0;
+	int i, ret = 0;
+	struct sunxi_mmc_host *host = (struct sunxi_mmc_host *)mmc->priv;
+	int tm = host->timing_mode;
+	u8 tm4_win_th = host->cfg.platform_caps.tm4_timing_window_th;
+	u8 *sdly_cfg = NULL;
+	int sdly, sdly_cnt = 0;
+	u8 *p = NULL;
+	u8 best = 0;
+
+	if (speed_mode != HS400) {
+		MMCINFO("%s: input speed mode error %d\n", __FUNCTION__, speed_mode);
+		return 0;
+	}
+
+	if (tm == SUNXI_MMC_TIMING_MODE_4) {
+		sdly_cnt = host->tm4.sample_point_cnt;
+		sdly_cfg = (u8 *)host->tm4.sdly;
+	} else if (tm == SUNXI_MMC_TIMING_MODE_2) {
+		sdly_cnt = host->tm2.sample_point_cnt;
+		sdly_cfg = (u8 *)host->tm2.sdly;
+	}
+
+	if (NULL == (p = malloc(sdly_cnt*MAX_CLK_FREQ_NUM))) {
+		MMCINFO("%s: request memory fail\n", __FUNCTION__);
+		return -1;
+	}
+
+	freq_index = 0;
+	while ((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0)
+	{
+		/* change clock frequency */
+		mmc->tran_speed = freq;
+
+		if (!_skip_curr_freq(mmc, speed_mode, freq))
+		{
+			/* do tuning  */
+			//MMCINFO("start tuning spd_md: %d-%s, freq: %d-%d\n", speed_mode, spd_name[speed_mode], freq_index, freq);
+			MMCINFO("freq: %d-%d\n", freq_index, freq);
+			for (sdly=0; sdly<sdly_cnt; sdly++)
+			{
+				/* modify sample point cfg*/
+				sdly_cfg[speed_mode*MAX_CLK_FREQ_NUM + freq_index] = sdly;
+
+				/* update sample point cfg */
+				mmc_set_clock(mmc, mmc->tran_speed);
+				if (tuning_mode == 1)
+				{
+					if (!sunxi_tuning_method_1(mmc, retry_times)) //use method 1
+						p[freq_index*sdly_cnt + sdly] = 1;
+					else
+						p[freq_index*sdly_cnt + sdly] = 0;
+				} else {
+					MMCINFO("%s: error tuning method!\n", __FUNCTION__);
+				}
+			}
+		}
+		else
+		{
+			MMCINFO("skip freq %d\n", freq);
+			for (sdly=0; sdly<sdly_cnt; sdly++)
+				p[freq_index*sdly_cnt + sdly] = 0xFF;
+		}
+
+		freq_index++;
+	}
+
+	/* dump tuning result */
+	MMCMSG(mmc, "speed mode: %s\n", spd_name[speed_mode]);
+	for (i=0; i<freq_index; i++)
+	{
+		MMCMSG(mmc, "---%dHz: \n", sunxi_select_freq(mmc, speed_mode, i));
+		#if 0
+		for (j=0; j<sdly_cnt; j++)
+		{
+			if (j && (j%32==0))
+				printf("\n");
+			printf("%02x ", p[i*sdly_cnt + j]);
+		}
+		printf("\n");
+		#endif
+		if (tm == SUNXI_MMC_TIMING_MODE_2) {
+			if (p[i*sdly_cnt + 0] == 1)
+				best = 0;
+			else if (p[i*sdly_cnt + 1] == 1)
+				best = 1;
+			else
+				best = 0xFF;
+		} else {
+			best = _get_best_sdly(sdly_cnt, tm4_win_th, (p + i*sdly_cnt));
+		}
+		MMCMSG(mmc, "--best %d\n", best);
+
+		/* record best sample point to result[] */
+		sdly_cfg[speed_mode*MAX_CLK_FREQ_NUM + i] = best; //( ((speed_mode&0xf)<<4) | (i&0xF)); //best;
+	}
+
+	/* set proper sample cfg and clock to tune next speed mode */
+	freq_index = 2;
+	if (((freq = sunxi_select_freq(mmc, speed_mode, freq_index)) != 0)
+		&& (sdly_cfg[speed_mode*MAX_CLK_FREQ_NUM + freq_index] != 0xFF)) {
+		mmc->tran_speed = freq;
+	} else {
+		ret = -ERR_NO_BEST_DLY;
+		mmc->tran_speed = freq_def;
+		MMCINFO("invalid freq, switch to 6MHz\n");
+	}
+
+	/* update sample point cfg */
+	mmc_set_clock(mmc, mmc->tran_speed);
+
+	free(p);
+
+	return ret;
+}
+
 
 int sunxi_need_rty(struct mmc *mmc)
 {
@@ -820,7 +1007,7 @@ int sunxi_write_tuning(struct mmc *mmc)
 	int clk_bak = mmc->clock;
 
 	if (mmc->cfg->ops->decide_retry == NULL) {
-		MMCINFO("Dont support tuning\n");
+		MMCINFO("Don't support tuning\n");
 		return 0;
 	}
 
@@ -930,6 +1117,15 @@ int sunxi_execute_tuning(struct mmc *mmc, int speed_mode)
 	/* execute tuning for current speed mode */
 	if (r_cycle == 0)
 		r_cycle = 15;
+
+	if (speed_mode == HS400) {
+		ret = sunxi_tuning_hs400_cmd(mmc, speed_mode, 1, r_cycle);
+		if (ret < 0) {
+			MMCINFO("tuning hs400 cmd line fail\n");
+			goto OUT;
+		}
+	}
+
 	ret = sunxi_tuning_speed_mode(mmc, speed_mode, 0, r_cycle);
 	if (ret) {
 		MMCINFO("tuning for %s fail\n", spd_name[speed_mode]);
@@ -943,22 +1139,32 @@ int sunxi_pack_tuning_result(struct mmc *mmc)
 {
 	struct sunxi_mmc_host *host = (struct sunxi_mmc_host *)mmc->priv;
 	//char *spd_name[] = {"DS26/SDR12", "HSSDR52/SDR25", "HSDDR52/DDR50", "HS200/SDR104", "HS400"};
-	int spd_md, freq;
+	u32 tm = host->timing_mode;
+	int spd_md, freq, g, group;
 	u32 t, val = 0;
 	u8 *p = NULL;
 
 #if 0
 	for (spd_md=0; spd_md<MAX_SPD_MD_NUM; spd_md++)
 	{
-		if (spd_md == MAX_SPD_MD_NUM-1)
-			p = host->tm4.dsdly;
-		else
-			p = host->tm4.sdly;
+
+		p = host->tm4.sdly;
 
 		for (freq=0; freq<MAX_CLK_FREQ_NUM; freq++)
 		{
 			printf("%02x ", p[spd_md*MAX_CLK_FREQ_NUM + freq]);
 		}
+
+		if (spd_md == MAX_SPD_MD_NUM-1)
+		{
+			printf("\n---------- ds delay\n");
+			p = host->tm4.dsdly;
+			for (freq=0; freq<MAX_CLK_FREQ_NUM; freq++)
+			{
+				printf("%02x ", p[freq]);
+			}
+		}
+
 		printf("\n");
 	}
 	printf("\n");
@@ -966,34 +1172,56 @@ int sunxi_pack_tuning_result(struct mmc *mmc)
 
 	for (spd_md=0; spd_md<MAX_SPD_MD_NUM; spd_md++)
 	{
+		/* get timing info of current timing mode */
 		if (spd_md == HS400)
-			p = host->tm4.dsdly;
+			group = 2;
 		else
-			p = host->tm4.sdly;
+			group = 1;
 
-		val = 0;
-		for (freq=0; freq<4; freq++) {
-			if (spd_md == HS400)
-				t = p[freq];
-			else
-				t = p[spd_md*MAX_CLK_FREQ_NUM+freq];
-			val |= ((t & 0xFF) << (8*freq));
+		for (g=0; g<group; g++)
+		{
+			/* get timing info of current timing mode */
+			if (tm == SUNXI_MMC_TIMING_MODE_2) {
+				if ((spd_md == HS400) && (g == 0))
+					p = host->tm2.dsdly;
+				else
+					p = host->tm2.sdly;
+			} else if (tm == SUNXI_MMC_TIMING_MODE_4) {
+				if ((spd_md == HS400) && (g == 0))
+					p = host->tm4.dsdly;
+				else
+					p = host->tm4.sdly;
+			}
+
+			val = 0;
+			for (freq=0; freq<4; freq++) {
+				if ((spd_md == HS400) && (g == 0))
+					t = p[freq];
+				else
+					t = p[spd_md*MAX_CLK_FREQ_NUM+freq];
+				val |= ((t & 0xFF) << (8*freq));
+			}
+
+			/* because it only use one timing mode and generate one group of timing info. even current
+			timing mode is SUNXI_MMC_TIMING_MODE_2, but we also pack the timing info of
+			SUNXI_MMC_TIMING_MODE_2 to cfg.platform_caps.sdly.tm4_smx_fx[].
+			*/
+			host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + g*2 + 0] = val;
+
+			val = 0;
+			for (freq=4; freq<MAX_CLK_FREQ_NUM; freq++) {
+				if ((spd_md == HS400) && (g == 0))
+					t = p[freq];
+				else
+					t = p[spd_md*MAX_CLK_FREQ_NUM+freq];
+				val |= ((t & 0xFF) << (8*(freq-4)));
+			}
+			host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + g*2 + 1] = val;
+
+			MMCINFO("%s: 0x%08x 0x%08x\n", spd_name[spd_md],
+				host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + g*2 + 0],
+				host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + g*2 + 1]);
 		}
-		host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + 0] = val;
-
-		val = 0;
-		for (freq=4; freq<MAX_CLK_FREQ_NUM; freq++) {
-			if (spd_md == HS400)
-				t = p[freq];
-			else
-				t = p[spd_md*MAX_CLK_FREQ_NUM+freq];
-			val |= ((t & 0xFF) << (8*(freq-4)));
-		}
-		host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + 1] = val;
-
-		MMCINFO("%s: 0x%08x 0x%08x\n", spd_name[spd_md],
-			host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + 0],
-			host->cfg.platform_caps.sdly.tm4_smx_fx[spd_md*2 + 1]);
 	}
 
 	return 0;
@@ -1013,7 +1241,7 @@ int sunxi_bus_tuning(struct mmc *mmc)
 	}
 #endif
 
-	MMCINFO("================== start tuning HSSDR52_SDR25...\n");
+	MMCINFO("================== HSSDR52_SDR25...\n");
 	ret = sunxi_execute_tuning(mmc, HSSDR52_SDR25);
 	if (ret) {
 		MMCINFO("tuning fail at HSSDR52_SDR25\n");
@@ -1021,10 +1249,9 @@ int sunxi_bus_tuning(struct mmc *mmc)
 		goto ERR_RET;
 	}
 
-#if 1
 	if (mmc->cfg->host_caps & MMC_MODE_HS200)
 	{
-		MMCINFO("================== start tuning HS200_SDR104...\n");
+		MMCINFO("================== HS200_SDR104...\n");
 		ret = sunxi_execute_tuning(mmc, HS200_SDR104);
 		if (ret) {
 			MMCINFO("tuning fail at HS200_SDR104\n");
@@ -1033,11 +1260,10 @@ int sunxi_bus_tuning(struct mmc *mmc)
 			err_flag |= 0x1;
 		}
 	}
-#endif
 
 	if (mmc->cfg->host_caps & MMC_MODE_DDR_52MHz)
 	{
-		MMCINFO("================== start tuning HSDDR52_DDR50...\n");
+		MMCINFO("================== HSDDR52_DDR50...\n");
 		ret = sunxi_execute_tuning(mmc, HSDDR52_DDR50);
 		if (ret) {
 			MMCINFO("tuning fail at HSDDR52_DDR50\n");
@@ -1047,11 +1273,10 @@ int sunxi_bus_tuning(struct mmc *mmc)
 		}
 	}
 
-#if 1
 	if (((mmc->cfg->host_caps & (MMC_MODE_HS400|MMC_MODE_8BIT)) == (MMC_MODE_HS400|MMC_MODE_8BIT))
-		&& !(err_flag & 0x1))
+		&& !(err_flag & 0x3))
 	{
-		MMCINFO("================== start tuning HS400...\n");
+		MMCINFO("================== HS400...\n");
 		ret = sunxi_execute_tuning(mmc, HS400);
 		if (ret) {
 			MMCINFO("tuning fail at HS400\n");
@@ -1066,7 +1291,6 @@ int sunxi_bus_tuning(struct mmc *mmc)
 			goto ERR_RET;
 		}
 	}
-#endif
 
 	ret = mmc_mmc_switch_bus_mode(mmc, HSSDR52_SDR25, mmc->bus_width);
 	if (ret) {
@@ -1092,8 +1316,10 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 	int work_mode = uboot_spare_head.boot_data.work_mode;
 	char caps_bak = 0;
 	ALLOC_CACHE_ALIGN_BUFFER(char, ext_csd, MMC_MAX_BLOCK_LEN);
+	u32 tm = host->timing_mode;
+	u8 *p = NULL, *pds=NULL;
 
-	if (IS_SD(mmc) || ((host->mmc_no == 3) || (host->mmc_no == 0)))
+	if (IS_SD(mmc) || (host->mmc_no == 0))
 	{
 		return 0;
 	}
@@ -1115,7 +1341,10 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 
 		/* here we assume eMMC support 8 bit */
 		mmc->card_caps |= MMC_MODE_4BIT | MMC_MODE_8BIT;
-
+#ifdef FPGA_PLATFORM
+		/*just for 1718 fpga, wangwei*/
+		mdelay(100);
+#endif
 		err = mmc_send_ext_csd(mmc, ext_csd);
 		if (err) {
 			MMCINFO("mmc get ext csd failed\n");
@@ -1140,6 +1369,16 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 
 	MMCDBG("card caps 0x%x\n", mmc->card_caps);
 
+	if (tm == SUNXI_MMC_TIMING_MODE_2) {
+		p = &host->tm2.sdly[0];
+		pds = &host->tm2.dsdly[0];
+	} else if (tm == SUNXI_MMC_TIMING_MODE_4) {
+		p = &host->tm4.sdly[0];
+		pds = &host->tm4.dsdly[0];
+	} else {
+		MMCINFO("%s: err timing mode %d\n", __FUNCTION__, tm);
+		goto OUT;
+	}
 
 	if ((mmc->card_caps & (MMC_MODE_HS400|MMC_MODE_8BIT))
 		== (MMC_MODE_HS400|MMC_MODE_8BIT))
@@ -1148,9 +1387,9 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 		for (ifreq=5; ifreq>=2; ifreq--) /*1-25MHz; 2-50MHz; 3-100MHz; 4-150MHz; 5-200MHz*/
 		{
 			imd = HS200_SDR104;
-			sdly = host->tm4.sdly[imd*MAX_CLK_FREQ_NUM+ifreq];
+			sdly = p[imd*MAX_CLK_FREQ_NUM+ifreq];
 			imd = HS400;
-			dsdly = host->tm4.dsdly[ifreq];
+			dsdly = pds[ifreq];
 			if ((sdly != 0xff) && (dsdly != 0xff))
 				goto START_SWITCH;
 		}
@@ -1160,7 +1399,7 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 		imd = HS200_SDR104;
 		for (ifreq=5; ifreq>=4; ifreq--) /*1-25MHz; 2-50MHz; 3-100MHz; 4-150MHz; 5-200MHz*/
 		{
-			sdly = host->tm4.sdly[imd*MAX_CLK_FREQ_NUM+ifreq];
+			sdly = p[imd*MAX_CLK_FREQ_NUM+ifreq];
 			if (sdly != 0xFF)
 				goto START_SWITCH;
 		}
@@ -1170,11 +1409,7 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 		imd = HSDDR52_DDR50;
 		for (ifreq=2; ifreq>=2; ifreq--) /*1-25MHz; 2-50MHz; 3-100MHz; 4-150MHz; 5-200MHz*/
 		{
-			if (host->mmc_no == 2)
-				sdly = host->tm4.sdly[imd*MAX_CLK_FREQ_NUM+ifreq];
-			else if (host->mmc_no == 0)
-				sdly = host->tm1.sdly[imd*MAX_CLK_FREQ_NUM+ifreq];
-
+			sdly = p[imd*MAX_CLK_FREQ_NUM+ifreq];
 			if (sdly != 0xFF)
 				goto START_SWITCH;
 		}
@@ -1184,7 +1419,7 @@ int sunxi_switch_to_best_bus(struct mmc *mmc)
 		imd = HSSDR52_SDR25;
 		for (ifreq=2; ifreq>=1; ifreq--) /*1-25MHz; 2-50MHz; 3-100MHz; 4-150MHz; 5-200MHz*/
 		{
-			sdly = host->tm4.sdly[imd*MAX_CLK_FREQ_NUM+ifreq];
+			sdly = p[imd*MAX_CLK_FREQ_NUM+ifreq];
 			if (sdly != 0xFF)
 				goto START_SWITCH;
 		}
@@ -1232,7 +1467,7 @@ START_SWITCH:
 		/* firstly, switch to HS-DDR 8 bit */
 		ret = mmc_mmc_switch_bus_mode(mmc, HSDDR52_DDR50, bus_width);
 		if (ret) {
-			MMCINFO("switch to %s fail\n", spd_name[imd]);
+			MMCINFO("switch to %s fail\n", spd_name[HSDDR52_DDR50]);
 			goto OUT;
 		}
 
@@ -1240,7 +1475,7 @@ START_SWITCH:
 		ret = mmc_mmc_switch_bus_mode(mmc, HS400, bus_width);
 	}
 	if (ret) {
-		MMCINFO("switch to %s fail\n", spd_name[imd]);
+		MMCINFO("switch to %s fail\n", spd_name[HS400]);
 		goto OUT;
 	}
 
@@ -1251,6 +1486,20 @@ OUT:
 	return ret;
 }
 
+int mmc_request_update_boot0(int dev_num)
+{
+	struct mmc *mmc = find_mmc_device(dev_num);
+
+	if (mmc == NULL)
+		return 0;
+
+	if ((mmc->cfg->platform_caps.sample_mode == AUTO_SAMPLE_MODE)
+		&& (mmc->tuning_end)) {
+		MMCINFO("mmc request udpate boot0\n");
+		return 1;
+	} else
+		return 0;
+}
 
 int mmc_write_info(int dev_num, void *buffer, u32 buffer_size)
 {
@@ -1259,7 +1508,7 @@ int mmc_write_info(int dev_num, void *buffer, u32 buffer_size)
 	struct boot_sdmmc_private_info_t priv_info;
 
 	if (mmc == NULL) {
-		MMCINFO("Can not find mmc\n");
+		MMCINFO("%s:Can not find mmc\n", __FUNCTION__);
 		return -1;
 	}
 
@@ -1274,6 +1523,12 @@ int mmc_write_info(int dev_num, void *buffer, u32 buffer_size)
 			} else
 				memcpy(&priv_info.tune_sdly.tm4_smx_fx[0],
 					(void *)&mmc->cfg->platform_caps.sdly.tm4_smx_fx[0], sizeof(struct tune_sdly));
+
+			/* if tuning procedure is executed successfully, set this flag. uboot will check this flag and determine it is need to
+			execute tuning when boot */
+			priv_info.ext_para0 = EXT_PARA0_ID;
+			if (mmc->tuning_end)
+				priv_info.ext_para0 |= EXT_PARA0_TUNING_SUCCESS_FLAG;
 		} else {
 			/* fill invalid information "0xff" */
 			memset(&priv_info.tune_sdly.tm4_smx_fx[0], 0xff, sizeof(struct tune_sdly));

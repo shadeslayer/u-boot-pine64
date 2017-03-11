@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -223,7 +229,7 @@ void sunxi_ss_open(void)
 	reg_val &= ~(0x3<<16);
 	reg_val |= 0x0<<16;			// /1
 	reg_val &= ~(0xf);
-	reg_val |= 5;			// /6
+	reg_val |= 1;                   //div is 2
 	reg_val |= 0x1U<<31;
 	writel(reg_val,CCMU_CE_CLK_REG);
 	//enable SS AHB clock

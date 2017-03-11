@@ -30,52 +30,42 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#ifdef CONFIG_SUNXI_DISPLAY
-
 static __u32 screen_id = 0;
 static __u32 disp_para = 0;
-static __u32 fb_base_addr = 0;
+static __u32 fb_base_addr = SUNXI_DISPLAY_FRAME_BUFFER_ADDR;
 extern __s32 disp_delay_ms(__u32 ms);
 extern long disp_ioctl(void *hd, unsigned int cmd, void *arg);
 
-
-
 static int board_display_update_para_for_kernel(char *name, int value)
 {
+#ifndef CONFIG_SUNXI_MULITCORE_BOOT
 	int node;
 	int ret = -1;
-#ifdef CONFIG_SUNXI_MULITCORE_BOOT
+
 	node = fdt_path_offset(working_fdt,"disp");
 	if (node < 0) {
 		printf("%s:disp_fdt_nodeoffset %s fail\n", __func__,"disp");
 		goto exit;
 	}
+
 	ret = fdt_setprop_u32(working_fdt, node, name, (uint32_t)value);
 	if ( ret < 0)
 		printf("fdt_setprop_u32 %s.%s(0x%x) fail.err code:%s\n", "disp", name, value,fdt_strerror(ret));
 	else
 		ret = 0;
-#else
-	node = fdt_path_offset(working_fdt,"disp");
-	if (node < 0) {
-		printf("%s:disp_fdt_nodeoffset %s fail\n", __func__,"disp");
-		goto exit;
-	}
-	ret = fdt_setprop_u32(working_fdt, node, name, (uint32_t)value);
-	if ( ret < 0)
-		printf("fdt_setprop_u32 %s.%s(0x%x) fail.err code:%s\n", "disp", name, value,fdt_strerror(ret));
-	else
-		ret = 0;
-#endif
+
 exit:
 	return ret;
+#else
+	return sunxi_fdt_getprop_store(working_fdt, "disp", name, value);
+#endif
 }
 
-void display_update_dtb(void)
-{
-	board_display_update_para_for_kernel("fb_base", fb_base_addr);
-	board_display_update_para_for_kernel("boot_disp", disp_para);
-}
+//void display_update_dtb(void)
+//{
+//	board_display_update_para_for_kernel("fb_base", fb_base_addr);
+//	board_display_update_para_for_kernel("boot_disp", disp_para);
+//}
 
 int board_display_layer_request(void)
 {
@@ -475,7 +465,8 @@ int board_display_framebuffer_set(int width, int height, int bitcount, void *buf
 	layer_para->info.out_trd_mode 	= 0;
 	gd->layer_para = (uint)layer_para;
 	fb_base_addr=(uint)buffer - sizeof(bmp_header_t);
-	//board_display_update_para_for_kernel("fb_base", (uint)buffer - sizeof(bmp_header_t));
+
+	board_display_update_para_for_kernel("fb_base", (uint)buffer - sizeof(bmp_header_t));
 
 	return 0;
 }
@@ -588,7 +579,8 @@ int board_display_device_open(void)
 
 
 	disp_para = ((output_type << 8) | (output_mode)) << (screen_id*16);
-	//board_display_update_para_for_kernel("boot_disp", disp_para);
+
+	board_display_update_para_for_kernel("boot_disp", disp_para);
 
 	return ret;
 }
@@ -618,86 +610,3 @@ int borad_display_get_screen_height(void)
 	return disp_ioctl(NULL, DISP_GET_SCN_HEIGHT, (void*)arg);
 
 }
-
-#else
-int board_display_layer_request(void)
-{
-	return 0;
-}
-
-int board_display_layer_release(void)
-{
-	return 0;
-}
-int board_display_wait_lcd_open(void)
-{
-	return 0;
-}
-int board_display_wait_lcd_close(void)
-{
-	return 0;
-}
-int board_display_set_exit_mode(int lcd_off_only)
-{
-	return 0;
-}
-int board_display_layer_open(void)
-{
-	return 0;
-}
-
-int board_display_layer_close(void)
-{
-	return 0;
-}
-
-int board_display_layer_para_set(void)
-{
-	return 0;
-}
-
-int board_display_show_until_lcd_open(int display_source)
-{
-	return 0;
-}
-
-int board_display_show(int display_source)
-{
-	return 0;
-}
-
-int board_display_framebuffer_set(int width, int height, int bitcount, void *buffer)
-{
-	return 0;
-}
-
-void board_display_set_alpha_mode(int mode)
-{
-	return ;
-}
-
-int board_display_framebuffer_change(void *buffer)
-{
-	return 0;
-}
-int board_display_device_open(void)
-{
-	return 0;
-}
-
-int borad_display_get_screen_width(void)
-{
-	return 0;
-}
-
-int borad_display_get_screen_height(void)
-{
-	return 0;
-}
-
-void board_display_setenv(char *data)
-{
-	return;
-}
-
-#endif

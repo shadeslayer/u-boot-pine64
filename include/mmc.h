@@ -196,6 +196,9 @@
 #define EXT_CSD_REV		192	/* RO */
 #define EXT_CSD_SEC_CNT		212	/* RO, 4 bytes */
 #define EXT_CSD_SECURE_REMOAL_TYPE 16 /* R/W */
+#define EXT_CSD_FFU_STATUS      26      /* RO */
+#define EXT_CSD_MODE_OPERATION_CODES    29 /* W */
+#define EXT_CSD_MODE_CONFIG     30      /* R/W */
 #define EXT_CSD_FLUSH_CACHE		32      /* W */
 #define EXT_CSD_CACHE_CTRL		33      /* R/W */
 #define EXT_CSD_POWER_OFF_NOTIFICATION	34	/* R/W */
@@ -214,6 +217,7 @@
 #define EXT_CSD_SANITIZE_START		165     /* W */
 #define EXT_CSD_WR_REL_PARAM		166	/* RO */
 #define EXT_CSD_RPMB_MULT		168	/* RO */
+#define EXT_CSD_FW_CONFIG       169 /* R/W */
 #define EXT_CSD_BOOT_WP			173	/* R/W */
 #define EXT_CSD_ERASE_GROUP_DEF		175	/* R/W */
 #define EXT_CSD_PART_CONFIG		179	/* R/W */
@@ -250,10 +254,16 @@
 #define EXT_CSD_GENERIC_CMD6_TIME	248	/* RO */
 #define EXT_CSD_CACHE_SIZE		    249	/* RO, 4 bytes */
 #define EXT_CSD_PWR_CL_DDR_200_360	253	/* RO */
+#define EXT_CSD_FIRMWARE_VERSION    254 /* 254-261, RO */
 #define EXT_CSD_PRE_EOL_INFO        267 /* RO */
 #define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_A 268 /* RO */
 #define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_B 269 /* RO */
 #define EXT_CSD_VENDOR_HEALTH_REPORT 270 /* 270-301, RO */
+#define EXT_CSD_NUM_OF_FW_SECTS_PROGRAMMED /* 302-305, RO */
+#define EXT_CSD_FFU_ARG             487 /* 487-490, RO */
+#define EXT_CSD_OPERATION_CODES_TIMEOUT 491 /* RO */
+#define EXT_CSD_FFU_FEATURES        492 /* RO */
+#define EXT_CSD_SUPPORTED_MODES     493 /* RO */
 #define EXT_CSD_TAG_UNIT_SIZE		498	/* RO */
 #define EXT_CSD_DATA_TAG_SUPPORT	499	/* RO */
 #define EXT_CSD_MAX_PACKED_WRITES	500	/* RO */
@@ -324,6 +334,15 @@
 #define EXT_CSD_SEC_BD_BLK_EN	(1U << 2)
 #define EXT_CSD_SEC_GB_CL_EN	(1U << 4)
 #define EXT_CSD_SEC_SANITIZE	(1U << 6)  /* v4.5 only */
+
+/* -- EXT_CSD[29] MODE_OPERATION_CODES  */
+#define EXT_CSD_FFU_INSTALL             (1U << 1)
+#define EXT_CSD_FFU_ABORT               (1U << 2)
+
+/* -- EXT_CSD[30] MODE_CONFIG  */
+#define EXT_CSD_NORMAL_MODE             (0)
+#define EXT_CSD_FFU_MODE                (1)
+#define EXT_CSD_VENDOR_SPECIFIC_MODE    (2)
 
 /* MMC_SWITCH boot modes */
 #define MMC_SWITCH_MMCPART_NOAVAILABLE	(0xff)
@@ -476,7 +495,7 @@ struct tune_sdly {
 	u32 tm4_sm4_f3210;
 	u32 tm4_sm4_f7654;
 */
-	u32 tm4_smx_fx[10];
+	u32 tm4_smx_fx[12];
 };
 
 struct boot_mmc_cfg {
@@ -499,6 +518,15 @@ struct boot_sdmmc_private_info_t {
 	#define CARD_TYPE_MMC 0x8000000
 	#define CARD_TYPE_NULL 0xffffffff
 	u32 card_type;  /*0xffffffff: invalid; 0x8000000: mmc card; 0x8000001: sd card*/
+
+	#define EXT_PARA0_ID                  (0x55000000)
+	#define EXT_PARA0_TUNING_SUCCESS_FLAG (1U<<0)
+	u32 ext_para0;
+
+	/* ext_para1/2/3 reseved for future */
+	u32 ext_para1;
+	u32 ext_para2;
+	u32 ext_para3;
 };
 
 #endif
@@ -564,6 +592,17 @@ struct mmc_platform_caps {
 	u32 host_caps_mask;
 
 	struct tune_sdly sdly;
+
+	u32 force_boot_tuning;
+
+	/* enable the flow of field firmware update(FFU) flow */
+	u32 enable_ffu;
+	/* the byte length of emmc firmware, if it is 0, use the length get from toc0 header. if it is 0xffffffff, invalid len */
+	u32 emmc_fw_byte_len;
+	/* emmc_fw_ver0[31:0] = ext_csd[257] | ext_csd[256] | ext_csd[255] | ext_csd[254] */
+	u32 emmc_fw_ver0;
+	/* emmc_fw_ver1[31:0] = ext_csd[261] | ext_csd[260] | ext_csd[259] | ext_csd[258] */
+	u32 emmc_fw_ver1;
 };
 
 struct mmc_config {
@@ -645,6 +684,7 @@ struct mmc {
 	u32 pll_clock;
 	u32 msglevel;
 	u32 do_tuning;
+	u32 tuning_end;
 };
 
 struct mmc_ext_csd {
@@ -831,5 +871,7 @@ int sunxi_mmc_tuning_exit(void);
 int mmc_init_product(struct mmc *mmc);
 int mmc_exit(void);
 
+void mmc_update_config_for_sdly(struct mmc *mmc);
+void mmc_update_config_for_dragonboard(int card_no);
 
 #endif /* _MMC_H_ */

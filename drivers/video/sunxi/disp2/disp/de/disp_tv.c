@@ -542,7 +542,7 @@ s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 	u32 num_devices_support_tv = 0;
 	int value = 0;
 	char type_name[32] = {0};
-	char str[10] = {0};
+//	char str[10] = {0};
 	int ret = 0;
 #if defined(__LINUX_PLAT__)
 		spin_lock_init(&g_tv_data_lock);
@@ -577,7 +577,7 @@ s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 
 		snprintf(type_name, sizeof(type_name), "tv%d", disp);
 
-		ret = disp_sys_script_get_item(type_name, "status", (int *)str, 2);
+/*		ret = disp_sys_script_get_item(type_name, "status", (int *)str, 2);
 		if (ret != 2) {
 			DE_WRN("TV get status err.\n");
 		} else {
@@ -586,6 +586,17 @@ s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 				continue;
 			}
 		}
+*/
+		ret = disp_sys_script_get_item(type_name, "used", &value, 1);
+		if (ret != 1) {
+			DE_WRN("TV get status err.\n");
+			} else {
+			if (value != 1) {
+				disp++;
+				continue;
+			}
+		}
+
 
 		ret = disp_sys_script_get_item(type_name, "interface", &value, 1);
 		if (ret != 1) {

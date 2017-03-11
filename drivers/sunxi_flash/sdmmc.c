@@ -218,12 +218,14 @@ int sdmmc_init_for_sprite(int workmode)
 	printf("try card 2 \n");
         board_mmc_pre_init(2);
 	mmc_sprite = find_mmc_device(2);
+	mmc_no = 2;
 	if(!mmc_sprite){
 		printf("fail to find one useful mmc card2\n");
 #ifdef CONFIG_MMC3_SUPPORT
                 printf("try to find card3 \n");
                 board_mmc_pre_init(3);
                 mmc_sprite = find_mmc_device(3);
+		mmc_no = 3;
                 if(!mmc_sprite)
                 {
                         printf("try card3 fail \n");

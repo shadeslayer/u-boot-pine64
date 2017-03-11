@@ -240,12 +240,11 @@ void sunxi_dma_exit(void)
 
 
 	irq_free_handler(AW_IRQ_DMA);
-	//close dma clock when dma exit
 
-
-	reg_val = readl(CCMU_BUS_CLK_GATING_REG0);
-	reg_val &= ~(0x01 << 6);
-	writel(reg_val , CCMU_BUS_CLK_GATING_REG0);
+	/*close dma clock when dma exit*/
+	reg_val = readl(DMA_GATING_BASE);
+	reg_val &= ~(DMA_GATING_PASS << DMA_GATING_BIT);
+	writel(reg_val , DMA_GATING_BASE);
 
 }
 /*

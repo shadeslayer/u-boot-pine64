@@ -32,6 +32,7 @@ obj-y   += debug_mode.o
 obj-$(CONFIG_SUNXI_KEY_BURN)   += key_burn.o
 obj-$(CONFIG_SUNXI_SERIAL)   += sunxi_serial.o
 
+obj-y	  +=de_weak.o
 obj-$(CONFIG_VIDEO_SUNXI_V1)   += de_v1.o
 obj-$(CONFIG_VIDEO_SUNXI_V2)   += de_v2.o
 obj-$(CONFIG_VIDEO_SUNXI_V3)   += de_v3.o
@@ -39,10 +40,9 @@ obj-$(CONFIG_VIDEO_SUNXI_V3)   += de_v3.o
 obj-$(CONFIG_BOOT_GUI)   += bootGUI/
 
 ifdef CONFIG_SUNXI_MULITCORE_BOOT
-obj-y   += board_common_smp.o
 obj-y   += secondary_main.o
-else
-obj-y   += board_common.o
 endif
+
+obj-y   += board_common.o
 
 

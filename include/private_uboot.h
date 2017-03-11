@@ -26,6 +26,10 @@
 #define  __private_uboot_h__
 
 #include "spare_head.h"
+
+#ifndef CONFIG_SUNXI_DEBUG_BUF
+#define CONFIG_SUNXI_DEBUG_BUF   (4 * 1024 * 1024)
+#endif
 /******************************************************************************/
 /*               the control information stored in file head                  */
 /******************************************************************************/
@@ -75,7 +79,7 @@ struct spare_boot_data_head
 *   boot_ext[0]: pmu type
 *   boot_ext[1]: uart input value
 *   boot_ext[2]: lradc key input value
-*
+*   boot_ext[3]: debug mode, boot0 send it
 *
 *******************************************/
 struct spare_boot_ext_head

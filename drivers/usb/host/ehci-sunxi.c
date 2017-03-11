@@ -42,13 +42,24 @@ typedef struct _ehci_config
 	u32 bus_clk_gating_ofs;
 	u32 phy_reset_ofs;
 	u32 phy_slk_gatimg_ofs;
+	u32 usb0_support;
+	char name[32];
+	char node[32];
 }ehci_config_t;
 
+#ifdef CONFIG_ARCH_SUN8IW11P1
 static ehci_config_t ehci_cfg[] =
 {
-	{SUNXI_EHCI0_BASE,24,24,0,8},
-	{SUNXI_EHCI1_BASE,25,25,1,9}
+	{SUNXI_EHCI0_BASE,26,26,0,8,1,"ehci0","/soc/usbc0"},
+	{SUNXI_EHCI1_BASE,27,27,1,9,0,"ehci1","/soc/usbc1"},
 };
+#else
+static ehci_config_t ehci_cfg[] =
+{
+	{SUNXI_EHCI0_BASE,24,24,0,8,1,"ehci0","/soc/usbc0"},
+	{SUNXI_EHCI1_BASE,25,25,1,9,0,"ehci1","/soc/usbc1"},
+};
+#endif
 /*
 *******************************************************************************
 *                     pin_init
@@ -105,9 +116,9 @@ ulong config_usb_pin(char *path, char *prop)
 
 int alloc_pin(int index)
 {
-	usb_vbus_handle = config_usb_pin(index==0?"/soc/usbc0":"/soc/usbc1",
+	usb_vbus_handle = config_usb_pin(ehci_cfg[index].node,
 		"usb_drv_vbus_gpio");
-        return 0;
+        return usb_vbus_handle ? 0:-1;
 }
 
 /*
@@ -248,13 +259,13 @@ void usb_passby(int index, u32 enable)
 	unsigned long reg_value = 0;
 	u32 ehci_vbase = ehci_cfg[index].ehci_base;
 
-	if(index == 0)
+	if(ehci_cfg[index].usb0_support)
 	{
+		//the default mode of usb0 is OTG,so change it here.
 		reg_value = USBC_Readl(SUNXI_USBOTG_BASE + 0x420);
 		reg_value &= ~(0x01);
 		USBC_Writel(reg_value, (SUNXI_USBOTG_BASE + 0x420));
 	}
-
 	reg_value = USBC_Readl(ehci_vbase + 0x810);
 	reg_value &= ~(0x01<<1);
 	USBC_Writel(reg_value, (ehci_vbase + 0x810));
@@ -346,7 +357,7 @@ void sunxi_stop_ehci(int index)
 int ehci_hcd_init(int index, enum usb_init_type init,
 		struct ehci_hccr **hccr, struct ehci_hcor **hcor)
 {
-	printf("start sunxi usb ehci %d...\n", index);
+	printf("start sunxi  %s...\n", ehci_cfg[index].name);
 	if(index > ARRAY_SIZE(ehci_cfg))
 	{
 		printf("the index is too large\n");
@@ -361,7 +372,7 @@ int ehci_hcd_init(int index, enum usb_init_type init,
 	*hcor = (struct ehci_hcor *)((uint32_t) (*hccr) +
 		HC_LENGTH(ehci_readl(&((*hccr)->cr_capbase))));
 
-	printf("sunxi usb ehci %d init ok...\n", index);
+	printf("sunxi %s init ok...\n", ehci_cfg[index].name);
 	return 0;
 }
 
@@ -372,6 +383,6 @@ int ehci_hcd_init(int index, enum usb_init_type init,
 int ehci_hcd_stop(int index)
 {
 	sunxi_stop_ehci(index);
-	printf("stop sunxi ehci %d ok...\n", index);
+	printf("stop sunxi %s ok...\n", ehci_cfg[index].name);
 	return 0;
 }

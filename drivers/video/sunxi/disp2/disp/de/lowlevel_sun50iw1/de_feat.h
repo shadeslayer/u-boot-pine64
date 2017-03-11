@@ -15,10 +15,11 @@
 //#define SUPPORT_SMBL
 #define SUPPORT_HDMI
 #define CONFIG_USE_AC200
-
+#define SUPPORT_LVDS
 #define DSI_VERSION_40
 //#define SUPPORT_TV
 //#define LVDS_REVERT
+#define SUPPORT_LVDS
 
 struct de_feat {
 	const int num_screens;//indicate layer manager number

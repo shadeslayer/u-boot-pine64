@@ -32,6 +32,13 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 
+int enable_smp(void)
+{
+	 asm volatile("MRRC p15,1,r0,r1,c15");
+	 asm volatile("orr r0, r0, #(1<<6)");
+	 asm volatile("MCRR p15,1,r0,r1,c15");
+	 return 0;
+}
 /*
 ************************************************************************************************************
 *
@@ -43,14 +50,47 @@ DECLARE_GLOBAL_DATA_PTR;
 *
 *    return        :
 *
+<<<<<<< HEAD
 *    note          :
+=======
+*    note          :/add board specific code here
+>>>>>>> lichee/sunxi-dev
 *
 *
 ************************************************************************************************************
 */
-/* add board specific code here */
 int board_init(void)
 {
+	u32 reg_val;
+	int cpu_status = 0;
+	cpu_status = readl(SUNXI_CPUX_CFG_BASE+0x30);
+	cpu_status &= (0xf<<24);
+
+	//note:
+	//sbrom will enable smp bit when jmp to non-secure fel on AW1718.
+	//but normal brom not do this operation.
+	//so should enable smp when run uboot by normal fel mode.
+	if(!cpu_status)
+		enable_smp();
+
+	if (uboot_spare_head.boot_data.work_mode != WORK_MODE_USB_PRODUCT)
+	{
+		//VE SRAM:set sram to normal mode, default boot mode
+		reg_val = readl(0x01c00004);
+		reg_val &= ~(0x1<<24);
+		writel(reg_val, 0x01c00004);
+
+		//VE gating :brom set this bit, but not require now
+		reg_val = readl(0x01c20064);
+		reg_val &= ~(0x1<<0);
+		writel(reg_val, 0x01c20064);
+
+		//VE Bus Reset: brom set this bit, but not require now
+		reg_val = readl(0x1c202c4);
+		reg_val &= ~(0x1<<0);
+		writel(reg_val, 0x1c202c4);
+	}
+
 	return 0;
 }
 /*
@@ -172,34 +212,41 @@ extern int axp806_probe(void);
 /**
  * platform_axp_probe -detect the pmu on  board
  * @sunxi_axp_dev_pt: pointer to the axp array
- * @max_dev: offset of the property to retrieve
+ * @max_dev: the max num of pmu
  * returns:
  *	the num of pmu
  */
-
 int platform_axp_probe(sunxi_axp_dev_t  *sunxi_axp_dev_pt[], int max_dev)
 {
-#if 0
+	int pmu_id;
+
+	//axp has been probe by boot0
+	pmu_id = uboot_spare_head.boot_ext[0].data[0];
+	if(pmu_id > 0)
+	{
+		printf("boot0 probe pmu_type = 0x%x\n", pmu_id);
+		sunxi_axp_dev_pt[0] = &sunxi_axp_806;
+		return 1;
+	}
+
 	if(axp806_probe())
 	{
-		printf("probe axp81X failed\n");
+		printf("probe axp806 failed\n");
 		sunxi_axp_dev_pt[0] = &sunxi_axp_null;
 		return 0;
 	}
 	
 	/* pmu type AXP81X */
-	tick_printf("PMU: AXP81X found\n");
-	sunxi_axp_dev_pt[0] = &sunxi_axp_81;
-#endif
-	sunxi_axp_dev_pt[0] = &sunxi_axp_null;
-	//find one axp
-	return 0;
+	tick_printf("PMU: AXP806 found\n");
+	sunxi_axp_dev_pt[0] = &sunxi_axp_806;
+
+	return 1;
 
 }
 
 char* board_hardware_info(void)
 {
-	static char * hardware_info  = "sun50iw1p1";
+	static char * hardware_info  = "sun50iw2p1";
 	return hardware_info;
 }
 
@@ -289,16 +336,24 @@ static void sunxi_random_ether_addr(void)
 }
 #endif
 
+#ifdef CONFIG_SUNXI_GETH
+extern int geth_initialize(bd_t *bis);
+#endif
+
 int board_eth_init(bd_t *bis)
 {
 	int rc = 0;
 
-#if defined(CONFIG_USB_ETHER)
-	sunxi_random_ether_addr();
-	sunxi_udc_probe();
-	usb_eth_initialize(bis);
+#ifdef CONFIG_SUNXI_GETH
+	rc = geth_initialize(bis);
 #endif
 
+#ifdef CONFIG_USB_ETHER
+	sunxi_random_ether_addr();
+	sunxi_udc_probe();
+	rc = usb_eth_initialize(bis);
+#endif
 	return rc;
 }
+
 #endif

@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 ************************************************************************************************************************
 *                                                  NAND BSP for sun
 *                                 NAND hardware registers definition and BSP interfaces

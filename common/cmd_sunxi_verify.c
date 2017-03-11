@@ -33,22 +33,61 @@
 
 static int sunxi_certif_pubkey_check( sunxi_key_t  *pubkey, u8 *hash_buf);
 static int sunxi_root_certif_pk_verify(sunxi_certif_info_t *sunxi_certif, u8 *buf, u32 len, u8 *hash_buf);
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
+static int check_public_in_rootcert(const char *name, sunxi_certif_info_t *sub_certif )
+{
+	struct sbrom_toc1_item_info  *toc1_item;
+	sunxi_certif_info_t  root_certif;
+	u8 *buf;
+	int ret, i;
+
+	toc1_item = (struct sbrom_toc1_item_info *)(CONFIG_TOC1_STORE_IN_DRAM_BASE + \
+							sizeof(struct sbrom_toc1_head_info));
+
+	/*Parse root certificate*/
+	buf = (u8 *)(CONFIG_TOC1_STORE_IN_DRAM_BASE + toc1_item->data_offset);
+	ret =  sunxi_certif_probe_ext(&root_certif, buf, toc1_item->data_len );
+	if(ret < 0)
+	{
+		printf("fail to create root certif\n");
+		return -1;
+	}
+
+	for(i=0;i<root_certif.extension.extension_num;i++)
+	{
+		if(strcmp((const char *)root_certif.extension.name[i], name))
+		{
+			continue;
+		}
+		printf("find %s key stored in root certif\n", name);
+
+		if(memcmp(root_certif.extension.value[i],
+					sub_certif->pubkey.n+1, sub_certif->pubkey.n_len-1))
+		{
+			printf("%s key n is incompatible\n", name);
+			printf(">>>>>>>key in rootcertif<<<<<<<<<<\n");
+			sunxi_dump((u8 *)root_certif.extension.value[i], sub_certif->pubkey.n_len-1);
+			printf(">>>>>>>key in certif<<<<<<<<<<\n");
+			sunxi_dump((u8 *)sub_certif->pubkey.n+1, sub_certif->pubkey.n_len-1);
+
+			return -1;
+		}
+		if(memcmp(root_certif.extension.value[i] + sub_certif->pubkey.n_len-1,
+					sub_certif->pubkey.e, sub_certif->pubkey.e_len))
+		{
+			printf("%s key e is incompatible\n", name);
+			printf(">>>>>>>key in rootcertif<<<<<<<<<<\n");
+			sunxi_dump((u8 *)root_certif.extension.value[i] + sub_certif->pubkey.n_len-1, sub_certif->pubkey.e_len);
+			printf(">>>>>>>key in certif<<<<<<<<<<\n");
+			sunxi_dump((u8 *)sub_certif->pubkey.e, sub_certif->pubkey.e_len);
+
+			return -1;
+		}
+		break;
+	}
+
+	return 0 ;
+
+}
 int sunxi_verify_signature(void *buff, uint len, const char *cert_name)
 {
 	u8 hash_of_file[32];
@@ -110,6 +149,73 @@ int sunxi_verify_signature(void *buff, uint len, const char *cert_name)
 
 	printf("cant find a certif belong to %s\n", cert_name);
 
+	return -1;
+}
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+int sunxi_verify_embed_signature(void *buff, uint len, const char *cert_name, void *cert, unsigned cert_len)
+{
+	u8 hash_of_file[32];
+	int ret;
+	sunxi_certif_info_t  sub_certif;
+	void *cert_buf;
+
+	cert_buf = malloc(cert_len);
+	if(!cert_buf){
+		printf("out of memory\n");
+		return -1;
+	}
+	memcpy(cert_buf, cert,cert_len);
+
+	memset(hash_of_file, 0, 32);
+	sunxi_ss_open();
+	ret = sunxi_sha_calc(hash_of_file, 32, buff, len);
+	if(ret)
+	{
+		printf("sunxi_verify_signature err: calc hash failed\n");
+		goto __ERROR_END;
+	}
+	if(sunxi_certif_verify_itself(&sub_certif, cert_buf, cert_len)){
+		printf("%s error: cant verify the content certif\n", __func__);
+		printf("cert dump\n");
+		sunxi_dump(cert_buf, cert_len);
+		goto __ERROR_END;
+	}
+
+	if(memcmp(hash_of_file, sub_certif.extension.value[0], 32))
+	{
+		printf("hash compare is not correct\n");
+		printf(">>>>>>>hash of file<<<<<<<<<<\n");
+		sunxi_dump(hash_of_file, 32);
+		printf(">>>>>>>hash in certif<<<<<<<<<<\n");
+		sunxi_dump(sub_certif.extension.value[0], 32);
+		goto __ERROR_END;
+	}
+
+	/*Approvel certificate by trust-chain*/
+	if( check_public_in_rootcert(cert_name, &sub_certif) ){
+		printf("check rootpk[%s] in rootcert fail\n",cert_name);
+		goto __ERROR_END;
+	}
+	free(cert_buf);
+	return 0;
+__ERROR_END:
+	if(cert_buf)
+		free(cert_buf);
 	return -1;
 }
 /*

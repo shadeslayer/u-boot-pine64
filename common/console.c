@@ -16,6 +16,10 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+__attribute__((section(".data"))) char *debug_buf_step;
+__attribute__((section(".data"))) char *debug_buf_base;
+__attribute__((section(".data"))) int   debug_enable = 1;
+
 static int on_console(const char *name, const char *value, enum env_op op,
 	int flags)
 {
@@ -444,7 +448,11 @@ void putc(const char c)
 	}
 }
 
-/* get  irq state */
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+__attribute__((section(".data")))
+static unsigned pt_spin_lock;
+
+/* get  cpsr state */
 int  mode_is_svc(void)
 {
 	unsigned long temp = 0;
@@ -459,15 +467,12 @@ int  mode_is_svc(void)
 	return 0;
 }
 
-
-#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
-__attribute__((section(".data")))
-static unsigned pt_spin_lock;
 #endif
 
 void puts(const char *s)
 {
 #if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	/*to avoid dead lock when call printf in irq funtion */
 	if(mode_is_svc())
 		cpu_spin_lock(&pt_spin_lock);
 #endif
@@ -504,47 +509,66 @@ void puts(const char *s)
 	}
 __END:
 #if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	/*to avoid dead lock when call printf in irq funtion */
 	if(mode_is_svc())
 		cpu_spin_unlock(&pt_spin_lock);
 #endif
 	return;
 }
+int display_time(void)
+{
+	uint i,msecond;
+	char printbuffer_with_timestamp[CONFIG_SYS_PBSIZE];
 
+	/* For this to work, printbuffer must be larger than
+	 * anything we ever want to print.
+	 */
+	msecond=get_timer_masked();
+	i = sprintf(printbuffer_with_timestamp,"[%7u.%03u]",msecond/1000,msecond%1000);
+	/* Print the string */
+	puts(printbuffer_with_timestamp);
+
+	return i;
+
+}
 extern int get_core_pos(void);
 
 int printf(const char *fmt, ...)
 {
 	va_list args;
 	uint i;
-	char printbuffer[CONFIG_SYS_PBSIZE];
-	char printbuffer_with_cpuinfo[CONFIG_SYS_PBSIZE];
 	int cpu = get_core_pos();
-
-	if(!gd->debug_mode)
-		return 0;
+	char printbuffer[CONFIG_SYS_PBSIZE];
+	char *tmp_debug_buf;
 
 #if !defined(CONFIG_SANDBOX) && !defined(CONFIG_PRE_CONSOLE_BUFFER)
 	if (!gd->have_console)
 		return 0;
 #endif
+	if (!debug_enable)
+		tmp_debug_buf = debug_buf_step;
+	else
+		tmp_debug_buf = printbuffer;
+
+	if (cpu) {
+		i = sprintf(tmp_debug_buf,"[cpu%d]",cpu);
+		tmp_debug_buf += i;
+		*tmp_debug_buf = '\0';
+	}
 
 	va_start(args, fmt);
-
 	/* For this to work, printbuffer must be larger than
 	 * anything we ever want to print.
 	 */
-	i = vscnprintf(printbuffer, sizeof(printbuffer), fmt, args);
+	i = vsprintf(tmp_debug_buf, fmt, args);
 	va_end(args);
 
-	if(cpu)
-	{
-		sprintf(printbuffer_with_cpuinfo,"[cpu%d]%s",cpu,printbuffer);
-		puts(printbuffer_with_cpuinfo);
-	}
-	else
-	{
-		/* Print the string */
+	if (debug_enable) {
 		puts(printbuffer);
+	} else {
+		tmp_debug_buf += i;
+		*tmp_debug_buf = '\0';
+		debug_buf_step = tmp_debug_buf;
 	}
 
 	return i;
@@ -599,7 +623,12 @@ int sunxi_tick_printf(const char *fmt, ...)
 
 }
 
+int sunxi_printf_all(void)
+{
+	puts(debug_buf_base);
 
+	return 0;
+}
 
 int vprintf(const char *fmt, va_list args)
 {
@@ -771,13 +800,37 @@ int console_assign(int file, const char *devname)
 int console_init_f(void)
 {
 	gd->have_console = 1;
+	int dram_size;
 
 #ifdef CONFIG_SILENT_CONSOLE
 	if (getenv("silent") != NULL)
 		gd->flags |= GD_FLG_SILENT;
 #endif
-
 	print_pre_console_buffer();
+	//if it is not boot mode, set debug enable
+	if(uboot_spare_head.boot_data.work_mode != WORK_MODE_BOOT)
+		return 0;
+	//if the dram size is 0, set debug enable
+	dram_size = uboot_spare_head.boot_data.dram_scan_size;
+	if (!dram_size)
+		return 0;
+
+	//if user input 's', set debug enable
+	if (uboot_spare_head.boot_ext[0].data[1] == 's') {
+		gd->force_shell = 1;
+		return 0;
+	}
+	//if user selete, set debug enable
+	//maybe: user set sysconfig
+	//maybe: user press keyboard 'd' or 's'
+	//'d': only show debug information
+	if (uboot_spare_head.boot_ext[0].data[3])
+		return 0;
+
+	debug_enable = 0;
+	debug_buf_base = (char *)(CONFIG_SYS_SDRAM_BASE +
+					dram_size * 1024 * 1024 - CONFIG_SUNXI_DEBUG_BUF);
+	debug_buf_step = debug_buf_base;
 
 	return 0;
 }

@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -131,8 +137,19 @@ void set_ce_gating(void)
 
 void set_pll( void )
 {
-	//use new mode
+	__u32 reg_val;
+
 	printf("set pll start\n");
+	//pll bias select,to fix pll error
+	//use PLL_CTRL_REG0
+	//bit28 0: pll bias from ADDA
+	//      1: pll bias from PLL inside
+	reg_val = readl(SUNXI_SYSCRL_BASE+0xF0);
+	reg_val |= (1<<28);
+	writel(reg_val, SUNXI_SYSCRL_BASE+0xF0);
+	__usdelay(10);
+
+	//use new mode
 	enable_pll_lock_bit(LOCK_EN_NEW_MODE);
 
 	set_pll_cpux_axi();
@@ -155,13 +172,20 @@ void set_pll( void )
 
 void reset_pll( void )
 {
+	printf("reset pll start\n");
 	writel(0x10300, CCMU_CPUX_AXI_CFG_REG);
-	__usdelay(10);
+	__msdelay(10);
+
 	writel(0x01010, CCMU_AHB1_APB1_CFG_REG);
-	__usdelay(10);
+	__msdelay(10);
+
 	writel(0x00001000, CCMU_PLL_CPUX_CTRL_REG);
+	__msdelay(10);
+
 	writel(0x00041811, CCMU_PLL_PERIPH0_CTRL_REG);
-	__usdelay(10);
+	__msdelay(10);
+	printf("reset pll end\n");
+
 	return ;
 }
 

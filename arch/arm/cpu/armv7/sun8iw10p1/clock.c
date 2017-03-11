@@ -460,7 +460,7 @@ int sunxi_clock_get_ahb(void)
     int src = 0;
 
 	reg_val = readl(CCMU_AHB1_APB1_CFG_REG);
-	
+
     src = (reg_val >> 12)&0x3;
     clock = 0;
     switch(src)
@@ -474,9 +474,12 @@ int sunxi_clock_get_ahb(void)
             factor  = (reg_val >> 4) & 0x03;
             clock   = sunxi_clock_get_axi()>>factor;
             break;
-        case 3://src is pll6(1x)/AHB1_PRE_DIV
+        case 3://src is pll6(1x)/AHB1_PRE_DIV/AHB_DIV
             factor  = (reg_val >> 6) & 0x03;
+	    //AHB1_PRE_DIV
             clock   = sunxi_clock_get_pll6()/(factor+1);
+	    //AHB1_DIV
+	    clock   = clock >> ((reg_val >> 4) & 0x03);
         break;
     }
 
@@ -536,6 +539,7 @@ int sunxi_clock_get_mbus(void)
 	return clock;
 }
 
+
 int pll_lock_is_new_mode(void)
 {
 	__u32 reg_val;
@@ -560,6 +564,31 @@ void disable_pll_lock_bit(__u32 lock_bit)
 	writel(reg_val, CCMU_PLL_LOCK_CTRL_REG);
 }
 
+
+void set_pll_ahb_apb(void)
+{
+	unsigned int reg_val;
+	//set AHB1/APB1 clock  divide ratio
+	//ahb1 clock src is PLL6,                           (0x03<< 12)
+	//apb1 clk src is ahb1 clk src, divide  ratio is 4  (2<<8)
+	//ahb1 pre divide  ratio :    0:1  , 1:2,  2:3,   3:4 (2<<6)
+	//ahb1  divide  ratio:    0:1  , 1:2,  2:4,   3:8 (1<<4)
+	//PLL6:AHB1:APB1 = 600M:200M:50M
+	//note:AHB1--->sram C limited to 100M. but there is no limit for ddr.
+
+	//change ahb clock src to OSC24
+	writel((0x01 << 12) | (readl(CCMU_AHB1_APB1_CFG_REG)&(~(0x3<<12))), CCMU_AHB1_APB1_CFG_REG);
+	reg_val = readl(CCMU_AHB1_APB1_CFG_REG);
+	reg_val &= ~(0x3<<4);
+	reg_val &= ~(0x3<<6);
+	reg_val &= ~(0x3<<8);
+	reg_val |= (0x2<<6);
+	reg_val |= (0x2<<8);
+	writel(reg_val, CCMU_AHB1_APB1_CFG_REG);
+	//change ahb clock src to periph0
+	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
+	__udelay(20);
+}
 
 int sunxi_clock_set_corepll(int frequency)
 {

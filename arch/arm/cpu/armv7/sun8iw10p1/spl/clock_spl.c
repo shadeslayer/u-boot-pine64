@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -69,7 +75,7 @@ void set_pll_cpux_axi(void)
 	writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
 	__usdelay(1000);
 }
-	
+
 
 void set_pll_periph0_ahb_apb(void)
 {
@@ -91,8 +97,9 @@ void set_pll_periph0_ahb_apb(void)
 	//ahb1 clock src is PLL6,                           (0x03<< 12)
 	//apb1 clk src is ahb1 clk src, divide  ratio is 4  (2<<8)
 	//ahb1 pre divide  ratio is 2:    0:1  , 1:2,  2:3,   3:4 (2<<6)
-	//PLL6:AHB1:APB1 = 600M:200M:100M ,
-	writel((2<<8) | (2<<6) | (0<<4), CCMU_AHB1_APB1_CFG_REG);
+	//ahb1  divide  ratio is 1:    0:1  , 1:2,  2:4,   3:8 (1<<4)
+	//PLL6:AHB1:APB1 = 600M:100M:50M , sram C limited(100M).
+	writel((1<<8) | (2<<6) | (1<<4), CCMU_AHB1_APB1_CFG_REG);
 	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
 }
 void set_pll_dma(void)
@@ -153,3 +160,22 @@ void set_gpio_gate(void)
 
 }
 
+int sunxi_key_clock_open(void)
+{
+	uint reg_val = 0,i=0;
+
+	//reset
+	reg_val = readl(CCMU_BUS_SOFT_RST_REG2);
+	reg_val &= ~(1<<9);
+	writel(reg_val, CCMU_BUS_SOFT_RST_REG2);
+	for( i = 0; i < 100; i++ );
+	reg_val |=  (1<<9);
+	writel(reg_val, CCMU_BUS_SOFT_RST_REG2);
+
+	//enable KEYADC gating
+	reg_val = readl(CCMU_BUS_CLK_GATING_REG2);
+	reg_val |= (1<<9);
+	writel(reg_val, CCMU_BUS_CLK_GATING_REG2);
+
+	return 0;
+}

@@ -34,14 +34,16 @@
 #include <private_boot0.h>
 #include <private_uboot.h>
 #include <sunxi_nand.h>
+#include <libfdt.h>
 
 int sunxi_flash_init_uboot(int verbose);
 extern int sunxi_card_fill_boot0_magic(void);
 
 extern int card_read_boot0(void *buffer,uint length);
+extern int spinor_read(uint start, uint nblock, void *buffer);
 
-
-
+#define DTB_RESERVE_SIZE	(4*1024)
+#define DTB_ALIGN_SIZE		(512)
 /*
 ************************************************************************************************************
 *
@@ -139,7 +141,27 @@ int __attribute__((weak)) spinor_init_for_sprite(int workmode)
 	return -1;
 }
 
+int __attribute__((weak)) nand_read_uboot_data(unsigned char *buf,unsigned int len)
+{
+	return -1;
+}
 
+int __attribute__((weak))  nand_read_boot0(void *buffer,uint length)
+{
+	return -1;
+}
+int __attribute__((weak)) sunxi_download_boot0_atfter_ota(void *buffer, int production_media)
+{
+	return -1;
+}
+int __attribute__((weak))  sunxi_sprite_download_uboot(void *buffer, int production_media, int generate_checksum)
+{
+	return -1;
+}
+int __attribute__((weak))  card_erase(int erase, void *mbr_buffer)
+{
+	return -1;
+}
 /*
 ************************************************************************************************************
 *
@@ -273,7 +295,7 @@ int sunxi_sprite_force_erase(void)
 }
 //-------------------------------------sprite interface end-----------------------------------------------
 
-//sunxi flash boot interface init 
+//sunxi flash boot interface init
 int sunxi_flash_boot_handle(int storage_type,int workmode )
 {
 	int card_no;
@@ -286,13 +308,13 @@ int sunxi_flash_boot_handle(int storage_type,int workmode )
 			state = nand_init_for_boot(workmode);
 		}
 		break;
-		
+
 		case STORAGE_SD:
 		case STORAGE_EMMC:
                 case STORAGE_EMMC3:
 		{
 			//sdmmc handle init
-		//	card_no = (storage_type == 1)?0:2; 
+		//	card_no = (storage_type == 1)?0:2;
 		        if(storage_type == STORAGE_SD)
                                 card_no = 0;
                         else if(storage_type == STORAGE_EMMC)
@@ -302,7 +324,7 @@ int sunxi_flash_boot_handle(int storage_type,int workmode )
                         state = sdmmc_init_for_boot(workmode,card_no);
 		}
 		break;
-		
+
 		case STORAGE_NOR:
 		{
 			state = spinor_init_for_boot(workmode,0);
@@ -315,14 +337,14 @@ int sunxi_flash_boot_handle(int storage_type,int workmode )
 			state = -1;
 		}
 		break;
-				
+
 	}
-	
+
 	if(state != 0)
 	{
 		return -1;
 	}
-	
+
 	//script_parser_patch("target", "storage_type", &storage_type, 1);
 	tick_printf("sunxi flash init ok\n");
 	return  0;
@@ -331,16 +353,16 @@ int sunxi_flash_boot_handle(int storage_type,int workmode )
 int sunxi_flash_sprite_handle(int storage_type,int workmode)
 {
 	int state = 0;
-	//try nand ,spi-nor ,mmc2
-	state = nand_init_for_sprite(workmode);
-	
+	//try emmc, nand, spi-nor
+	state = sdmmc_init_for_sprite(workmode);
+
 	if(state !=0 )
 	{
-		printf("try nand fail\n");
-		state = sdmmc_init_for_sprite(workmode);
+		printf("try emmc fail\n");
+		state = nand_init_for_sprite(workmode);
 		if(state != 0)
 		{
-			printf("try emmc fail\n");	
+			printf("try nand fail\n");
 		}
 	}
 
@@ -357,14 +379,14 @@ int sunxi_flash_sprite_handle(int storage_type,int workmode)
 	{
 		return -1;
 	}
-	
+
 	//sdcard burn mode
 	if((workmode == WORK_MODE_CARD_PRODUCT) || (workmode == 0x30))
 	{
 		state = sdmmc_init_card0_for_sprite();
 		if(state != 0)
 		{
-			return -1;	
+			return -1;
 		}
 	}
 	return 0;
@@ -376,7 +398,7 @@ int sunxi_flash_handle_init(void)
 	int workmode = 0;
 	int storage_type = 0;
 	int state = 0;
-	
+
 	workmode     = uboot_spare_head.boot_data.work_mode;
 	storage_type = uboot_spare_head.boot_data.storage_type;
 
@@ -477,18 +499,18 @@ extern int sunxi_sprite_download_uboot(void *buffer, int production_media, int m
 extern  int nand_read_uboot_data(unsigned char *buf,unsigned int len);
 
 #ifdef CONFIG_SUNXI_SPINOR
-int sunxi_flash_update_fdt(void* fdt_buf, size_t fdt_size)
+int sunxi_nor_flash_update_fdt(void* fdt_buf, size_t fdt_size)
 {
 	printf("Warnning:spinor platform not support update fdt to flash\n");
 	return -1;
 }
-int sunxi_flash_update_boot0(void)
+int sunxi_nor_flash_update_boot0(void)
 {
 	printf("Warnning:spinor platform not support update boot0 to flash\n");
 	return -1;
 }
+#endif
 
-#else
 int read_boot_package(int storage_type, void *package_buf)
 {
 
@@ -506,10 +528,12 @@ int read_boot_package(int storage_type, void *package_buf)
 	{
 		ret = sunxi_sprite_phyread(UBOOT_START_SECTOR_IN_SDMMC, read_len/512, package_buf);
 	}
+#ifdef CONFIG_SUNXI_MODULE_SPINOR
 	else if(storage_type == STORAGE_NOR)
 	{
+		ret = spinor_read(UBOOT_START_SECTOR_IN_SPINOR, read_len/512,package_buf);
 	}
-	
+#endif
 	toc1_head = (struct sbrom_toc1_head_info *)package_buf;
 	if(toc1_head->magic != TOC_MAIN_INFO_MAGIC)
 	{
@@ -522,79 +546,6 @@ int read_boot_package(int storage_type, void *package_buf)
 	return total_length;
 }
 
-int sunxi_flash_update_fdt(void* fdt_buf, size_t fdt_size)
-{
-	int package_size;
-	int i = 0;
-	char *package_buf = NULL;
-	int   package_buf_size = 10<<20;
-	int   find_flag = 0;
-	u32   dtb_base = 0;
-	int   storage_type = 0;
-	int   ret = -1;
-	
-	struct sbrom_toc1_head_info  *toc1_head = NULL;
-	struct sbrom_toc1_item_info  *item_head = NULL;
-	
-	struct sbrom_toc1_item_info  *toc1_item = NULL;
-	struct spare_boot_head_t *uboot_head = NULL;
-	
-	storage_type = get_boot_storage_type();
-
-	//10M buffer
-	package_buf = (char*)malloc(package_buf_size);
-	if(package_buf == NULL)
-	{
-		printf("%s: malloc fail\n", __func__);
-		return -1;
-	}
-
-	memset(package_buf,0,package_buf_size);
-	package_size = read_boot_package(storage_type,package_buf);
-	if(package_size <= 0) 
-	{
-		goto _UPDATE_END;
-	}
-	
-	toc1_head = (struct sbrom_toc1_head_info *)package_buf;
-	item_head = (struct sbrom_toc1_item_info *)(package_buf + sizeof(struct sbrom_toc1_head_info));
-	toc1_item = item_head;
-	for(i=0;i<toc1_head->items_nr;i++,toc1_item++)
-	{
-
-		printf("Entry_name        = %s\n",   toc1_item->name);
-		if(strncmp(toc1_item->name, ITEM_UBOOT_NAME, sizeof(ITEM_UBOOT_NAME)) == 0)
-		{
-			find_flag = 1;
-			break;
-		}
-	}
-	if(!find_flag)
-	{
-		printf("error:can't find uboot\n");
-		goto _UPDATE_END;
-	}
-
-	uboot_head =  (struct spare_boot_head_t *)(package_buf+toc1_item->data_offset);
-	if(strncmp((const char *)uboot_head->boot_head.magic, UBOOT_MAGIC, MAGIC_SIZE))
-	{
-		printf("%s: uboot magic is error\n",__func__);
-		goto _UPDATE_END;
-	}
-
-	dtb_base = (u32)(package_buf + toc1_item->data_offset) + uboot_head->boot_data.dtb_offset;
-	memcpy((void*)dtb_base, fdt_buf, fdt_size);
-
-	ret = sunxi_sprite_download_uboot(package_buf,storage_type,1);
-
-_UPDATE_END:
-	if(package_buf) 
-	{
-		free(package_buf);
-	}
-	return ret;
-	
-}
 /*
 ************************************************************************************************************
 *
@@ -692,7 +643,7 @@ int sunxi_flash_get_boot0_size(void)
 *
 ************************************************************************************************************
 */
-int sunxi_flash_update_boot0(void)
+int sunxi_nand_emmc_flash_update_boot0(void)
 {
 	int storage_type = 0;
 	char* boot_buffer = NULL;
@@ -736,4 +687,100 @@ _UPDATE_ERROR_:
 	return -1;
 }
 
+int sunxi_flash_update_boot0(void)
+{
+	int storage_type = 0;
+	int ret = -1;
+	storage_type = get_boot_storage_type();
+	printf("storage type = %d\n", storage_type);
+
+	if (storage_type == STORAGE_NOR)
+	{
+#ifdef CONFIG_SUNXI_SPINOR
+		ret = sunxi_nor_flash_update_boot0();
 #endif
+	}
+	else
+	{
+#if defined(CONFIG_SUNXI_MODULE_NAND) || defined(CONFIG_SUNXI_MODULE_SDMMC)
+		ret = sunxi_nand_emmc_flash_update_boot0();
+#endif
+	}
+
+	return ret;
+}
+
+int sunxi_flash_update_fdt(void* fdt_buf, size_t fdt_size)
+{
+	int package_size;
+	int i = 0;
+	char *package_buf = NULL;
+	int   package_buf_size = 10<<20;
+	int   find_flag = 0;
+	u32   dtb_base = 0;
+	int   storage_type = 0;
+	int   ret = -1;
+
+	struct sbrom_toc1_head_info  *toc1_head = NULL;
+	struct sbrom_toc1_item_info  *item_head = NULL;
+	struct sbrom_toc1_item_info  *toc1_item = NULL;
+
+	storage_type = get_boot_storage_type();
+
+	//10M buffer
+	package_buf = (char*)malloc(package_buf_size);
+	if(package_buf == NULL)
+	{
+		printf("%s: malloc fail\n", __func__);
+		return -1;
+	}
+
+	memset(package_buf,0,package_buf_size);
+	package_size = read_boot_package(storage_type,package_buf);
+	if(package_size <= 0)
+	{
+		goto _UPDATE_END;
+	}
+
+	toc1_head = (struct sbrom_toc1_head_info *)package_buf;
+	item_head = (struct sbrom_toc1_item_info *)(package_buf + sizeof(struct sbrom_toc1_head_info));
+	toc1_item = item_head;
+	for(i=0;i<toc1_head->items_nr;i++,toc1_item++)
+	{
+		printf("Entry_name        = %s\n",   toc1_item->name);
+		if(strncmp(toc1_item->name, ITEM_DTB_NAME, sizeof(ITEM_DTB_NAME)) == 0)
+		{
+			find_flag = 1;
+			break;
+		}
+	}
+	if(!find_flag)
+	{
+		printf("error:can't find dtb\n");
+		goto _UPDATE_END;
+	}
+
+	dtb_base = (u32)(package_buf + toc1_item->data_offset);
+	if (fdt_check_header((void *)dtb_base))
+	{
+		printf("%s: fdt header is error\n",__func__);
+		goto _UPDATE_END;
+	}
+
+	if (fdt_size > ALIGN((fdt_totalsize(dtb_base) +DTB_RESERVE_SIZE),DTB_ALIGN_SIZE))
+	{
+		printf("fdt size is too large\n");
+		goto _UPDATE_END;
+	}
+
+	memcpy((void*)dtb_base, fdt_buf, fdt_size);
+
+	ret = sunxi_sprite_download_uboot(package_buf,storage_type,1);
+
+_UPDATE_END:
+	if(package_buf)
+	{
+		free(package_buf);
+	}
+	return ret;
+}

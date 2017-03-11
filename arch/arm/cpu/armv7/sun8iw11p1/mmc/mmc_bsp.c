@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -64,7 +70,8 @@ static void dumpmmcreg(struct sunxi_mmc *reg)
 #define  dumphex32(fmt...)
 #endif /* SUNXI_MMCDBG */
 
-extern int mmc_config_addr; /*const boot0_file_head_t BT0_head;*/
+
+extern int mmc_config_addr; /*extern const boot0_file_head_t BT0_head;*/
 extern int mmc_register(int dev_num, struct mmc *mmc);
 extern int mmc_unregister(int dev_num);
 
@@ -88,7 +95,7 @@ void set_mmc_para(int smc_no, void *addr)
 	memcpy((void *)(uboot_buf->boot_data.sdcard_spare_data), (addr+SDMMC_PRIV_INFO_ADDR_OFFSET), sizeof(struct boot_sdmmc_private_info_t));
 
 	p = (u32 *)(uboot_buf->boot_data.sdcard_spare_data);
-	for (i=0; i<5; i++)
+	for (i=0; i<6; i++)
 		printf("0x%x 0x%x\n", p[i*2 + 0], p[i*2 + 1]);
 
 	return;
@@ -1181,8 +1188,6 @@ int sunxi_mmc_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_i
 		(struct boot_sdmmc_private_info_t *)(mmc_config_addr + SDMMC_PRIV_INFO_ADDR_OFFSET);
 	u8 ext_f_max = priv_info->boot_mmc_cfg.boot_hs_f_max;
 
-    //asm volatile ("b .");
-
 	mmcinfo("mmc driver ver %s\n", DRIVER_VER);
 
 	memset(&mmc_dev[sdc_no], 0, sizeof(struct mmc));
@@ -1221,9 +1226,11 @@ int sunxi_mmc_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_i
 		mmc->f_max = 25000000;
 
 	if ( !mmc_get_timing_cfg(sdc_no, 2, 2, &odly, &sdly) ) {
-		if ((odly != 0xff) && (sdly != 0xff))
-			mmc->host_caps |= MMC_MODE_DDR_52MHz;
-		else
+		if ((odly != 0xff) && (sdly != 0xff)){
+        /*For high temperature,ddr50 has less useful delay chain,*/
+        /*So we decrease speed rate for safe,so here we disable ddr50 mode,use sdr50 mode*/ 
+		//	mmc->host_caps |= MMC_MODE_DDR_52MHz;
+        }else
 			mmc->f_max_ddr = 25000000;
 	} else
 		mmc->f_max_ddr = 25000000;

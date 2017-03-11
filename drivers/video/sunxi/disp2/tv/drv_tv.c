@@ -509,9 +509,7 @@ static void tve_clk_config(u32 sel, u32 tv_mode)
 	unsigned long rate = 0, prate = 0;
 	unsigned long parent_rate[] = {216000000, 297000000, 240000000};
 	bool rate_exact = false;
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	unsigned long round;
-#endif
 
 	list_num = tv_get_list_num();
 	for(i=0; i<list_num; i++) {
@@ -542,13 +540,12 @@ static void tve_clk_config(u32 sel, u32 tv_mode)
 	TV_DBG("parent count = %d, prate=%lu, rate=%lu, tv_mode=%d\n",
 		rc, prate, rate, tv_mode);
 
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	round = clk_round_rate(g_tv_info.screen[sel].clk, rate);
 	if (round == rate)
 		rate_exact = true;
-#endif
+
 	if (!rate_exact) {
-		ret = clk_set_rate(g_tv_info.clk_parent, prate);
+		ret = clk_set_rate(g_tv_info.screen[sel].clk->parent, prate);
 		if (ret)
 			printf("fail to set rate(%ld) fo tve%d's pclk!\n",
 			    prate, sel);
@@ -566,7 +563,6 @@ static s32 tv_inside_init(int sel)
 	char sub_key[20];
 
 	sprintf(main_key, "tv%d", sel);
-
 
 #if defined(CONFIG_SWITCH) || defined(CONFIG_ANDROID_SWITCH)
 		unsigned int interface = 0;
@@ -644,9 +640,7 @@ static int tv_top_init(int sel)
 {
 	int ret;
 	char main_key[20];
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	int node_offset = 0;
-#endif
 
 	sprintf(main_key, "tv%d", sel);
 
@@ -667,12 +661,9 @@ static int tv_top_init(int sel)
 		goto err_iomap;
 	}
 
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	node_offset = disp_fdt_nodeoffset(main_key);
 	g_tv_info.clk = of_clk_get(node_offset, 0);
-#else
-	g_tv_info.clk = clk_get(NULL, "tve_top");
-#endif
+
 	if (IS_ERR(g_tv_info.clk)) {
 		printf("fail to get clk for tve common module!\n");
 		goto err_iomap;
@@ -692,13 +683,18 @@ static int tv_probe(int sel)
 	struct disp_tv_func disp_func;
 	char main_key[20];
 	int index = 0;
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	int node_offset = 0;
-#endif
-
+	int ret = 0;
+	int value = 0;
 	printf("%s:000\n", __func__);
 
 	sprintf(main_key, "tv%d", sel);
+
+	ret = disp_sys_script_get_item(main_key, "boot_mask", &value, 1);
+	if (ret == 1 && value == 1) {
+		printf("skip tv%d in boot.\n", sel);
+		return -1;
+	}
 
 	if (!g_tv_info.tv_number)
 		memset(&g_tv_info, 0, sizeof(struct tv_info_t));
@@ -721,7 +717,6 @@ static int tv_probe(int sel)
 		goto err_iomap;
 	}
 
-#if defined(CONFIG_ARCH_SUN50IW2P1)
 	node_offset = disp_fdt_nodeoffset(main_key);
 	of_periph_clk_config_setup(node_offset);
 	g_tv_info.screen[sel].clk = of_clk_get(node_offset, index);
@@ -729,14 +724,7 @@ static int tv_probe(int sel)
 		printf("fail to get clk for tve%d's!\n", sel);
 		goto err_iomap;
 	}
-#else
-	sprintf(main_key, "tve%d", sel);
-	g_tv_info.screen[sel].clk = clk_get(NULL, main_key);
-	if (!g_tv_info.screen[sel].clk) {
-		printf("fail to get clk for tve%d's!\n", sel);
-		goto err_iomap;
-	}
-#endif
+
 	g_tv_info.screen[sel].tv_mode = DISP_TV_MOD_PAL;
 	tv_inside_init(sel);
 
@@ -777,19 +765,29 @@ s32 tv_init(void)
 {
 	s32 i = 0, ret = 0;
 	char main_key[20];
-	char str[10];
+//	char str[10];
+	int value = 0;
 
 	for (i = 0; i < 2; i++) {
 		printf("%s:\n", __func__);
 		sprintf(main_key, "tv%d", i);
 
-		ret = disp_sys_script_get_item(main_key, "status", (int*)str, 2);
+/*		ret = disp_sys_script_get_item(main_key, "status", (int*)str, 2);
 		if (ret != 2) {
 			printf("fetch tv%d err.\n", i);
 			continue;
 		}
 		if (0 != strcmp(str, "okay"))
 			continue;
+*/
+		ret = disp_sys_script_get_item(main_key, "used", &value, 1);
+		if (ret != 1) {
+			printf("fetch tv%d err.\n", i);
+			continue;
+		}
+		if (1 != value)
+			continue;
+
 		tv_probe(i);
 	}
 

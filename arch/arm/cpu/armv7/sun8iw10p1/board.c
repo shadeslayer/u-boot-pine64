@@ -36,6 +36,13 @@
 #include <fdt_support.h>
 #include <sys_config_old.h>
 
+#include <asm/arch/ccmu.h>
+#include <asm/arch/clock.h>
+#include <asm/arch/platform.h>
+#include <power/sunxi/pmu.h>
+#include <smc.h>
+#include <sunxi_board.h>
+
 /* The sunxi internal brom will try to loader external bootloader
  * from mmc0, nannd flash, mmc2.
  * We check where we boot from by checking the config
@@ -56,11 +63,11 @@ int power_source_init(void)
 	int cpu_vol = 0;
 	int nodeoffset=0;
 
-	//PMU_SUPPLY_DCDC3 is for cpua
+	//PMU_SUPPLY_DCDC2 is for cpua
 	nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_POWER_SPLY);
 	if(nodeoffset >=0)
 	{
-		fdt_getprop_u32(working_fdt, nodeoffset, "dcdc3_vol", &dcdc_vol);
+		fdt_getprop_u32(working_fdt, nodeoffset, "dcdc2_vol", &dcdc_vol);
 	}
 	if(!dcdc_vol)
 	{
@@ -76,14 +83,14 @@ int power_source_init(void)
 		axp_probe_factory_mode();
 		if(!axp_probe_power_supply_condition())
 		{
-			if(!axp_set_supply_status(0, PMU_SUPPLY_DCDC3, cpu_vol, -1))
+			if(!axp_set_supply_status(0, PMU_SUPPLY_DCDC2, cpu_vol, -1))
 			{
-				tick_printf("PMU: dcdc3 %d\n", cpu_vol);
+				tick_printf("PMU: dcdc2 %d\n", cpu_vol);
 				sunxi_clock_set_corepll(uboot_spare_head.boot_data.run_clock, 0);
 			}
 			else
 			{
-				printf("axp_set_dcdc3 fail\n");
+				printf("axp_set_dcdc2 fail\n");
 			}
 		}
 		else
@@ -97,7 +104,7 @@ int power_source_init(void)
 	}
 
 	pll1 = sunxi_clock_get_corepll();
-
+	tick_printf("IC Version: %d(0:A 1:B 2:other)\n", readl(0x01C00000+0x24)&0x3);
 	tick_printf("PMU: pll1 %d Mhz,PLL6=%d Mhz\n", pll1,sunxi_clock_get_pll6());
     printf("AXI=%d Mhz,AHB=%d Mhz, APB1=%d Mhz \n", sunxi_clock_get_axi(),sunxi_clock_get_ahb(),sunxi_clock_get_apb());
 
@@ -111,6 +118,7 @@ int power_source_init(void)
 	//power_limit_init();
 	return 0;
 }
+
 /*
 ************************************************************************************************************
 *

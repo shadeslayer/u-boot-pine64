@@ -4,9 +4,7 @@
 
 #define HDMI_IO_NUM 5
 #define __CLK_SUPPORT__
-#if defined(CONFIG_ARCH_SUN50IW2P1)
-#define __CLK_OF__
-#endif
+
 static bool hdmi_io_used[HDMI_IO_NUM]={0};
 static disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
 static u32 io_enable_count = 0;
@@ -14,6 +12,7 @@ static u32 io_enable_count = 0;
 static struct semaphore *run_sem = NULL;
 static struct task_struct * HDMI_task;
 #endif
+static bool hdmi_cec_support;
 static char hdmi_power[25];
 static bool hdmi_power_used;
 static bool hdmi_used;
@@ -220,6 +219,7 @@ static struct disp_hdmi_mode hdmi_mode_tbl[] = {
 	{DISP_TV_MOD_720P_60HZ_3D_FP,     HDMI720P_60_3D_FP, },
 	{DISP_TV_MOD_3840_2160P_30HZ,     HDMI3840_2160P_30, },
 	{DISP_TV_MOD_3840_2160P_25HZ,     HDMI3840_2160P_25, },
+	{DISP_TV_MOD_3840_2160P_24HZ,     HDMI3840_2160P_24, },
 };
 
 u32 hdmi_get_vic(u32 mode)
@@ -548,14 +548,31 @@ s32 hdmi_init(void)
 	int ret = 0;
 	uintptr_t reg_base;
 	int value;
-#if defined(__CLK_OF__)
 	int node_offset = 0;
-#endif
+//	char str[10] = {0};
 
 	hdmi_used = 0;
 	b_hdmi_suspend_pre = b_hdmi_suspend = false;
 	hdmi_power_used = 0;
+
+/*	ret = disp_sys_script_get_item("hdmi", "status", (int*)str, 2);
+	if (ret != 2) {
+		printf("fetch hdmi err.\n");
+		return -1;
+	}
+	if (0 != strcmp(str, "okay"))
+		return -1;
+*/
+	ret = disp_sys_script_get_item(FDT_HDMI_PATH, "hdmi_used", &value, 1);
+	if (ret != 1) {
+		printf("fetch hdmi err.\n");
+		return -1;
+	}
+	if (value != 1)
+		return -1;
+
 	hdmi_used = 1;
+
 #if defined(__LINUX_PLAT__)
 	/*  parse boot para */
 	value = disp_boot_para_parse();
@@ -572,6 +589,13 @@ s32 hdmi_init(void)
 		ghdmi.mode = hdmi_get_vic(ghdmi.mode);
 	}
 #endif
+
+	ret = disp_sys_script_get_item("hdmi", "boot_mask", &value, 1);
+	if (ret == 1 && value == 1) {
+		printf("skip hdmi in boot.\n");
+		return -1;
+	}
+
 	/* iomap */
 	reg_base = disp_getprop_regbase("hdmi", "reg", 0);
 	if (0 == reg_base) {
@@ -581,7 +605,6 @@ s32 hdmi_init(void)
 	}
 	hdmi_core_set_base_addr(reg_base);
 
-#if defined(__CLK_OF__)
 	node_offset = disp_fdt_nodeoffset("hdmi");
 	of_periph_clk_config_setup(node_offset);
 	/* get clk */
@@ -596,18 +619,7 @@ s32 hdmi_init(void)
 		__wrn("fail to get clk for hdmi ddc\n");
 		goto err_clk_get;
 	}
-#else
-	hdmi_clk = clk_get(NULL, "hdmi");
-	if (IS_ERR(hdmi_clk)) {
-		__wrn("fail to get clk for hdmi\n");
-		goto err_clk_get;
-	}
-	hdmi_ddc_clk = clk_get(NULL, "hdmi_slow");
-	if (IS_ERR(hdmi_ddc_clk)) {
-		__wrn("fail to get clk for hdmi_ddc_clk\n");
-		goto err_clk_get;
-	}
-#endif
+
 	/* parse io config */
 	hdmi_parse_io_config();
 	mutex_init(&mlock);
@@ -670,6 +682,11 @@ s32 hdmi_init(void)
 		hdmi_hpd_mask = value;
 	}
 
+	ret = disp_sys_script_get_item("hdmi", "hdmi_cec_support", &value, 1);
+	if ((1 == ret) && (1 == value)) {
+		hdmi_cec_support = true;
+	}
+	hdmi_core_cec_enable(hdmi_cec_support);
 #if defined(__UBOOT_PLAT__)
 	hdmi_core_update_detect_time(10);
 #endif

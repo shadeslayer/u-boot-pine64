@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 ************************************************************************************************************************
 *                                                      eNand
 *                                           Nand flash driver scan module
@@ -34,6 +40,13 @@
 #include "../include/nfc.h"
 
 
+__u32 Two_Row_Addr_Flag = 0;
+
+__u32 uboot_start_block = 0;
+__u32 uboot_next_block = 0;
+__u32 nand_specialinfo_page = 0;
+__u32 nand_specialinfo_offset = 0;
+
 
 extern  struct __NandStorageInfo_t  NandStorageInfo;
 extern __s32 BOOT_NandGetPara(boot_nand_para_t *param, __u32 size);
@@ -63,6 +76,8 @@ void _InitNandPhyInfo(boot_nand_para_t *nand_info)
 	NandStorageInfo.ReadRetryType    = nand_info->ReadRetryType    ;
 	NandStorageInfo.DDRType          = nand_info->DDRType          ;
 
+	if((nand_info->OperationOpt)&NAND_WITH_TWO_ROW_ADR)
+		Two_Row_Addr_Flag = 1;
 	for(i=0;i<8;i++)
 	    NandStorageInfo.NandChipId[i]  = nand_info->NandChipId[i]    ;
 
@@ -137,6 +152,10 @@ __s32  BOOT_AnalyzeNandSystem(void)
 
     _InitNandPhyInfo(&nand_info);
 
+	uboot_start_block = nand_info.uboot_start_block;
+	uboot_next_block = nand_info.uboot_next_block;
+	nand_specialinfo_page = nand_info.nand_specialinfo_page;
+	nand_specialinfo_offset = nand_info.nand_specialinfo_offset;
 
     //reset the nand flash chip on boot chip select
     result = PHY_ResetChip(BOOT_CHIP_SELECT_NUM);

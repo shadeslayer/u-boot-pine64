@@ -646,15 +646,18 @@ int mmc_v5p1_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_in
 
 	mmcinfo("mmc driver ver %s\n", DRIVER_VER);
 
+	if (sdc_no != 2) {
+		mmcinfo("mmc_v5p1_init: input sdc no error: %d, return -1\n", sdc_no);
+		return -1;
+	}
+
 	memset(&mmc_dev[sdc_no], 0, sizeof(struct mmc));
 	memset(&mmc_host[sdc_no], 0, sizeof(struct sunxi_mmc_host));
 	mmc = &mmc_dev[sdc_no];
 	mmc_host[sdc_no].mmc = mmc;
 
-	if ((sdc_no == 0) || (sdc_no == 1))
-		mmc_host[sdc_no].timing_mode = SUNXI_MMC_TIMING_MODE_1; //SUNXI_MMC_TIMING_MODE_3
-	else if ((sdc_no == 2) || (sdc_no == 3))
-		mmc_host[sdc_no].timing_mode = SUNXI_MMC_TIMING_MODE_4;
+	/* host v5p1's timing mode is SUNXI_MMC_TIMING_MODE_2 */
+	mmc_host[sdc_no].timing_mode = SUNXI_MMC_TIMING_MODE_2;
 
 	strcpy(mmc->name, "SUNXI SD/MMC");
 	mmc->priv = &mmc_host[sdc_no];
@@ -668,14 +671,15 @@ int mmc_v5p1_init(int sdc_no, unsigned bus_width, const normal_gpio_cfg *gpio_in
 	mmc->host_caps = MMC_MODE_HS_52MHz|MMC_MODE_HS|MMC_MODE_HC;
 	if (bus_width == 4)
 		mmc->host_caps |= MMC_MODE_4BIT;
-	if (((sdc_no == 2) || (sdc_no == 3)) && (bus_width == 8)) {
+	if ((sdc_no == 2) && (bus_width == 8)) {
 		mmc->host_caps |= MMC_MODE_8BIT | MMC_MODE_4BIT;
 	}
 
 	mmc->f_min = 400000;
 	mmc->f_max = 50000000;
 	mmc->f_max_ddr = 50000000;
-#if 0
+
+#if 0  // only support HSSDR mode now for host v5p1
 	if (!mmc_get_timing_cfg(sdc_no, 1, 2, &odly, &sdly)) {
 		if (!((odly != 0xff) && (sdly != 0xff)))
 			mmc->f_max = 25000000;

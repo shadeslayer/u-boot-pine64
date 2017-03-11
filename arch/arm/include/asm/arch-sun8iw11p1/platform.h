@@ -108,6 +108,10 @@
 
 #define SUNXI_HDMI_BASE                         (0x01ee0000L)
 #define HDMI_BASE                                SUNXI_HDMI_BASE
+#define RTC_STANDBY_FLAG_REG                     (SUNXI_RTC_BASE + 0x1f8)
+#define RTC_STANDBY_SOFT_ENTRY_REG               (SUNXI_RTC_BASE + 0x1fc)
+#define DRAM_CRC_REG_ADDR                        (SUNXI_RTC_BASE + 0x10c) /* 0x01c2050C */
 
-
+#define SUNXI_EHCI0_BASE                         (SUNXI_USB0HOST_BASE)
+#define SUNXI_EHCI1_BASE                         (SUNXI_USB1HOST_BASE)
 #endif

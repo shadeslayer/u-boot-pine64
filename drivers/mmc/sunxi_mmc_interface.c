@@ -527,7 +527,7 @@ static int sdmmc_secure_storage_read_backup(s32 dev_num,u32 item,u8 *buf , lbain
 	}
 
 out:
-	return ret;	
+	return ret;
 }
 #endif
 

@@ -67,6 +67,9 @@ extern int card_erase(int erase, void *mbr_buffer);
 
 #ifdef CONFIG_SUNXI_SPINOR
 extern int sunxi_sprite_setdata_finish(void);
+extern int spinor_erase(int erase, void *mbr_buffer);
+extern int spinor_download_uboot(uint length, void *buffer);
+extern int spinor_download_boot0(uint length, void *buffer);
 #endif
 
 extern int nand_force_download_uboot(uint length,void *buffer);

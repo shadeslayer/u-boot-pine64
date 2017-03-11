@@ -34,6 +34,7 @@
 #define WORK_MODE_CARD_PRODUCT	0x11	//用于卡量产
 #define WORK_MODE_USB_DEBUG	    0x12    //利用usb量产协议完成的测试
 #define WORK_MODE_SPRITE_RECOVERY 0x13	//一键恢复
+#define WORK_MODE_CARD_UPDATE	0x14	//update firmware from sdcard
 #define WORK_MODE_USB_UPDATE	0x20	//用于USB升级
 #define WORK_MODE_OUTER_UPDATE	0x21	//用于外部盘升级
 
@@ -66,6 +67,8 @@
 
 
 #define UBOOT_START_SECTOR_IN_SDMMC             (32800)
+#define UBOOT_BACKUP_START_SECTOR_IN_SDMMC      (24576)
+
 
 #define SUNXI_NORMAL_MODE                            0
 #define SUNXI_SECURE_MODE_WITH_SECUREOS              1

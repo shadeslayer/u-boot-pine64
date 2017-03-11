@@ -480,7 +480,7 @@ static s32 disp_hdmi_get_input_csc(struct disp_device* hdmi)
 
 	if ((NULL == hdmi) || (NULL == hdmip)) {
 		DE_WRN("hdmi set func null  hdl!\n");
-		return DIS_FAIL;
+		return 0;
 	}
 
 	if (hdmip->hdmi_func.get_input_csc == NULL)
@@ -497,7 +497,10 @@ static s32 disp_hdmi_get_input_color_range(struct disp_device* hdmi)
 		return DIS_FAIL;
 	}
 
-	return DISP_COLOR_RANGE_0_255;
+	if (1 == disp_hdmi_get_input_csc(hdmi))
+		return DISP_COLOR_RANGE_16_235;
+	else
+		return DISP_COLOR_RANGE_0_255;
 }
 
 static s32 disp_hdmi_suspend(struct disp_device* hdmi)
@@ -556,7 +559,15 @@ static s32 disp_hdmi_get_status(struct disp_device *hdmi)
 
 s32 disp_init_hdmi(disp_bsp_init_para * para)
 {
+	int ret = 0;
+	int value = 0;
 	hdmi_used = 1;
+
+	ret = disp_sys_script_get_item("hdmi", "boot_mask", &value, 1);
+	if (ret == 1 && value == 1) {
+		printf("skip hdmi in boot.\n");
+		return -1;
+	}
 
 	if (hdmi_used) {
 		u32 num_devices;

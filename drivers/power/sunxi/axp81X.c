@@ -25,7 +25,7 @@
 #include <power/sunxi/axp81X_reg.h>
 #include <power/sunxi/axp.h>
 #include <power/sunxi/pmu.h>
-
+#include <sys_config_old.h>
 extern int axp81_set_supply_status(int vol_name, int vol_value, int onoff);
 extern int axp81_set_supply_status_byname(char *vol_name, int vol_value, int onoff);
 extern int axp81_probe_supply_status(int vol_name, int vol_value, int onoff);
@@ -424,7 +424,22 @@ int axp81_probe_this_poweron_cause(void)
 int axp81_set_power_off(void)
 {
     u8 reg_value;
+    int pmu_bat_temp_enable;
+    script_parser_fetch(PMU_SCRIPT_NAME, "pmu_bat_temp_enable", &pmu_bat_temp_enable, 1);
 
+    if(axp_i2c_read(AXP81X_ADDR, BOOT_POWER81X_ADC_EN, &reg_value))
+    {
+        return -1;
+    }
+    if(pmu_bat_temp_enable == 0)
+    {
+	reg_value &= 0xFE;
+	axp_i2c_write(AXP81X_ADDR,BOOT_POWER81X_ADC_EN,reg_value);
+    }
+    else{
+	reg_value |= 0x01;
+	axp_i2c_write(AXP81X_ADDR,BOOT_POWER81X_ADC_EN,reg_value);
+    }
 	if(axp_i2c_read(AXP81X_ADDR, BOOT_POWER81X_OFF_CTL, &reg_value))
     {
         return -1;
@@ -848,6 +863,33 @@ int axp81_set_int_enable(uchar *addr)
 	return 0;
 }
 
+
+int axp81_set_power_reset(void)
+{
+	u8 reg_value;
+	if(axp_i2c_read(AXP81X_ADDR, BOOT_POWER81X_VOFF_SET, &reg_value))
+	{
+		printf("axp81_set_power_reset: axp_i2c_read error!\n");
+		return -1;
+	}
+	reg_value |= (1<<6);
+	printf("axp will reset the system....\n");
+	if(axp_i2c_write(AXP81X_ADDR, BOOT_POWER81X_VOFF_SET, reg_value))
+	{
+		printf("axp81_set_power_reset: axp_i2c_write error!\n");
+		return -1;
+	}
+	return 0;
+}
+
+void sunxi_pmu_reset(void)
+{
+	if (uboot_spare_head.boot_data.work_mode == WORK_MODE_BOOT) {
+		printf("pmu_reset call\n");
+		axp81_set_power_reset();
+		while(1);
+	}
+}
 
 sunxi_axp_module_init("axp81x", SUNXI_AXP_81X);
 
