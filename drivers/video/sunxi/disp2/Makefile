@@ -6,3 +6,4 @@
 
 obj-y += disp/
 obj-y += hdmi/
+obj-y += tv/

@@ -34,8 +34,8 @@ static int do_lzmadec(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 		return CMD_RET_USAGE;
 	}
 
-	ret = lzmaBuffToBuffDecompress(map_sysmem(dst, dst_len), &src_len,
-				       map_sysmem(src, 0), dst_len);
+	ret = lzmaBuffToBuffDecompress(map_sysmem(dst, dst_len), (SizeT *)&src_len,
+				       map_sysmem(src, 0), (SizeT)dst_len);
 
 	if (ret != SZ_OK)
 		return 1;

@@ -33,44 +33,21 @@
 #include "./firmware/imgdecode.h"
 #include "./firmware/imagefile_new.h"
 
-extern uint img_file_start;            //固件的起始位置
+extern uint img_file_start;
 extern int sunxi_sprite_deal_part_from_sysrevoery(sunxi_download_info *dl_map);
 extern int __imagehd(HIMAGE tmp_himage);
 
 typedef struct tag_IMAGE_HANDLE
 {
-
-//	HANDLE  fp;			//
-
-	ImageHead_t  ImageHead;		//img头信息
-
-	ImageItem_t *ItemTable;		//item信息表
-
-//	RC_ENDECODE_IF_t rc_if_decode[IF_CNT];//解密接口
-
-//	BOOL			bWithEncpy; // 是否加密
+	ImageHead_t  ImageHead;
+	ImageItem_t *ItemTable;
 }IMAGE_HANDLE;
 
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+
 HIMAGE 	Img_Open_from_sysrecovery(__u32 start)
 {
 	IMAGE_HANDLE * pImage = NULL;
-	uint ItemTableSize;					//固件索引表的大小
+	uint ItemTableSize;
 
 	img_file_start = start;
 	if(!img_file_start)
@@ -88,9 +65,7 @@ HIMAGE 	Img_Open_from_sysrecovery(__u32 start)
 		return NULL;
 	}
 	memset(pImage, 0, sizeof(IMAGE_HANDLE));
-	//------------------------------------------------
-	//读img头
-	//------------------------------------------------
+
 	//debug("try to read mmc start %d\n", img_file_start);
 	if(!sunxi_flash_read(img_file_start, IMAGE_HEAD_SIZE/512, &pImage->ImageHead))
 	{
@@ -99,18 +74,14 @@ HIMAGE 	Img_Open_from_sysrecovery(__u32 start)
 		goto _img_open_fail_;
 	}
 	debug("read mmc ok\n");
-	//------------------------------------------------
-	//比较magic
-	//------------------------------------------------
+
 	if (memcmp(pImage->ImageHead.magic, IMAGE_MAGIC, 8) != 0)
 	{
 		printf("sunxi sprite error: iamge magic is bad\n");
 
 		goto _img_open_fail_;
 	}
-	//------------------------------------------------
-	//为索引表开辟空间
-	//------------------------------------------------
+
 	ItemTableSize = pImage->ImageHead.itemcount * sizeof(ImageItem_t);
 	pImage->ItemTable = (ImageItem_t*)malloc(ItemTableSize);
 	if (NULL == pImage->ItemTable)
@@ -119,9 +90,7 @@ HIMAGE 	Img_Open_from_sysrecovery(__u32 start)
 
 		goto _img_open_fail_;
 	}
-	//------------------------------------------------
-	//读出索引表
-	//------------------------------------------------
+
 	if(!sunxi_flash_read(img_file_start + (IMAGE_HEAD_SIZE/512), ItemTableSize/512, pImage->ItemTable))
 	{
 		printf("sunxi sprite error: read iamge item table fail\n");
@@ -144,22 +113,7 @@ _img_open_fail_:
 	return NULL;
 }
 
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+
 int  card_part_info(__u32 *part_start, __u32 *part_size, const char *str)
 {
     char   buffer[SUNXI_MBR_SIZE];
@@ -195,46 +149,28 @@ int  card_part_info(__u32 *part_start, __u32 *part_size, const char *str)
     return -1;
 }
 
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+
 int sprite_form_sysrecovery(void)
 {
-    HIMAGEITEM  imghd = 0;
-    __u32       part_size;
-    __u32		img_start;
-    sunxi_download_info   *dl_info  = NULL;
-    char        *src_buf = NULL;
-    int         ret = -1;
-    
+	HIMAGEITEM  imghd = 0;
+	__u32       part_size;
+	__u32		img_start;
+	sunxi_download_info   *dl_info  = NULL;
+	char        *src_buf = NULL;
+	int         ret = -1;
+	int production_media = uboot_spare_head.boot_data.storage_type;
+
 	printf("sunxi sprite begin\n");
-	
-	//启动动画显示
+
 	sprite_cartoon_create();
-	
+
 	src_buf = (char *)malloc(1024 * 1024);
 	if (!src_buf)
 	{
 		printf("sprite update error: fail to get memory for tmpdata\n");
 		goto _update_error_;
 	}
-			
-	/*开始对压缩包进行操作*/
-//*************************************************************************************
-//*************************************************************************************
+
 	ret = card_part_info(&img_start, &part_size, "sysrecovery");
 	if (ret)
 	{
@@ -248,13 +184,11 @@ int sprite_form_sysrecovery(void)
 		printf("sprite update error: fail to open img\n");
 		goto _update_error_;
 	}
-	__imagehd(imghd);		//这个函数其实没用,为了利用sprite提供的接口,兼容一下
+	__imagehd(imghd);
 
 	sprite_cartoon_upgrade(10);
 
-	/*实现擦除data分区*/ 
-//*************************************************************************************
-//*************************************************************************************
+	//erase the data partition.
 	ret = card_part_info(&img_start, &part_size, "data");
 	if (ret)
 	{
@@ -270,26 +204,10 @@ int sprite_form_sysrecovery(void)
 		printf("data part size=%d\n", tmp_size);
 		printf("begin erase part data\n");
 		memset(src_buf, 0xff, 1024 * 1024);
-#if 0
-		while (tmp_size >= 1024 * 1024)
-		{
-			sunxi_flash_write(tmp_start, 1024 * 1024/512, src_buf);
-			tmp_start += 1024 * 1024/512;
-			tmp_size  -= 1024 * 1024/512;
-		}
-		if (tmp_size)
-		{
-			sunxi_flash_write(tmp_start, tmp_size/512, src_buf);
-		}
-#else
 		sunxi_flash_write(tmp_start, 1024 * 1024/512, src_buf);
-#endif
 		printf("finish erase part data\n");
 	}
-	
-	/* dl info 获取内存空间 */
-//*************************************************************************************
-//*************************************************************************************
+
 	dl_info = (sunxi_download_info  *)malloc(sizeof(sunxi_download_info ));
 	if (!dl_info) 
 	{
@@ -297,8 +215,7 @@ int sprite_form_sysrecovery(void)
 		goto _update_error_;
 	}
 	memset(dl_info, 0, sizeof(sunxi_download_info ));
-	
-	/*获取 DOWNLOAD MAP	*/
+
 	ret = sprite_card_fetch_download_map(dl_info);
 	if (ret) {
 		printf("sunxi sprite error: donn't download dl_map\n");
@@ -306,47 +223,45 @@ int sprite_form_sysrecovery(void)
 	}
 	sprite_cartoon_upgrade(20);
 
-	/*开始烧写分区*/
-//*************************************************************************************
-//*************************************************************************************
+
 	if (sunxi_sprite_deal_part_from_sysrevoery(dl_info))
 	{
 		printf("sunxi sprite error : download part error\n");
 		return -1;
 	}
-	
+
+	if(sunxi_sprite_deal_recorvery_boot(production_media))
+	{
+		printf("recovery error : download uboot or boot0 error!\n");
+		return -1;
+	}
+	tick_printf("successed in downloading uboot and boot0\n");
+	sprite_cartoon_upgrade(100);
 	__msdelay(3000);
-	
-	
-/*****************************************************************************
-*
-*   关闭imghd和nand句柄
-*
-*
-*****************************************************************************/
+
 	Img_Close(imghd);
 	if (dl_info)
-    {
-    	free(dl_info);
-    }
+	{
+		free(dl_info);
+	}
 	if (src_buf)
 	{
 		free(src_buf);
 	}
-	//处理烧写完成后重启
+
 	sunxi_board_restart(0);
 	return 0;
 	
 _update_error_:
 	if (dl_info)
-    {
-    	free(dl_info);
-    }
-    if (src_buf)
+	{
+		free(dl_info);
+	}
+	if (src_buf)
 	{
 		free(src_buf);
 	}
 	printf("sprite update error: current card sprite failed\n");
 	printf("now hold the machine\n");
-    return -1;
+	return -1;
 }

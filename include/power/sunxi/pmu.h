@@ -88,6 +88,7 @@
 #define PMU_SUPPLY_GPIO1		(0x00090001)
 
 extern int axp_probe(void);
+extern int axp_probe_id(int pmu_id);
 extern int axp_reinit(void);
 
 extern int axp_probe_factory_mode(void);

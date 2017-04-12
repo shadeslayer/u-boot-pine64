@@ -298,14 +298,20 @@ int do_modify_cfg(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	script_main_key_t * main_key = NULL;
 	script_sub_key_t  * sub_key  = NULL;
 	uint    data_mode = 0;
-        uint write_flag = 0;
-        int i = 0;
+	uint write_flag = 0;
+	int i = 0;
+
+	if ((gd->securemode != SUNXI_NORMAL_MODE))
+	{
+		printf("secure mode:limit to set config!!\n");
+		return -1;
+	}
 
 	if ((argc != 3)&&(argc !=2))
 		return cmd_usage(cmdtp);
 	
 	//find main_key
-        main_key = (script_main_key_t *)script_parser_fetch_subkey_start(argv[1]);
+	main_key = (script_main_key_t *)script_parser_fetch_subkey_start(argv[1]);
 	if(main_key == NULL)
         {
             printf("[config_err]: can not find main_key \n");
@@ -374,6 +380,13 @@ int do_savecfg(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
     char *tmp_target_buffer = NULL;
     int script_offset = 0;
     int script_length = 0;
+
+    if ((gd->securemode != SUNXI_NORMAL_MODE))
+    {
+		printf("secure mode:limit to save config!!\n");
+		return -1;
+    }
+
     if(argc != 1)
         return cmd_usage(cmdtp);
 
@@ -396,9 +409,13 @@ int do_savecfg(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
         //download uboot
         gd->force_download_uboot = 0;
-        sunxi_sprite_download_uboot(tmp_target_buffer,uboot_spare_head.boot_data.storage_type,1);
+        if(sunxi_sprite_download_uboot(tmp_target_buffer,uboot_spare_head.boot_data.storage_type,1))
+		{
+	   		printf("save cfg failed\n");
+		}
         free(tmp_target_buffer);
         tmp_target_buffer = NULL;
+		printf("save cfg success\n");
     }
     return 0;
 }

@@ -2,6 +2,7 @@
 #include "de/bsp_display.h"
 #include "disp_sys_intf.h"
 #include "asm/io.h"
+#include <sys_config_old.h>
 
 
 /* cache flush flags */
@@ -236,10 +237,19 @@ typedef struct __disp_node_map
 
 static disp_fdt_node_map_t g_disp_fdt_node_map[] ={
 	{FDT_DISP_PATH, -1},
+#ifdef SUPPORT_HDMI
 	{FDT_HDMI_PATH, -1},
+#endif
 	{FDT_LCD0_PATH, -1},
 	{FDT_LCD1_PATH, -1},
+#ifdef CONFIG_USE_AC200
+	{FDT_AC200_PATH, -1},
+#endif
 	{FDT_BOOT_DISP_PATH, -1},
+#ifdef SUPPORT_TV
+	{FDT_TV0_PATH, -1},
+	{FDT_TV1_PATH, -1},
+#endif
 	{"",-1}
 };
 
@@ -261,7 +271,6 @@ int  disp_fdt_nodeoffset(char *main_name)
 	{
 		if( 0 == strcmp(g_disp_fdt_node_map[i].node_name, main_name))
 		{
-			//find ok
 			return g_disp_fdt_node_map[i].nodeoffset;
 		}
 		if( 0 == strlen(g_disp_fdt_node_map[i].node_name) )
@@ -276,37 +285,36 @@ int  disp_fdt_nodeoffset(char *main_name)
 /* type: 0:invalid, 1: int; 2:str, 3: gpio */
 int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int type)
 {
-	int node;
+/*	int node;
 	int ret = 0;
 	user_gpio_set_t  gpio_info;
 	disp_gpio_set_t  *gpio_list;
 	//int i, node_index = 0;
 	//bool find_flag = false;
-
 	node = disp_fdt_nodeoffset(main_name);
 	if(node < 0 )
 	{
-		__inf("fdt get node offset faill: %s\n", main_name);
+		printf("fdt get node offset faill: %s\n", main_name);
 		return ret;
 	}
 
 	if (1 == type) {
 		if (fdt_getprop_u32(working_fdt, node, sub_name, (uint32_t*)value) < 0)
-			__inf("fdt_getprop_u32 %s.%s fail\n", main_name, sub_name);
+			printf("fdt_getprop_u32 %s.%s fail\n", main_name, sub_name);
 		else
 			ret = type;
 	} else if (2 == type) {
 		const char *str;
 
 		if (fdt_getprop_string(working_fdt, node, sub_name, (char **)&str) < 0)
-			__inf("fdt_getprop_string %s.%s fail\n", main_name, sub_name);
+			printf("fdt_getprop_string %s.%s fail\n", main_name, sub_name);
 		else {
 			ret = type;
 			memcpy((void*)value, str, strlen(str)+1);
 		}
 	} else if (3 == type) {
 		if(fdt_get_one_gpio_by_offset(node, sub_name, &gpio_info) < 0)
-			__wrn("fdt_get_one_gpio %s.%s fail\n", main_name, sub_name);
+			printf("fdt_get_one_gpio %s.%s fail\n", main_name, sub_name);
 		else {
 			gpio_list = (disp_gpio_set_t  *)value;
 			gpio_list->port = gpio_info.port;
@@ -317,13 +325,30 @@ int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int t
 			gpio_list->data = gpio_info.data;
 
 			memcpy(gpio_info.gpio_name, sub_name, strlen(sub_name)+1);
-			__inf("%s.%s gpio=%d,mul_sel=%d,data:%d\n",main_name, sub_name, gpio_list->gpio, gpio_list->mul_sel, gpio_list->data);
+			printf("%s.%s gpio=%d,mul_sel=%d,data:%d\n",main_name, sub_name, gpio_list->gpio, gpio_list->mul_sel, gpio_list->data);
 			ret = type;
 		}
 	}
 
 	return ret;
+*/
+#if 1
+	int ret;
+	script_parser_value_type_t ret_type;
+	ret = script_parser_fetch_ex(main_name, sub_name, value, &ret_type,(sizeof(script_gpio_set_t)));
+
+	if (ret == SCRIPT_PARSER_OK)
+	{
+		if(ret_type == 4)
+			return (ret_type-1);
+		else
+		return ret_type;
+	}
+
+	return 0;
+#endif
 }
+
 EXPORT_SYMBOL(disp_sys_script_get_item);
 
 int disp_sys_get_ic_ver(void)
@@ -358,8 +383,20 @@ EXPORT_SYMBOL(disp_sys_gpio_request);
 
 int disp_sys_gpio_request_simple(disp_gpio_set_t *gpio_list, u32 group_count_max)
 {
+	int ret = 0;
+	user_gpio_set_t gpio_info;
+	gpio_info.port = gpio_list->port;
+	gpio_info.port_num = gpio_list->port_num;
+	gpio_info.mul_sel = gpio_list->mul_sel;
+	gpio_info.drv_level = gpio_list->drv_level;
+	gpio_info.data = gpio_list->data;
 
-	return 0;
+	__inf("OSAL_GPIO_Request, port:%d, port_num:%d, mul_sel:%d, "\
+		"pull:%d, drv_level:%d, data:%d\n",
+		gpio_list->port, gpio_list->port_num, gpio_list->mul_sel,
+		gpio_list->pull, gpio_list->drv_level, gpio_list->data);
+	ret = gpio_request_early(&gpio_info, group_count_max,1);
+	return ret;
 }
 int disp_sys_gpio_release(int p_handler, s32 if_release_to_default_status)
 {
@@ -390,6 +427,7 @@ int disp_sys_gpio_set_value(u32 p_handler, u32 value_to_gpio, const char *gpio_n
 extern int fdt_set_all_pin(const char* node_path,const char* pinctrl_name);
 int disp_sys_pin_set_state(char *dev_name, char *name)
 {
+#if 0
 	char compat[32];
 	u32 len = 0;
 	int state = 0;
@@ -408,12 +446,20 @@ int disp_sys_pin_set_state(char *dev_name, char *name)
 	nodeoffset = disp_fdt_nodeoffset(compat);
 	if(nodeoffset < 0)
 	{
+		printf("nodeoffset is wrong!\n");
 		return ret;
 	}
 	ret = fdt_set_all_pin_by_offset(nodeoffset, (1 == state)?"pinctrl-0":"pinctrl-1");
 	if (0 != ret)
 		__wrn("%s, fdt_set_all_pin, ret=%d\n", __func__, ret);
+#else
+	int ret = -1;
 
+	if (!strcmp(name, DISP_PIN_STATE_ACTIVE))
+		ret = gpio_request_by_function("lcd0", NULL);
+	else
+		ret = gpio_request_by_function("lcd0_suspend", NULL);
+#endif
 	return ret;
 }
 EXPORT_SYMBOL(disp_sys_pin_set_state);
@@ -443,9 +489,7 @@ EXPORT_SYMBOL(disp_sys_power_disable);
 
 uintptr_t disp_sys_pwm_request(u32 pwm_id)
 {
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	pwm_request(pwm_id, "lcd");
-#endif
 	return (pwm_id + 0x100);
 }
 
@@ -459,12 +503,7 @@ int disp_sys_pwm_enable(uintptr_t p_handler)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_enable(pwm_id);
-#else
-	ret = sunxi_pwm_enable(pwm_id);
-#endif
-
 	return ret;
 
 }
@@ -474,12 +513,7 @@ int disp_sys_pwm_disable(uintptr_t p_handler)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	pwm_disable(pwm_id);
-#else
-	sunxi_pwm_disable(pwm_id);
-#endif
-
 	return ret;
 }
 
@@ -488,11 +522,7 @@ int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_config(pwm_id, duty_ns, period_ns);
-#else
-	ret = sunxi_pwm_config(pwm_id, duty_ns, period_ns);
-#endif
 	return ret;
 }
 
@@ -501,12 +531,7 @@ int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
 	int ret = 0;
 	int pwm_id = p_handler - 0x100;
 
-#if defined(CONFIG_ARCH_SUN50IW1P1)
 	ret = pwm_set_polarity(pwm_id, polarity);
-#else
-	ret = sunxi_pwm_set_polarity(pwm_id, polarity);
-#endif
-
 	return ret;
 }
 

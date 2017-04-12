@@ -48,7 +48,7 @@
 *
 ************************************************************************************************************
 */
-static void __dump_dlmap(sunxi_download_info *dl_info)
+void __dump_dlmap(sunxi_download_info *dl_info)
 {
 	dl_one_part_info		*part_info;
 	u32 i;
@@ -77,7 +77,7 @@ static void __dump_dlmap(sunxi_download_info *dl_info)
 }
 
 
-static void __dump_mbr(sunxi_mbr_t *mbr_info)
+void __dump_mbr(sunxi_mbr_t *mbr_info)
 {
 	sunxi_partition  		*part_info;
 	u32 i;
@@ -128,6 +128,7 @@ int sunxi_card_sprite_main(int workmode, char *name)
 	sunxi_download_info  dl_map;			//dlinfo
 	int    sprite_next_work;
 	int nodeoffset;
+	int mbr_num = SUNXI_MBR_COPY_NUM;
 
 	tick_printf("sunxi sprite begin\n");
 	//获取当前是量产介质是nand或者卡
@@ -141,84 +142,77 @@ int sunxi_card_sprite_main(int workmode, char *name)
 
     	return -1;
     }
-	if(production_media != 3)
+
+	sprite_cartoon_upgrade(5);
+	tick_printf("firmware probe ok\n");
+	//获取dl_map文件，用于指引下载的数据
+	tick_printf("fetch download map\n");
+	if(sprite_card_fetch_download_map(&dl_map))
 	{
-		sprite_cartoon_upgrade(5);
-		tick_printf("firmware probe ok\n");
-		//获取dl_map文件，用于指引下载的数据
-		tick_printf("fetch download map\n");
-		if(sprite_card_fetch_download_map(&dl_map))
-		{
-			printf("sunxi sprite error : fetch download map error\n");
+		printf("sunxi sprite error : fetch download map error\n");
 
-			return -1;
-		}
-		__dump_dlmap(&dl_map);
-		//获取mbr
-		tick_printf("fetch mbr\n");
-		if(sprite_card_fetch_mbr(&img_mbr))
-		{
-			printf("sunxi sprite error : fetch mbr error\n");
-
-			return -1;
-		}
-		__dump_mbr((sunxi_mbr_t *)img_mbr);
-		//根据mbr，决定擦除时候是否要保留数据
-		tick_printf("begin to erase flash\n");
-		nand_get_mbr((char *)img_mbr, 16 * 1024);
-		if(sunxi_sprite_erase_flash(img_mbr))
-		{
-			printf("sunxi sprite error: erase flash err\n");
-
-			return -1;
-		}
-		tick_printf("successed in erasing flash\n");
-		if(sunxi_sprite_download_mbr(img_mbr, sizeof(sunxi_mbr_t) * SUNXI_MBR_COPY_NUM))
-		{
-			printf("sunxi sprite error: download mbr err\n");
-
-			return -1;
-		}
-		sprite_cartoon_upgrade(10);
-		tick_printf("begin to download part\n");
-		//开始烧写分区
-		if(sunxi_sprite_deal_part(&dl_map))
-		{
-			printf("sunxi sprite error : download part error\n");
-
-			return -1;
-		}
-		tick_printf("successed in downloading part\n");
-		sprite_cartoon_upgrade(80);
-		sunxi_sprite_exit(1);
-
-		if(sunxi_sprite_deal_uboot(production_media))
-		{
-			printf("sunxi sprite error : download uboot error\n");
-
-			return -1;
-		}
-		tick_printf("successed in downloading uboot\n");
-		sprite_cartoon_upgrade(90);
-		if(sunxi_sprite_deal_boot0(production_media))
-		{
-			printf("sunxi sprite error : download boot0 error\n");
-
-			return -1;
-		}
-		tick_printf("successed in downloading boot0\n");
-		sprite_cartoon_upgrade(100);
+		return -1;
 	}
-#ifdef CONFIG_SUNXI_SPINOR
-	else
+	__dump_dlmap(&dl_map);
+	//获取mbr
+	tick_printf("fetch mbr\n");
+	if(sprite_card_fetch_mbr(&img_mbr))
 	{
-		if(sunxi_sprite_deal_fullimg())
-		{		
-			printf("sunxi sprite error : download fullimg error\n");
-			return -1;
-		}
+		printf("sunxi sprite error : fetch mbr error\n");
+
+		return -1;
 	}
-#endif
+	__dump_mbr((sunxi_mbr_t *)img_mbr);
+	//根据mbr，决定擦除时候是否要保留数据
+	tick_printf("begin to erase flash\n");
+	nand_get_mbr((char *)img_mbr, 16 * 1024);
+	if(sunxi_sprite_erase_flash(img_mbr))
+	{
+		printf("sunxi sprite error: erase flash err\n");
+
+		return -1;
+	}
+	tick_printf("successed in erasing flash\n");
+	if (production_media == STORAGE_NOR)
+	{
+		mbr_num = 1;
+	}
+	if(sunxi_sprite_download_mbr(img_mbr, sizeof(sunxi_mbr_t) * mbr_num))
+	{
+		printf("sunxi sprite error: download mbr err\n");
+
+		return -1;
+	}
+	sprite_cartoon_upgrade(10);
+	tick_printf("begin to download part\n");
+	//开始烧写分区
+	if(sunxi_sprite_deal_part(&dl_map))
+	{
+		printf("sunxi sprite error : download part error\n");
+
+		return -1;
+	}
+	tick_printf("successed in downloading part\n");
+	sprite_cartoon_upgrade(80);
+	sunxi_sprite_exit(1);
+
+	if(sunxi_sprite_deal_uboot(production_media))
+	{
+		printf("sunxi sprite error : download uboot error\n");
+
+		return -1;
+	}
+	tick_printf("successed in downloading uboot\n");
+	sprite_cartoon_upgrade(90);
+	if(sunxi_sprite_deal_boot0(production_media))
+	{
+		printf("sunxi sprite error : download boot0 error\n");
+
+		return -1;
+	}
+	tick_printf("successed in downloading boot0\n");
+	sprite_cartoon_upgrade(100);
+
     sprite_uichar_printf("CARD OK\n");
 	tick_printf("sprite success \n");
 	//烧写结束

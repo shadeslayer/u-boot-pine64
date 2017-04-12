@@ -341,23 +341,29 @@ int sunxi_sprite_verify_mbr(void *buffer)
 	sunxi_mbr_t *local_mbr;
 	char        *tmp_buf = (char *)buffer;
 	int          i;
-
+	int mbr_num = SUNXI_MBR_COPY_NUM;
 	tmp_buf = buffer;
-	for(i=0;i<SUNXI_MBR_COPY_NUM;i++)
-    {
-    	local_mbr = (sunxi_mbr_t *)tmp_buf;
-    	if(crc32(0, (const unsigned char *)(tmp_buf + 4), SUNXI_MBR_SIZE - 4) != local_mbr->crc32)
-    	{
-    		printf("the %d mbr table is bad\n", i);
 
-    		return -1;
-    	}
-    	else
-    	{
-    		printf("the %d mbr table is ok\n", i);
-    		tmp_buf += SUNXI_MBR_SIZE;
-    	}
-    }
+	if (get_boot_storage_type() == STORAGE_NOR)
+	{
+		   mbr_num = 1;
+	}
+
+	for(i=0;i<mbr_num;i++)
+	{
+		local_mbr = (sunxi_mbr_t *)tmp_buf;
+		if(crc32(0, (const unsigned char *)(tmp_buf + 4), SUNXI_MBR_SIZE - 4) != local_mbr->crc32)
+		{
+			printf("the %d mbr table is bad\n", i);
+
+			return -1;
+		}
+		else
+		{
+			printf("the %d mbr table is ok\n", i);
+			tmp_buf += SUNXI_MBR_SIZE;
+		}
+	}
 #if 1
 	__mbr_map_dump(buffer);
 #endif

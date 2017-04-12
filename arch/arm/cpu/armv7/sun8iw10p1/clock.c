@@ -27,20 +27,21 @@
 #include <asm/arch/ccmu.h>
 #include <asm/arch/platform.h>
 
-struct core_pll_freq_tbl {
+typedef struct core_pll_freq_tbl {
     int FactorN;
     int FactorK;
     int FactorM;
     int FactorP;
     int pading;
-};
+}PLL_TABLE;
 
-static struct core_pll_freq_tbl pll1_table[] =
+
+static PLL_TABLE pll1_table[] =
 {  //N      K   M   P
-	{9 ,	0,	0,	2},    //Theory Freq1 = 0   , Actual Freq2 = 60  , Index = 0
-	{9 , 	0,	0,	2},    //Theory Freq1 = 6   , Actual Freq2 = 60  , Index = 1
-	{9 , 	0,	0,	2},    //Theory Freq1 = 12  , Actual Freq2 = 60  , Index = 2
-	{9 , 	0,	0,	2},    //Theory Freq1 = 18  , Actual Freq2 = 60  , Index = 3
+    {9 ,    0,  0,  2},    //Theory Freq1 = 0   , Actual Freq2 = 60  , Index = 0
+    {9 ,    0,  0,  2},    //Theory Freq1 = 6   , Actual Freq2 = 60  , Index = 1
+    {9 ,    0,  0,  2},    //Theory Freq1 = 12  , Actual Freq2 = 60  , Index = 2
+    {9 ,    0,  0,  2},    //Theory Freq1 = 18  , Actual Freq2 = 60  , Index = 3
 	{9 , 	0,	0,	2},    //Theory Freq1 = 24  , Actual Freq2 = 60  , Index = 4
 	{9 , 	0,	0,	2},    //Theory Freq1 = 30  , Actual Freq2 = 60  , Index = 5
 	{9 , 	0,	0,	2},    //Theory Freq1 = 36  , Actual Freq2 = 60  , Index = 6
@@ -376,116 +377,81 @@ static struct core_pll_freq_tbl pll1_table[] =
 	{27,	2,	0,	0},    //Theory Freq1 = 2016, Actual Freq2 = 2016, Index = 336
 };
 
-static int clk_get_pll_para(struct core_pll_freq_tbl *factor, int rate);
-int sunxi_clock_get_pll6( void );
 
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+static int clk_get_pll_para(PLL_TABLE *factor, int pll_clk)
+{
+    int index;
+	PLL_TABLE *target_factor;
+
+    index = pll_clk / 6;
+	target_factor = &pll1_table[index];
+
+    factor->FactorN = target_factor->FactorN;
+    factor->FactorK = target_factor->FactorK;
+    factor->FactorM = target_factor->FactorM;
+    factor->FactorP = target_factor->FactorP;
+
+    return 0;
+}
+
+int sunxi_clock_get_pll6(void)
+{
+	unsigned int reg_val;
+	int factor_n, factor_k, pll6;
+
+	reg_val = readl(CCMU_PLL_PERIPH0_CTRL_REG);
+	factor_n = ((reg_val >> 8) & 0x1f) + 1;
+	factor_k = ((reg_val >> 4) & 0x03) + 1;
+	pll6 = 24 * factor_n * factor_k/2;
+	return pll6;
+}
+
 int sunxi_clock_get_corepll(void)
 {
-	unsigned int reg_val;
-	int 	div_m, div_p;
-	int 	factor_k, factor_n;
-	int 	clock;
+    unsigned int reg_val;
+    int 	div_m, div_p;
+    int 	factor_k, factor_n;
+    int 	clock,clock_src;
 
-	reg_val  = readl(CCMU_PLL_CPUX_CTRL_REG);
-	div_p    = ((reg_val >>16) & 0x3);
-	factor_n = ((reg_val >> 8) & 0x1f) + 1;
-	factor_k = ((reg_val >> 4) & 0x3) + 1;
-	div_m    = ((reg_val >> 0) & 0x3) + 1;
+    reg_val   = readl(CCMU_CPUX_AXI_CFG_REG);
+    clock_src = (reg_val >> 16) & 0x03;
 
-	clock = 24 * factor_n * factor_k/div_m/(1<<div_p);
+    switch(clock_src)
+    {
+        case 0:
+            clock = 0; //LOSC
+            break;
+        case 1:
+            clock = 24;//OSC24M
+            break;
+        case 2:
+        case 3:
+            reg_val  = readl(CCMU_PLL_CPUX_CTRL_REG);
+            div_p    = ((reg_val >>16) & 0x3);
+            factor_n = ((reg_val >> 8) & 0x1f) + 1;
+            factor_k = ((reg_val >> 4) & 0x3) + 1;
+            div_m    = ((reg_val >> 0) & 0x3) + 1;
 
+            clock = 24 * factor_n * factor_k/div_m/(1<<div_p);
+        	break;
+        default:
+        	return 0;
+    }
 	return clock;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+
 int sunxi_clock_get_axi(void)
 {
-	int clock;
-	unsigned int reg_val;
-	int clock_src, factor;
+    unsigned int reg_val;
+    int clock_cpux, factor;
 
-	reg_val   = readl(CCMU_CPUX_AXI_CFG_REG);
-	clock_src = (reg_val >> 16) & 0x03;
-	factor    = (reg_val >> 0) & 0x03;
+    reg_val   = readl(CCMU_CPUX_AXI_CFG_REG);
+    factor    = ((reg_val >> 0) & 0x03) + 1;
+    clock_cpux = sunxi_clock_get_corepll();
 
-	if(factor >= 3)
-	{
-		factor = 4;
-	}
-	else
-	{
-		factor ++;
-	}
-
-	switch(clock_src)
-	{
-		case 0:
-			clock = 32000;
-			break;
-		case 1:
-			clock = 24;
-			break;
-		case 2:
-			clock =  sunxi_clock_get_corepll();
-			break;
-		default:
-			return 0;
-	}
-
-	return clock/factor;
+    return clock_cpux/factor;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
+
 int sunxi_clock_get_ahb(void)
 {
 	unsigned int reg_val;
@@ -494,42 +460,33 @@ int sunxi_clock_get_ahb(void)
     int src = 0;
 
 	reg_val = readl(CCMU_AHB1_APB1_CFG_REG);
-	
+
     src = (reg_val >> 12)&0x3;
     clock = 0;
     switch(src)
     {
+        case 0://src is LOSC
+            break;
+        case 1://src is OSC24M
+            clock = 24;
+            break;
         case 2://src is axi
             factor  = (reg_val >> 4) & 0x03;
             clock   = sunxi_clock_get_axi()>>factor;
             break;
-        case 3://src is pll6
+        case 3://src is pll6(1x)/AHB1_PRE_DIV/AHB_DIV
             factor  = (reg_val >> 6) & 0x03;
+	    //AHB1_PRE_DIV
             clock   = sunxi_clock_get_pll6()/(factor+1);
+	    //AHB1_DIV
+	    clock   = clock >> ((reg_val >> 4) & 0x03);
         break;
     }
 
 	return clock;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
-int sunxi_clock_get_apb1(void)
+
+int sunxi_clock_get_apb(void)
 {
 	unsigned int reg_val;
 	int          clock, factor;
@@ -549,187 +506,153 @@ int sunxi_clock_get_apb1(void)
 
 	return clock;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
-int sunxi_clock_get_apb2(void)
-{
-	return 24;
-}
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：只限于调整COREPLL，固定分频比，4:2:1
-*
-*
-************************************************************************************************************
-*/
-static int clk_get_pll_para(struct core_pll_freq_tbl *factor, int pll_clk)
-{
-    int                       index;
-	struct core_pll_freq_tbl *target_factor;
 
-    index = pll_clk / 6;
-	target_factor = &pll1_table[index];
-
-    factor->FactorN = target_factor->FactorN;
-    factor->FactorK = target_factor->FactorK;
-    factor->FactorM = target_factor->FactorM;
-    factor->FactorP = target_factor->FactorP;
-
-    return 0;
-}
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
-static int clk_set_divd(void)
+int sunxi_clock_get_mbus(void)
 {
 	unsigned int reg_val;
+	unsigned int src = 0,clock=0, div = 0;
+	reg_val = readl(CCMU_MBUS_CLK_REG);
 
-	//config axi
-	reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
-	reg_val &= ~(0x03 << 0);
-	reg_val |=  (0x02 << 0);
-	writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
-	//config ahb
-	reg_val = readl(CCMU_AHB1_APB1_CFG_REG);;
-	reg_val &= ~((0x03 << 12) | (0x03 << 8) | (0x03 << 6) | (0x03 << 4));
-	reg_val |=   (0x03 << 12);
-	reg_val |=  (2 << 6);
-	reg_val |=  (1 << 8);
+	//get src
+	src = (reg_val >> 24)&0x3;
+	//get div M, the divided clock is divided by M+1
+	div = (reg_val&0x3) + 1;
 
-	writel(reg_val, CCMU_AHB1_APB1_CFG_REG);
+	switch(src)
+	{
+		case 0://src is OSC24M
+			clock = 24;
+			break;
+		case 1://src is   pll_periph0(1x)/2
+			clock = sunxi_clock_get_pll6()*2;
+			break;
+		case 2://src is pll_ddr0  --not set in boot
+			clock   = 0;
+			break;
+		case 3://src is pll_ddr1 --not set in boot
+			clock   = 0;
+			break;
+	}
 
-	return 0;
+	clock = clock/div;
+
+	return clock;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*
-*
-*    返回值  ：
-*
-*    说明    ：只限于调整COREPLL，固定分频比，4:2:1
-*
-*
-************************************************************************************************************
-*/
-int sunxi_clock_set_corepll(int frequency, int core_vol)
+
+
+int pll_lock_is_new_mode(void)
 {
-    unsigned int reg_val;
-    unsigned int i;
-    struct core_pll_freq_tbl  pll_factor;
-    //检查时钟是否合法,为0或者超过2G
-    if(!frequency)
-    {
-        //默认频率
-        frequency = 408;
-    }
-    else if(frequency < 24)
-    {
+	__u32 reg_val;
+	reg_val = readl(CCMU_PLL_LOCK_CTRL_REG);
+	reg_val &= LOCK_EN_NEW_MODE;
+	return reg_val > 0 ? 1:0;
+}
+
+void enable_pll_lock_bit(__u32 lock_bit)
+{
+	__u32 reg_val;
+	reg_val = readl(CCMU_PLL_LOCK_CTRL_REG);
+	reg_val |= lock_bit;
+	writel(reg_val, CCMU_PLL_LOCK_CTRL_REG);
+}
+
+void disable_pll_lock_bit(__u32 lock_bit)
+{
+	__u32 reg_val;
+	reg_val = readl(CCMU_PLL_LOCK_CTRL_REG);
+	reg_val &= (~lock_bit);
+	writel(reg_val, CCMU_PLL_LOCK_CTRL_REG);
+}
+
+
+void set_pll_ahb_apb(void)
+{
+	unsigned int reg_val;
+	//set AHB1/APB1 clock  divide ratio
+	//ahb1 clock src is PLL6,                           (0x03<< 12)
+	//apb1 clk src is ahb1 clk src, divide  ratio is 4  (2<<8)
+	//ahb1 pre divide  ratio :    0:1  , 1:2,  2:3,   3:4 (2<<6)
+	//ahb1  divide  ratio:    0:1  , 1:2,  2:4,   3:8 (1<<4)
+	//PLL6:AHB1:APB1 = 600M:200M:50M
+	//note:AHB1--->sram C limited to 100M. but there is no limit for ddr.
+
+	//change ahb clock src to OSC24
+	writel((0x01 << 12) | (readl(CCMU_AHB1_APB1_CFG_REG)&(~(0x3<<12))), CCMU_AHB1_APB1_CFG_REG);
+	reg_val = readl(CCMU_AHB1_APB1_CFG_REG);
+	reg_val &= ~(0x3<<4);
+	reg_val &= ~(0x3<<6);
+	reg_val &= ~(0x3<<8);
+	reg_val |= (0x2<<6);
+	reg_val |= (0x2<<8);
+	writel(reg_val, CCMU_AHB1_APB1_CFG_REG);
+	//change ahb clock src to periph0
+	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
+	__udelay(20);
+}
+
+int sunxi_clock_set_corepll(int frequency)
+{
+	unsigned int reg_val;
+	PLL_TABLE  pll_factor;
+	int pll_new_mode = 0;
+
+	if(!frequency)
+	{
+		frequency = 408;
+	}
+	else if(frequency < 24)
+	{
 		frequency = 24;
-    }
-    //切换到24M
-    reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
-    reg_val &= ~(0x03 << 16);
-    reg_val |=  (0x01 << 16);
-    writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
-    //延时，等待时钟稳定
-    for(i=0; i<0x400; i++);
-    //调整时钟频率
+	}
+	pll_new_mode = pll_lock_is_new_mode();
+
+	//scp maybe has been enabled this bit already
+	if(!pll_new_mode)
+	{
+		enable_pll_lock_bit(LOCK_EN_NEW_MODE);
+	}
+	//switch to 24M
+	reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
+	reg_val &= ~(0x03 << 16);
+	reg_val |=  (0x01 << 16);
+	writel(reg_val,CCMU_CPUX_AXI_CFG_REG);
+	__udelay(20);
+
+	//get config para form freq table
 	clk_get_pll_para(&pll_factor, frequency);
-	//回写PLL1
-    reg_val = readl(CCMU_PLL_CPUX_CTRL_REG);
-    reg_val &= ~((0x03 << 16) | (0x1f << 8) | (0x03 << 4) | (0x03 << 0));
-	reg_val |=  (pll_factor.FactorP << 16) | (pll_factor.FactorN<<8) | (pll_factor.FactorK<<4) | (0 << 0) ;
-    writel(reg_val, CCMU_PLL_CPUX_CTRL_REG);
-    reg_val &= ~((0x03 << 16) | (0x1f << 8) | (0x03 << 4) | (0x03 << 0));
-    //延时，等待时钟稳定
-#ifndef CONFIG_FPGA
+
+	disable_pll_lock_bit(LOCK_EN_PLL_CPUX);
+	reg_val = readl(CCMU_PLL_CPUX_CTRL_REG);
+	reg_val &= ~((1<<31) | (0x03 << 16) | (0x1f << 8) | (0x03 << 4) | (0x03 << 0));
+	reg_val |=  (pll_factor.FactorP << 16) | (pll_factor.FactorN<<8) | (pll_factor.FactorK<<4) | (pll_factor.FactorM << 0) ;
+	writel(reg_val, CCMU_PLL_CPUX_CTRL_REG);
+	enable_pll_lock_bit(LOCK_EN_PLL_CPUX);
+	writel((1<<31) | readl(CCMU_PLL_CPUX_CTRL_REG), CCMU_PLL_CPUX_CTRL_REG);
+
+	//wait  stable
+#ifndef FPGA_PLATFORM
 	do
 	{
 		reg_val = readl(CCMU_PLL_CPUX_CTRL_REG);
 	}
 	while(!(reg_val & (0x1 << 28)));
+	__udelay(20);
 #endif
-    //修改AXI,AHB,APB分频
-    clk_set_divd();
-    //切换时钟到COREPLL上
-    reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
-    reg_val &= ~(0x03 << 16);
-    reg_val |=  (0x02 << 16);
-    writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
+	disable_pll_lock_bit(LOCK_EN_PLL_CPUX);
 
-    return  0;
-}
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    函数名称：
-*
-*    参数列表：
-*
-*    返回值  ：
-*
-*    说明    ：
-*
-*
-************************************************************************************************************
-*/
-int sunxi_clock_get_pll6(void)
-{
-	unsigned int reg_val;
-	int factor_n, factor_k, pll6;
 
-	reg_val = readl(CCMU_PLL_PERIPH0_CTRL_REG);
-	factor_n = ((reg_val >> 8) & 0x1f) + 1;
-	factor_k = ((reg_val >> 4) & 0x03) + 1;
-	pll6 = 24 * factor_n * factor_k/2;
-	return pll6;
+	//switch clk src to COREPLL
+	reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
+	reg_val &= ~(0x03 << 16);
+	reg_val |=  (0x02 << 16);
+	writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
+	__udelay(20);
+
+	if(!pll_new_mode)
+	{
+		disable_pll_lock_bit(LOCK_EN_NEW_MODE);
+	}
+	return  0;
 }
+
+

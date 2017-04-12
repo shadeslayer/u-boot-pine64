@@ -208,22 +208,22 @@ static int abortboot(int bootdelay)
 #endif
 }
 
-static void process_fdt_options(const void *blob)
-{
-#if defined(CONFIG_OF_CONTROL)
-	ulong addr;
-
-	/* Add an env variable to point to a kernel payload, if available */
-	addr = fdtdec_get_config_int(gd->fdt_blob, "kernel-offset", 0);
-	if (addr)
-		setenv_addr("kernaddr", (void *)(CONFIG_SYS_TEXT_BASE + addr));
-
-	/* Add an env variable to point to a root disk, if available */
-	addr = fdtdec_get_config_int(gd->fdt_blob, "rootdisk-offset", 0);
-	if (addr)
-		setenv_addr("rootaddr", (void *)(CONFIG_SYS_TEXT_BASE + addr));
-#endif /* CONFIG_OF_CONTROL */
-}
+//static void process_fdt_options(const void *blob)
+//{
+//#if defined(CONFIG_OF_CONTROL)
+//	ulong addr;
+//
+//	/* Add an env variable to point to a kernel payload, if available */
+//	addr = fdtdec_get_config_int(gd->fdt_blob, "kernel-offset", 0);
+//	if (addr)
+//		setenv_addr("kernaddr", (void *)(CONFIG_SYS_TEXT_BASE + addr));
+//
+//	/* Add an env variable to point to a root disk, if available */
+//	addr = fdtdec_get_config_int(gd->fdt_blob, "rootdisk-offset", 0);
+//	if (addr)
+//		setenv_addr("rootaddr", (void *)(CONFIG_SYS_TEXT_BASE + addr));
+//#endif /* CONFIG_OF_CONTROL */
+//}
 
 const char *bootdelay_process(void)
 {
@@ -246,8 +246,8 @@ const char *bootdelay_process(void)
 	bootdelay = s ? (int)simple_strtol(s, NULL, 10) : CONFIG_BOOTDELAY;
 
 #ifdef CONFIG_OF_CONTROL
-	bootdelay = fdtdec_get_config_int(gd->fdt_blob, "bootdelay",
-			bootdelay);
+//	bootdelay = fdtdec_get_config_int(gd->fdt_blob, "bootdelay",
+//			bootdelay);
 #endif
 
 	debug("### main_loop entered: bootdelay=%d\n\n", bootdelay);
@@ -255,7 +255,7 @@ const char *bootdelay_process(void)
 #if defined(CONFIG_MENU_SHOW)
 	bootdelay = menu_show(bootdelay);
 #endif
-	bootretry_init_cmd_timeout();
+//	bootretry_init_cmd_timeout();
 
 #ifdef CONFIG_POST
 	if (gd->flags & GD_FLG_POSTFAIL) {
@@ -271,7 +271,7 @@ const char *bootdelay_process(void)
 #endif /* CONFIG_BOOTCOUNT_LIMIT */
 		s = getenv("bootcmd");
 
-	process_fdt_options(gd->fdt_blob);
+//	process_fdt_options(gd->fdt_blob);
 	stored_bootdelay = bootdelay;
 
 	return s;

@@ -166,7 +166,7 @@ extern    int 			sunxi_dma_free_int(ulong hdma);
 #define DMA_IRQ_EN_REG				(DMA_BASE + 0x00)
                             	
 #define DMA_IRQ_PEND_REG			(DMA_BASE + 0x10)
-                            	
+#define DMA_AUTO_GATE_REG			(SUNXI_DMA_BASE + 0x28)
 #define DMA_CHAN_STA_REG			(DMA_BASE + 0x30)
 
 #define DMA_ENABLE_REG(ch)			(DMA_BASE + 0x0100 + ((ch) << 6) + 0x00)

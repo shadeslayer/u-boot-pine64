@@ -1,11 +1,27 @@
-#include<clk/clk.h>
+/*
+ * Copyright (C)  All rights reserved.
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ * Author: z.q <zengqi@allwinnertech.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
 
+/*
+ * This file contains clk functions, adapt for clk operation in boot.
+ */
+
+#include<clk/clk.h>
+#include <fdt_support.h>
+
+__attribute__((section(".data")))
 static HLIST_HEAD(clk_list);
 
 struct clk *__clk_lookup(const char *name)
 {
 	struct clk *root_clk;
-	//struct clk *ret;
 	struct hlist_node *tmp;
 	int test_count = 0;
 	if (!name)
@@ -13,7 +29,6 @@ struct clk *__clk_lookup(const char *name)
 
 	/* search the 'proper' clk tree first */
 	hlist_for_each_entry(root_clk, tmp, &clk_list, child_node) {
-		//printf("============%s: node name: %s===========test_count: %d\n",__func__, root_clk->name,test_count);
 		test_count++;
 		if (!strcmp(root_clk->name, name))
 			return root_clk;
@@ -57,9 +72,6 @@ static int __clk_enable(struct clk *clk)
 {
 	int ret = 0;
 
-	/*printf("%s:clk-name: %s, clk-parent-name: %s, clk->flags = %lu.\n",
-			__func__,clk->name,clk->parent->name, clk->flags);*/
-
 	if (!clk){
 
 		printf("%s: clk is null.\n",__func__);
@@ -94,7 +106,6 @@ static int __clk_set_parent(struct clk *clk, struct clk *parent)
 	int ret = -1;
 	u8 i;
 
-	//printf("%s:",__func__);
 	old_parent = clk->parent;
 
 	if (!clk->parents) {
@@ -125,7 +136,6 @@ static int __clk_set_parent(struct clk *clk, struct clk *parent)
 		goto out;
 	}
 
-
 	/* FIXME replace with clk_is_enabled(clk) someday */
 	if (clk->enable_count)
 		__clk_enable(parent);
@@ -145,7 +155,6 @@ static void __clk_recalc_rates(struct clk *clk)
 {
 	unsigned long parent_rate = 0;
 
-	//printf("%s:\n",__func__);
 	if (clk->parent)
 		parent_rate = clk->parent->rate;
 
@@ -164,7 +173,6 @@ static struct clk *__clk_init_parent(struct clk *clk)
 	if (!clk->num_parents)
 		goto out;
 	
-	//printf("%s: clk_name :%s\n",__func__,clk->name);
 	if (clk->num_parents == 1) {
 		if (!clk->parent)
 			ret = clk->parent = __clk_lookup(clk->parent_names[0]);
@@ -204,12 +212,11 @@ out:
 	return ret;
 }
 
-
 int __clk_init(struct clk *clk)
 {
 	int i, ret = 0;
-	//struct clk *orphan;
-	//struct hlist_node *tmp, *tmp2;
+	/* struct clk *orphan; */
+	/* struct hlist_node *tmp, *tmp2; */
 
 	if (!clk) {
 		printf("%s: this is a null clk!\n",__func__);
@@ -270,8 +277,7 @@ int __clk_init(struct clk *clk)
 					__clk_lookup(clk->parent_names[i]);
 	}
 	clk->parent = __clk_init_parent(clk);
-	/*printf("============%s: clk name: %s, clk_num_parents: %d===========\n",
-				__func__, clk->name,clk->num_parents);*/
+
 	/*
 	 * optional platform-specific magic
 	 *
@@ -323,6 +329,33 @@ int clk_prepare_enable(struct clk *clk)
 	return ret;
 }
 
+/**
+ * clk_round_rate - round the given rate for a clk
+ * @clk: the clk for which we are rounding a rate
+ * @rate: the rate which is to be rounded
+ *
+ * Takes in a rate as input and rounds it to a rate that the clk can actually
+ * use which is then returned.  If clk doesn't support round_rate operation
+ * then the parent rate is returned.
+ */
+long clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long parent_rate = 0;
+
+	if (!clk)
+		return 0;
+
+	if (!clk->ops->round_rate) {
+		return clk->rate;
+	}
+
+	if (clk->parent)
+		parent_rate = clk->parent->rate;
+
+	return clk->ops->round_rate(clk->hw, rate, &parent_rate);
+
+}
+
 struct clk *clk_get_parent(struct clk *clk)
 {
 	return !clk ? NULL : clk->parent;
@@ -331,7 +364,7 @@ struct clk *clk_get_parent(struct clk *clk)
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
 	int ret = 0;
-	//printf("%s:\n",__func__);
+
 	if (!clk || !clk->ops)
 		return -1;
 
@@ -367,7 +400,6 @@ unsigned long clk_get_rate(struct clk *clk)
 {
 	unsigned long rate;
 
-	//printf("%s:\n",__func__);
 	rate = __clk_get_rate(clk);
 
 	return rate;
@@ -379,10 +411,8 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	int ret = 0;
 	unsigned long new_rate;
 
-	//printf("%s:\n",__func__);
 	/* bail early if nothing to do */
 	if (rate == clk->rate && !(clk->flags & CLK_GET_RATE_NOCACHE)) {
-		printf("%s: no need to set rate again.\n", __func__);
 		goto out;
 	}
 
@@ -401,10 +431,8 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 		new_rate = clk->parent->new_rate;
 	else {
 		new_rate = clk->ops->round_rate(clk->hw, rate, &best_parent_rate);
-		//printf("%s: switch round_rate. new_rate = %lu.\n", __func__,new_rate);
 	}
 	clk->new_rate = new_rate;
-
 
 	/* change the rates */
 	if (clk->ops->set_rate)
@@ -415,8 +443,6 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	else
 		clk->rate = best_parent_rate;
 
-	//printf("%s: new_rate = %lu, clk_new_rate = %lu, clk_rate = %lu.\n",
-				//__func__, new_rate, clk->new_rate, clk->rate);
 	return 0;
 out:
 
@@ -472,6 +498,196 @@ fail_out:
 	return NULL;
 }
 
+int of_pll_clk_config_setup(struct clk *child_clk, u32 parent_handle)
+{
+	int node_offset = 0;
+	int ret = 0;
+	u32 rate = 0;
+	char *clk_name = NULL;
+	struct clk *clk;
 
+	if (child_clk == NULL || parent_handle == 0)
+		printf("%s: error:child_clk: 0x%x or parent_handle:0x%x is error\n",
+		     __func__, (u32) child_clk, (u32) parent_handle);
 
+	node_offset = fdt_node_offset_by_phandle(working_fdt, parent_handle);
+	if (node_offset < 0) {
+		printf("%s: error:get property by handle error\n", __func__);
+		return -1;
+	}
 
+	ret =
+	    fdt_getprop_string(working_fdt, node_offset, "clock-output-names",
+			       &clk_name);
+	if (ret < 0) {
+		printf("%s: clock-output-names is null\n", __func__);
+		return -1;
+	}
+
+	clk = clk_get(NULL, clk_name);
+	if (!clk) {
+		printf("%s: get clk is null\n", __func__);
+		return -1;
+	}
+
+	ret = clk_set_parent(child_clk, clk);
+	if (ret) {
+		printf("%s: error:set parent is error. ret = %d\n", __func__,
+		       ret);
+		return -1;
+	}
+
+	ret =
+	    fdt_getprop_u32(working_fdt, node_offset, "assigned-clock-parents",
+			    &parent_handle);
+	if (ret >= 0) {
+		ret = of_pll_clk_config_setup(clk, parent_handle);
+		if (ret) {
+			printf("%s: of_pll_clk_config_setup error.\n",
+			       __func__);
+			return -1;
+		}
+	}
+
+	ret =
+	    fdt_getprop_u32(working_fdt, node_offset, "assigned-clock-rates",
+			    &rate);
+	if (ret >= 0) {
+		ret = clk_set_rate(clk, rate);
+		if (ret) {
+			printf("%s: clk_set_rate is error. ret = %d\n",
+			       __func__, ret);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int of_periph_clk_config_setup(int node_offset)
+{
+	int handle_num = 0;
+	u32 handle[10] = { 0 };
+	u32 parent_handle = 0;
+	int i = 0;
+	int ret = 0;
+	char *clk_name = NULL;
+	struct clk **clk_list = NULL;
+
+	if (node_offset < 0) {
+		printf("error:fdt err returned %s\n",
+		       fdt_strerror(node_offset));
+		return -1;
+	}
+
+	handle_num =
+	    fdt_getprop_u32(working_fdt, node_offset, "clocks", handle);
+	if (handle_num < 0) {
+		printf("%s:%d:error:get property handle %s error:%s\n",
+		       __func__, __LINE__, "clocks", fdt_strerror(handle_num));
+		return -1;
+	}
+
+	clk_list = malloc(handle_num * sizeof(struct clk *));
+	if (!clk_list) {
+		printf("%s: clk_list malloc error!\n", __func__);
+		return -1;
+	}
+	memset(clk_list, 0, handle_num * sizeof(struct clk *));
+
+	for (i = 0; i < handle_num; i++) {
+		u32 rate = 0;
+
+		node_offset =
+		    fdt_node_offset_by_phandle(working_fdt, handle[i]);
+		if (node_offset < 0) {
+			printf("%s:%d: error:get property by handle error\n",
+			       __func__, __LINE__);
+			goto err;
+		}
+
+		ret =
+		    fdt_getprop_string(working_fdt, node_offset,
+				       "clock-output-names", &clk_name);
+		if (ret < 0) {
+			printf("%s: clock-output-names is null\n", __func__);
+			goto err;
+		}
+
+		clk_list[i] = clk_get(NULL, clk_name);
+		if (strcmp(clk_list[i]->name, clk_name))
+			printf("%s: clk_list[%d]->name = %s\n", __func__, i,
+			       clk_list[i]->name);
+
+		ret =
+		    fdt_getprop_u32(working_fdt, node_offset,
+				    "assigned-clock-parents", &parent_handle);
+		if (ret >= 0) {
+			ret =
+			    of_pll_clk_config_setup(clk_list[i], parent_handle);
+			if (ret) {
+				printf
+				    ("%s: %d: of_pll_clk_config_setup is error.",
+				     __func__, __LINE__);
+				goto err;
+			}
+		}
+
+		ret =
+		    fdt_getprop_u32(working_fdt, node_offset,
+				    "assigned-clock-rates", &rate);
+		if (ret >= 0)
+			clk_set_rate(clk_list[i], rate);
+		clk_put(clk_list[i]);
+	}
+
+      err:
+	free(clk_list);
+
+	return 0;
+}
+
+struct clk *of_clk_get(int node_offset, int index)
+{
+	int handle_num = 0;
+	u32 handle[10] = { 0 };
+	int ret;
+	char *clk_name = NULL;
+	struct clk *clk;
+
+	if (node_offset < 0) {
+		printf("%s: error:fdt err returned %s\n", __func__,
+		       fdt_strerror(node_offset));
+		return NULL;
+	}
+
+	handle_num =
+	    fdt_getprop_u32(working_fdt, node_offset, "clocks", handle);
+	if (handle_num < 0) {
+		printf("%s: error:get property handle %s error:%s\n", __func__,
+		       "clocks", fdt_strerror(handle_num));
+		return NULL;
+	}
+
+	if (index >= handle_num) {
+		printf("%s: index is error,reset it.\n", __func__);
+		return NULL;
+	}
+
+	node_offset = fdt_node_offset_by_phandle(working_fdt, handle[index]);
+	if (node_offset < 0) {
+		printf("%s: error:get property by handle error\n", __func__);
+		return NULL;
+	}
+
+	ret =
+	    fdt_getprop_string(working_fdt, node_offset, "clock-output-names",
+			       &clk_name);
+	if (ret < 0) {
+		printf("%s: get clock name error.\n", __func__);
+		return NULL;
+	}
+	clk = clk_get(NULL, clk_name);
+
+	return clk;
+}

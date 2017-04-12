@@ -95,6 +95,7 @@ struct usb_request {
 
 	int			status;
 	unsigned		actual;
+	int			dma_flag;
 };
 
 /*-------------------------------------------------------------------------*/

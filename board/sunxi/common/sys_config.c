@@ -35,8 +35,8 @@ DECLARE_GLOBAL_DATA_PTR;
 //#define GPIO_REG_READ(reg)              smc_readl((reg))
 //#define GPIO_REG_WRITE(reg, value)      smc_writel((value), (reg))
 
-#define GPIO_REG_READ(reg)              (smc_readl((ulong)(reg)))
-#define GPIO_REG_WRITE(reg, value)      (smc_writel((value), (ulong)(reg)))
+#define GPIO_REG_READ(reg)              (readl((ulong)(reg)))
+#define GPIO_REG_WRITE(reg, value)      (writel((value), (ulong)(reg)))
 
 
 /**#############################################################################################################
@@ -61,10 +61,10 @@ DECLARE_GLOBAL_DATA_PTR;
 #define _R_PIO_REG_PULL(n, i)              ((volatile unsigned int *)( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x1C))
 #define _R_PIO_REG_DATA(n)                 ((volatile unsigned int *)( SUNXI_RPIO_BASE + ((n)-12)*0x24 + 0x10))
 
-#define _R_PIO_REG_CFG_VALUE(n, i)          smc_readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x00)
-#define _R_PIO_REG_DLEVEL_VALUE(n, i)       smc_readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x14)
-#define _R_PIO_REG_PULL_VALUE(n, i)         smc_readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x1C)
-#define _R_PIO_REG_DATA_VALUE(n)            smc_readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + 0x10)
+#define _R_PIO_REG_CFG_VALUE(n, i)          readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x00)
+#define _R_PIO_REG_DLEVEL_VALUE(n, i)       readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x14)
+#define _R_PIO_REG_PULL_VALUE(n, i)         readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + ((i)<<2) + 0x1C)
+#define _R_PIO_REG_DATA_VALUE(n)            readl( SUNXI_RPIO_BASE + ((n)-12)*0x24 + 0x10)
 #define _R_PIO_REG_BASE(n)                    ((volatile unsigned int *)(SUNXI_RPIO_BASE +((n)-12)*24))
 
 
@@ -1495,7 +1495,7 @@ int fdt_get_pin_num(int nodeoffset,const char* pinctrl_name)
  */
 int fdt_set_all_pin(const char* node_path,const char* pinctrl_name)
 {
-	user_gpio_set_t  *pin_set;
+	user_gpio_set_t  pin_set[32];
 	int pin_count = 0;
 	int ret = 0;
 	int nodeoffset;
@@ -1504,10 +1504,10 @@ int fdt_set_all_pin(const char* node_path,const char* pinctrl_name)
 	nodeoffset = fdt_path_offset (working_fdt,node_path );
 	if(nodeoffset < 0)
 	{
-		FDT_ERROR("%s:fdt err returned %s\n",__func__,fdt_strerror(nodeoffset));
+		FDT_ERROR("%s:[%s]-->%s\n",__func__,node_path,fdt_strerror(nodeoffset));
 		return -1;
 	}
-
+#if 0
 	pin_count = fdt_get_pin_num(nodeoffset,pinctrl_name);
 	if(pin_count < 0)
 	{
@@ -1519,20 +1519,21 @@ int fdt_set_all_pin(const char* node_path,const char* pinctrl_name)
 		FDT_ERROR("%s:malloc fail\n", __func__);
 		return -1;
 	}
-	ret = fdt_get_all_pin( nodeoffset, pinctrl_name,pin_set);
-	if(ret < 0)
+#endif
+	pin_count = fdt_get_all_pin( nodeoffset, pinctrl_name,pin_set);
+	if(pin_count < 0)
 	{
 		return -1;
 	}
 	ret =  gpio_request_early(pin_set,pin_count,1);
-	free(pin_set);
+	//free(pin_set);
 
 	return ret;
 }
 
 int fdt_set_all_pin_by_offset(int nodeoffset,const char* pinctrl_name)
 {
-	user_gpio_set_t  *pin_set;
+	user_gpio_set_t  pin_set[32] ;
 	int pin_count = 0;
 	int ret = 0;
 
@@ -1541,25 +1542,28 @@ int fdt_set_all_pin_by_offset(int nodeoffset,const char* pinctrl_name)
 		FDT_ERROR("%s:fdt bad nodeoffset %d\n",__func__,nodeoffset);
 		return -1;
 	}
-
+	memset(pin_set, 0 , sizeof(pin_set));
+	#if 0
 	pin_count = fdt_get_pin_num(nodeoffset,pinctrl_name);
 	if(pin_count < 0)
 	{
 		return -1;
 	}
+
 	pin_set = malloc(pin_count*sizeof(user_gpio_set_t));
 	if(pin_set == NULL)
 	{
 		FDT_ERROR("%s:malloc fail\n", __func__);
 		return -1;
 	}
-	ret = fdt_get_all_pin( nodeoffset, pinctrl_name,pin_set);
-	if(ret < 0)
+	#endif
+	pin_count = fdt_get_all_pin( nodeoffset, pinctrl_name,pin_set);
+	if(pin_count < 0)
 	{
 		return -1;
 	}
 	ret =  gpio_request_early(pin_set,pin_count,1);
-	free(pin_set);
+	//free(pin_set);
 
 	return ret;
 }

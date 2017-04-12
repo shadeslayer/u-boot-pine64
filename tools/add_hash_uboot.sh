@@ -25,12 +25,16 @@ build_uboot()
 
 do_common()
 {
-    if [ "x${BUILD_MODE}" = "xuboot" ] ; then
-        echo " build_uboot "
-        build_uboot
-    else
-        echo "build none"
-    fi
+	if [ -s ./cur.log ] ; then
+		if [ "x${BUILD_MODE}" = "xuboot" ] ; then
+			echo " build_uboot "
+			build_uboot
+		else
+			echo "build none"
+		fi
+	else
+		echo "not set commit log"
+	fi
 }
 while getopts f:m: OPTION
 do

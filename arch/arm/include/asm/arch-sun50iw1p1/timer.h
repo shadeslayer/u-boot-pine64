@@ -26,6 +26,9 @@
 #define _SUNXI_TIMER_H_
 
 #include <asm/arch/platform.h>
+
+#define  SUNXI_WATCHDOG_CFG    (SUNXI_TIMER_BASE + 0xB4)
+#define  SUNXI_WATCHDOG_MODE   (SUNXI_TIMER_BASE + 0xB8)
 /* General purpose timer */
 struct sunxi_timer {
 	volatile u32 ctl;
@@ -88,6 +91,23 @@ struct timer_list
 	unsigned long data;
 	int   timer_num;
 };
+
+static __inline void watchdog_disable(void)
+{
+	/* disable watchdog */
+	writel(0, SUNXI_WATCHDOG_MODE);
+
+	return ;
+}
+
+static __inline void watchdog_enable(void)
+{
+	/* enable watchdog */
+	writel(1, SUNXI_WATCHDOG_CFG);
+	writel(1, SUNXI_WATCHDOG_MODE);
+
+	return ;
+}
 
 extern int  timer_init(void);
 

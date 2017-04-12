@@ -58,8 +58,11 @@ struct spare_boot_head_t  uboot_spare_head =
         { 0 },		//nand spare data
         { {0} },		//sdcard gpio
         { 0 }, 		//sdcard spare data
-        0,
-        0,
+        0,                          //secure os 
+        UBOOT_START_SECTOR_IN_SDMMC, //OTA flag
+        0,                           //dtb offset
+        0,                           //boot_package_size
+		0,							//dram_scan_size
         { 0 }			//reserved data
     }
 };
