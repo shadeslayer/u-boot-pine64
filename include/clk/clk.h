@@ -12,5 +12,8 @@ struct clk *clk_get_parent(struct clk *clk);
 void  clk_init(void);
 int clk_prepare_enable(struct clk *clk);
 int clk_disable(struct clk *clk);
+int of_periph_clk_config_setup(int node_offset);
+struct clk* of_clk_get(int node_offset, int index);
+long clk_round_rate(struct clk *clk, unsigned long rate);
 
 #endif

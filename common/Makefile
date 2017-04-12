@@ -35,8 +35,8 @@ obj-y += bootretry.o
 endif
 
 # boards
-obj-$(CONFIG_SYS_GENERIC_BOARD) += board_f.o
 obj-$(CONFIG_SYS_GENERIC_BOARD) += board_r.o
+obj-$(CONFIG_SYS_GENERIC_BOARD) += board_f.o
 
 # core command
 obj-y += cmd_boot.o
@@ -114,7 +114,8 @@ obj-$(CONFIG_CMD_EXT4) += cmd_ext4.o
 obj-$(CONFIG_CMD_EXT2) += cmd_ext2.o
 obj-$(CONFIG_CMD_FAT) += cmd_fat.o
 obj-$(CONFIG_CMD_FDC) += cmd_fdc.o
-obj-$(CONFIG_OF_LIBFDT) += cmd_fdt.o fdt_support.o
+obj-$(CONFIG_OF_LIBFDT) +=  fdt_support.o
+obj-$(CONFIG_CMD_FDT) += cmd_fdt.o
 obj-$(CONFIG_CMD_FITUPD) += cmd_fitupd.o
 obj-$(CONFIG_CMD_FLASH) += cmd_flash.o
 ifdef CONFIG_FPGA
@@ -191,6 +192,7 @@ obj-$(CONFIG_CMD_UBI) += cmd_ubi.o
 obj-$(CONFIG_CMD_UBIFS) += cmd_ubifs.o
 obj-$(CONFIG_CMD_UNIVERSE) += cmd_universe.o
 obj-$(CONFIG_CMD_UNZIP) += cmd_unzip.o
+obj-$(CONFIG_SUNXI_SECURE_SYSTEM) += cmd_sunxi_verify.o
 ifdef CONFIG_LZMA
 obj-$(CONFIG_CMD_LZMADEC) += cmd_lzmadec.o
 endif
@@ -278,6 +280,8 @@ obj-$(CONFIG_IO_TRACE) += iotrace.o
 obj-y += memsize.o
 obj-y += stdio.o
 obj-y += sunxi_mem_alloc.o
-obj-y += cmd_sunxi_smc.o
-
+obj-y += cmd_sunxi_signature.o
+obj-$(CONFIG_SUNXI_CMD_SMC) += cmd_sunxi_smc.o
+obj-$(CONFIG_SUNXI_CMD_DMA) += cmd_sunxi_dma.o
+obj-$(CONFIG_SUNXI_PRIVATE_KEY) += cmd_svudata.o
 CFLAGS_env_embedded.o := -Wa,--no-warn -DENV_CRC=$(shell tools/envcrc 2>/dev/null)

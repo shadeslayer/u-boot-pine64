@@ -16,3 +16,4 @@ obj-y += watchdog/
 obj-$(CONFIG_QE) += qe/
 obj-y += memory/
 obj-y += arisc/
+obj-y += spinor/

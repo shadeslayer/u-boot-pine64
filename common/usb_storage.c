@@ -137,7 +137,7 @@ struct us_data {
  * enough free heap space left, but the SCSI READ(10) and WRITE(10) commands are
  * limited to 65535 blocks.
  */
-#define USB_MAX_XFER_BLK	65535
+#define USB_MAX_XFER_BLK	32767 //sunxi platform limited to 32767
 #else
 #define USB_MAX_XFER_BLK	20
 #endif

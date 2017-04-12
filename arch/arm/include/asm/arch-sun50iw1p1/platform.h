@@ -46,6 +46,7 @@
 #define SUNXI_SMHC2_BASE			     (0x01c11000L)
 
 #define SUNXI_SID_BASE			         (0x01c14000L)
+#define SUNXI_SID_SRAM_BASE		         (0x01c14200L)
 #define SUNXI_SS_BASE				 (0x01c15000L)
 
 #define SUNXI_MSGBOX_BASE			 (0x01c17000L)

@@ -63,7 +63,13 @@ typedef struct __DRAM_PARA
 
 }__dram_para_t;
 
+#ifdef FPGA_PLATFORM
+unsigned int mctl_init(void *para);
+#else
 extern int init_DRAM( int type, __dram_para_t *buff );
+extern void dram_enable_all_master(void);
+extern void dram_disable_all_master(void);
+#endif
 #endif
 
 

@@ -36,7 +36,8 @@
 #include <linux/types.h>	/* __u8 etc */
 #include <asm/byteorder.h>	/* le16_to_cpu */
 #include <asm/unaligned.h>	/* get_unaligned() */
-
+#include <usbdescriptors.h>
+#include <usb_defs.h>
 /*-------------------------------------------------------------------------*/
 
 /* CONTROL REQUEST SUPPORT */
@@ -250,7 +251,7 @@ struct usb_descriptor_header {
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_DEVICE: Device descriptor */
-struct usb_device_descriptor {
+struct _usb_device_descriptor {
 	__u8  bLength;
 	__u8  bDescriptorType;
 
@@ -329,7 +330,7 @@ struct usb_config_descriptor {
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_STRING: String descriptor */
-struct usb_string_descriptor {
+struct _usb_string_descriptor {
 	__u8  bLength;
 	__u8  bDescriptorType;
 
@@ -343,7 +344,7 @@ struct usb_string_descriptor {
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_INTERFACE: Interface descriptor */
-struct usb_interface_descriptor {
+struct _usb_interface_descriptor {
 	__u8  bLength;
 	__u8  bDescriptorType;
 
@@ -361,7 +362,7 @@ struct usb_interface_descriptor {
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_ENDPOINT: Endpoint descriptor */
-struct usb_endpoint_descriptor {
+struct _usb_endpoint_descriptor {
 	__u8  bLength;
 	__u8  bDescriptorType;
 
@@ -645,7 +646,7 @@ usb_ss_max_streams(const struct usb_ss_ep_comp_descriptor *comp)
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_DEVICE_QUALIFIER: Device Qualifier descriptor */
-struct usb_qualifier_descriptor {
+struct _usb_qualifier_descriptor {
 	__u8  bLength;
 	__u8  bDescriptorType;
 
@@ -901,14 +902,15 @@ struct usb_connection_context {
 /*-------------------------------------------------------------------------*/
 
 /* USB 2.0 defines three speeds, here's how Linux identifies them */
-
-enum usb_device_speed {
+#if 0
+enum _usb_device_speed {
 	USB_SPEED_UNKNOWN = 0,			/* enumerating */
 	USB_SPEED_LOW, USB_SPEED_FULL,		/* usb 1.1 */
 	USB_SPEED_HIGH,				/* usb 2.0 */
 	USB_SPEED_WIRELESS,			/* wireless (usb 2.5) */
 	USB_SPEED_SUPER,			/* usb 3.0 */
 };
+#endif
 
 #ifdef __KERNEL__
 
@@ -922,7 +924,7 @@ extern const char *usb_speed_string(enum usb_device_speed speed);
 
 #endif
 
-enum usb_device_state {
+enum _usb_device_state {
 	/* NOTATTACHED isn't in the USB spec, and this state acts
 	 * the same as ATTACHED ... but it's clearer this way.
 	 */

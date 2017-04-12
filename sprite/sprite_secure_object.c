@@ -22,7 +22,7 @@
  */
 
 /*
- * Allwinner secure storage data format 
+ * Allwinner secure storage data format
  */
 #include <common.h>
 #include <command.h>
@@ -31,9 +31,53 @@
 #include <asm/io.h>
 #include <securestorage.h>
 #include <sunxi_board.h>
+#include <smc.h>
+#include "sprite_storage_crypt.h"
+#include <asm/arch/ss.h>
+#include <linux/ctype.h>
+
+DECLARE_GLOBAL_DATA_PTR;
 
 #include "sprite_storage_crypt.h"
 
+extern int smc_set_sst_crypt_name(char *name); 
+
+static  char write_protect_item[MAX_OEM_STORE_NUM][64] ;
+
+static int __write_protect_item_id(const char *item)
+{
+
+	return 0 ;  //default can't be place in burn-key flow
+#if 0
+	int id ;
+	for(id =0; id <MAX_OEM_STORE_NUM; id ++ ){
+		if( write_protect_item[id][0] != 0 && \
+			!strncmp(item, write_protect_item[id],strnlen(item, 64) )){
+			return id ;
+		}
+	}
+	return -1 ;
+#endif 
+}
+
+static int __set_write_protect_name(const char *name)
+{
+	int id ;
+	
+	if( (id = __write_protect_item_id(name)) >0 )
+		return 0 ;/*The name had been set*/
+
+	printf("set name[%s] to write_protect list\n", name);
+
+	for(id =0; id <MAX_OEM_STORE_NUM; id ++ ){
+		if( write_protect_item[id][0] == 0 ){
+			memcpy(write_protect_item[id],name, strnlen(name, 64) );
+			break ;
+		}
+	}
+
+	return 0 ;
+}
 //#define _SO_TEST_ 
 
 /*Store source data to secure_object struct
@@ -59,8 +103,9 @@ static int wrap_secure_object(void * src, const char *name,  unsigned int len, v
 	obj->magic = STORE_OBJECT_MAGIC ;
 	strncpy( obj->name, name, 64 );
 	obj->re_encrypt = 0 ;
-	obj->version = 0;
+	obj->version = SUNXI_SECSTORE_VERSION;
 	obj->id = 0;
+	obj->write_protect = (__write_protect_item_id(name) <0) ? 0:STORE_WRITE_PROTECT_MAGIC;
 	memset(obj->reserved, 0, ARRAY_SIZE(obj->reserved) );
 	obj->actual_len = len ;
 	memcpy( obj->data, src, len);
@@ -123,9 +168,9 @@ int sunxi_secure_object_read(const char *item_name, char *buffer, int buffer_len
 	}
 	so = (store_object_t *)secure_object;
 
-#ifdef CONFIG_SUNXI_SECURE_SYSTEM
-	
-	ret = smc_load_sst_decrypt(so->name, (char *)so->data,so->actual_len);
+#if 0
+    //data in secure storage does not need decrypt
+	ret = smc_tee_ssk_decrypt(so->name, (char *)so->data,so->actual_len);
 	if(ret <0){
 		printf("smc load sst decrypt fail\n");
 		return -1 ;
@@ -137,7 +182,16 @@ int sunxi_secure_object_read(const char *item_name, char *buffer, int buffer_len
 #endif
 	return unwrap_secure_object((char *)so, retLen, buffer, data_len);
 }
+int sunxi_secure_object_set( const char *name , int encrypt, int write_protect, int res1, int res2, int res3)
+{
+	if(encrypt)	
+		smc_set_sst_crypt_name((char *)name);
+	if(write_protect)
+		__set_write_protect_name(name);
 
+	return 0;
+
+}
 int sunxi_secure_object_write(const char *item_name, char *buffer, int length)
 {
 	char secure_object[4096];
@@ -152,7 +206,8 @@ int sunxi_secure_object_write(const char *item_name, char *buffer, int length)
 	}
 	so = (store_object_t *)secure_object;
 
-#ifdef CONFIG_SUNXI_SECURE_SYSTEM
+#if 0
+	//data in secure storage does not need decrypt
 	store_object_t *en_so ;
 	en_so = malloc(sizeof(*en_so));
 	if(!en_so){
@@ -160,7 +215,7 @@ int sunxi_secure_object_write(const char *item_name, char *buffer, int length)
 		return -1 ;
 	}
 
-	ret = smc_load_sst_encrypt(
+	ret = smc_tee_ssk_encrypt(
 			so->name,
 			(char *)so->data,so->actual_len, 
 			(char *)en_so, (unsigned int *)&retLen);
@@ -175,6 +230,7 @@ int sunxi_secure_object_write(const char *item_name, char *buffer, int length)
 		so->actual_len = retLen;
 		so->id = sst_oem_item_id((char *)item_name); 
 		so->re_encrypt = STORE_REENCRYPT_MAGIC;
+		so->write_protect = (__write_protect_item_id(item_name) <0) ? 0:STORE_WRITE_PROTECT_MAGIC;
 		so->crc = crc32( 0 , (void *)so, sizeof(*so)-4 ); 
 	}
 
@@ -393,7 +449,8 @@ static int dump_secure_store(char *type)
 
 static int cmd_secure_object(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
-
+	int ret = -1;
+	
 	if(argc >3 || argc <1){
 		printf("wrong argc\n");
 		return -1 ;
@@ -406,28 +463,108 @@ static int cmd_secure_object(cmd_tbl_t *cmdtp, int flag, int argc, char * const 
 
 	if ( (strncmp("clean", argv[1],strlen("clean")) == 0)){
 		if( strncmp("all", argv[2], strlen("all") ) ==0  ){
-			return clear_secure_store(0xffff);
+			ret = clear_secure_store(0xffff);
 		}else{
 			unsigned int index = simple_strtoul( (const char *)argv[2], NULL, 10 ) ;
-			return clear_secure_store(index) ; 
+			ret = clear_secure_store(index) ; 
 		}
 	}else if(strncmp("dump", argv[1], strlen("dump"))== 0){
-		return dump_secure_store(argv[2]);
+		ret = dump_secure_store(argv[2]);
 	}else if( (strncmp("test", argv[1],strlen("test")) == 0) ) {
 		#ifdef _SO_TEST_
-		return secure_object_op_test();
+		ret = secure_object_op_test();
 		#else
-		return cmd_usage(cmdtp);
+		ret = cmd_usage(cmdtp);
 		#endif
 	}else if(strncmp("crypt", argv[1], strlen("crypt"))== 0){
 #ifdef CONFIG_SUNXI_SECURE_SYSTEM
 		extern int smc_load_sst_test(void);
 		smc_load_sst_test();
 #endif
-		return 0 ;
+		ret = 0 ;
 	}else
-		return cmd_usage(cmdtp);
+		ret = cmd_usage(cmdtp);
 
+	if( sunxi_secure_storage_exit() < 0  ){
+		printf("secure storage exit fail\n");
+		return -1 ;
+	}
+	return ret;
+}
+
+
+
+int sunxi_secure_object_down( const char *name , char *buf, int len, int encrypt, int write_protect)
+{
+	int  ret, i, align_len = 0;
+	char lower_name[64];
+	sunxi_secure_storage_info_t secdata;
+
+	if (len > 4096) {
+		printf("the input key is too long!\n");
+
+		return -1;
+	}
+	memset(&secdata, 0, sizeof(secdata));
+	i = 0;
+	memset(lower_name, 0, 64);
+	while(name[i] != '\0')
+	{
+		lower_name[i] = tolower(name[i]);
+		i++;
+	}
+	strcpy(secdata.name, lower_name);
+	secdata.encrypted = encrypt;
+	secdata.write_protect = write_protect;
+	secdata.len = len;
+	if(gd->securemode == SUNXI_SECURE_MODE_WITH_SECUREOS)
+	{
+		if(!strcmp("hdcpkey", secdata.name))
+			ret = smc_tee_rssk_encrypt(secdata.key_data, buf, len,&align_len);
+		else
+			ret = smc_tee_ssk_encrypt(secdata.key_data, buf, len,&align_len);
+		if (ret)
+		{
+			printf("ssk encrypt failed\n");
+			return -1;
+		}
+		secdata.len = align_len;
+		sunxi_dump(secdata.key_data, secdata.len);
+	}
+	else
+	{
+		debug("no secure os, data can't be encrypted\n");
+		memcpy(secdata.key_data,buf,len);
+	}
+
+	ret = sunxi_secure_object_write(lower_name, (void*)&secdata,
+		SUNXI_SECURE_STORTAGE_INFO_HEAD_LEN + secdata.len);
+	if (ret) {
+		printf("secure storage write fail\n");
+
+		return -1;
+	}
+
+	return 0;
+}
+
+int sunxi_secure_object_up(const char *name,char *buf,int len)
+{
+	sunxi_secure_storage_info_t secdata;
+	int data_len;
+	int ret;
+
+	memset(&secdata, 0, sizeof(secdata));
+	ret = sunxi_secure_object_read(name, (char *)&secdata, sizeof(secdata), &data_len);
+	if (ret)
+	{
+		printf("secure storage read fail\n");
+		return -1;
+	}
+	if(buf)
+	{
+		memcpy(buf, &secdata, len < sizeof(secdata) ? len:sizeof(secdata));
+	}
 	return 0;
 }
 
@@ -438,3 +575,76 @@ U_BOOT_CMD(
 	"\t Allwinner secure object storage \n"
 	);
 
+//extern int smc_tee_ssk_decrypt(char *out_buf, char *in_buf, int len);
+
+#if defined(CONFIG_SUNXI_SECURE_STORAGE)
+int sunxi_widevine_keybox_install(void)
+{
+	int ret = -1;
+	char buffer[4096];
+	//char en_buf[4096];
+	//char de_buf[4096];
+	int  data_len;
+    sunxi_secure_storage_info_t *secdata;
+	int workmode = uboot_spare_head.boot_data.work_mode;
+
+	if(workmode != WORK_MODE_BOOT)
+		return 0;
+
+	if(gd->securemode != SUNXI_SECURE_MODE_WITH_SECUREOS)
+		return 0;
+		
+	if( sunxi_secure_storage_init() < 0  ) {
+		printf("secure storage init fail\n");
+		ret = -1;
+		goto out ;
+	}
+
+	memset(buffer, 0, 4096);
+	ret = sunxi_secure_object_up("widevine", buffer, 4096);
+	if (ret) {
+		printf("secure storage read fail\n");
+		ret = -1;
+		goto out ;
+	}
+
+    secdata = (sunxi_secure_storage_info_t *)buffer;
+    data_len  = secdata->len;
+//	printf("total data len=%d\n", data_len);
+//	printf("source data_len=%d\n", secdata->len);
+//	sunxi_dump(secdata->key_data, secdata->len);
+
+//	ret = smc_tee_ssk_decrypt(en_buf, secdata->key_data, secdata->len);
+//	if (ret) {
+//		printf("secure storage decrypt fail\n");
+//		return -1;
+//	}
+//
+//	printf("en data data_len=%d\n", secdata->len);
+//	sunxi_dump(en_buf, secdata->len);
+//
+//	printf("secure os en\n");
+//	memset(de_buf, 0, 4096);
+//	ret = smc_tee_ssk_encrypt(de_buf, en_buf, secdata->len);
+//	if (ret) {
+//		printf("secure storage encrypt fail\n");
+//		return -1;
+//	}
+//	sunxi_dump(de_buf, secdata->len);
+
+//	printf("test\n");
+//	sunxi_dump(buffer, data_len);
+	ret = smc_tee_keybox_store("widevine", buffer, data_len);
+	if (!ret)
+		printf("key install finish\n");
+	else
+		printf("key install fail\n");
+
+out:
+	if( ret <0 ) 
+		printf("Warnning:Widevine key install fail !!!\n");
+
+	return 0;
+}
+
+#endif

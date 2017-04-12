@@ -74,7 +74,7 @@
 #define AW_IRQ_SCR                     GIC_SRC_SPI(83) /* 115 */
 #define AW_IRQ_CSI                     GIC_SRC_SPI(84) /* 116 */
 #define AW_IRQ_CSI_CCI                 GIC_SRC_SPI(85) /* 117 */
-#define AW_IRQ_TCON0                   GIC_SRC_SPI(86) /* 118 */ 
+#define AW_IRQ_TCON0                   GIC_SRC_SPI(86) /* 118 */
 #define AW_IRQ_TCON1                   GIC_SRC_SPI(87) /* 119 */
 #define AW_IRQ_HDMI                    GIC_SRC_SPI(88) /* 120 */
 #define AW_IRQ_MIPI_DSI                GIC_SRC_SPI(89) /* 121 */
@@ -83,30 +83,30 @@
 #define AW_IRQ_CE1                     GIC_SRC_SPI(94) /* 126 */
 #define AW_IRQ_DE                      GIC_SRC_SPI(95) /* 127 */
 #define AW_IRQ_ROT                     GIC_SRC_SPI(96) /* 128 */
-#define AW_IRQ_GPU_GP                  GIC_SRC_SPI(97) /* 129 */ 
-#define AW_IRQ_GPU_GPMMU               GIC_SRC_SPI(98) /* 130 */ 
-#define AW_IRQ_GPU_PP0                 GIC_SRC_SPI(99) /* 131 */ 
-#define AW_IRQ_GPU_PP0MMU              GIC_SRC_SPI(100) /* 132 */ 
-#define AW_IRQ_GPU_PMU                 GIC_SRC_SPI(101) /* 133 */ 
-#define AW_IRQ_GPU_PP1                 GIC_SRC_SPI(102) /* 134 */ 
-#define AW_IRQ_GPU_PPMMU1              GIC_SRC_SPI(103) /* 135 */ 
+#define AW_IRQ_GPU_GP                  GIC_SRC_SPI(97) /* 129 */
+#define AW_IRQ_GPU_GPMMU               GIC_SRC_SPI(98) /* 130 */
+#define AW_IRQ_GPU_PP0                 GIC_SRC_SPI(99) /* 131 */
+#define AW_IRQ_GPU_PP0MMU              GIC_SRC_SPI(100) /* 132 */
+#define AW_IRQ_GPU_PMU                 GIC_SRC_SPI(101) /* 133 */
+#define AW_IRQ_GPU_PP1                 GIC_SRC_SPI(102) /* 134 */
+#define AW_IRQ_GPU_PPMMU1              GIC_SRC_SPI(103) /* 135 */
 
-#define AW_IRQ_CTI0                   GIC_SRC_SPI(108) /* 140 */ 
-#define AW_IRQ_CTI1                   GIC_SRC_SPI(109) /* 141 */ 
-#define AW_IRQ_CTI2                   GIC_SRC_SPI(110) /* 142 */ 
-#define AW_IRQ_CTI3                   GIC_SRC_SPI(111) /* 143 */ 
-#define AW_IRQ_COMMTX0                GIC_SRC_SPI(112) /* 144 */ 
-#define AW_IRQ_COMMTX1                GIC_SRC_SPI(113) /* 145 */ 
-#define AW_IRQ_COMMTX2                GIC_SRC_SPI(114) /* 146 */ 
-#define AW_IRQ_COMMTX3                GIC_SRC_SPI(115) /* 147 */ 
-#define AW_IRQ_COMMRX0                GIC_SRC_SPI(116) /* 148 */ 
-#define AW_IRQ_COMMRX1                GIC_SRC_SPI(117) /* 149 */ 
-#define AW_IRQ_COMMRX2                GIC_SRC_SPI(118) /* 150 */ 
-#define AW_IRQ_COMMRX3                GIC_SRC_SPI(119) /* 151 */ 
-#define AW_IRQ_PMU0                   GIC_SRC_SPI(120) /* 152 */ 
-#define AW_IRQ_PMU1                   GIC_SRC_SPI(121) /* 153 */ 
-#define AW_IRQ_PMU2                   GIC_SRC_SPI(122) /* 154 */ 
-#define AW_IRQ_PMU3                   GIC_SRC_SPI(123) /* 155 */ 
+#define AW_IRQ_CTI0                   GIC_SRC_SPI(108) /* 140 */
+#define AW_IRQ_CTI1                   GIC_SRC_SPI(109) /* 141 */
+#define AW_IRQ_CTI2                   GIC_SRC_SPI(110) /* 142 */
+#define AW_IRQ_CTI3                   GIC_SRC_SPI(111) /* 143 */
+#define AW_IRQ_COMMTX0                GIC_SRC_SPI(112) /* 144 */
+#define AW_IRQ_COMMTX1                GIC_SRC_SPI(113) /* 145 */
+#define AW_IRQ_COMMTX2                GIC_SRC_SPI(114) /* 146 */
+#define AW_IRQ_COMMTX3                GIC_SRC_SPI(115) /* 147 */
+#define AW_IRQ_COMMRX0                GIC_SRC_SPI(116) /* 148 */
+#define AW_IRQ_COMMRX1                GIC_SRC_SPI(117) /* 149 */
+#define AW_IRQ_COMMRX2                GIC_SRC_SPI(118) /* 150 */
+#define AW_IRQ_COMMRX3                GIC_SRC_SPI(119) /* 151 */
+#define AW_IRQ_PMU0                   GIC_SRC_SPI(120) /* 152 */
+#define AW_IRQ_PMU1                   GIC_SRC_SPI(121) /* 153 */
+#define AW_IRQ_PMU2                   GIC_SRC_SPI(122) /* 154 */
+#define AW_IRQ_PMU3                   GIC_SRC_SPI(123) /* 155 */
 #define AW_IRQ_AXI_ERROR              GIC_SRC_SPI(124) /*156*/
 
 #define GIC_IRQ_NUM                    (AW_IRQ_AXI_ERROR + 1)
@@ -161,7 +161,7 @@
 #define AW_IRQ_SCR                     GIC_SRC_SPI(83) /* 115 */
 #define AW_IRQ_CSI                     GIC_SRC_SPI(84) /* 116 */
 #define AW_IRQ_CSI_CCI                 GIC_SRC_SPI(85) /* 117 */
-#define AW_IRQ_TCON0                   GIC_SRC_SPI(86) /* 118 */ 
+#define AW_IRQ_TCON0                   GIC_SRC_SPI(86) /* 118 */
 #define AW_IRQ_TCON1                   GIC_SRC_SPI(87) /* 119 */
 #define AW_IRQ_HDMI                    GIC_SRC_SPI(88) /* 120 */
 #define AW_IRQ_MIPI_DSI                GIC_SRC_SPI(89) /* 121 */
@@ -170,30 +170,30 @@
 #define AW_IRQ_CE1                     GIC_SRC_SPI(94) /* 126 */
 #define AW_IRQ_DE                      GIC_SRC_SPI(95) /* 127 */
 #define AW_IRQ_ROT                     GIC_SRC_SPI(96) /* 128 */
-#define AW_IRQ_GPU_GP                  GIC_SRC_SPI(97) /* 129 */ 
-#define AW_IRQ_GPU_GPMMU               GIC_SRC_SPI(98) /* 130 */ 
-#define AW_IRQ_GPU_PP0                 GIC_SRC_SPI(99) /* 131 */ 
-#define AW_IRQ_GPU_PP0MMU              GIC_SRC_SPI(100) /* 132 */ 
-#define AW_IRQ_GPU_PMU                 GIC_SRC_SPI(101) /* 133 */ 
-#define AW_IRQ_GPU_PP1                 GIC_SRC_SPI(102) /* 134 */ 
-#define AW_IRQ_GPU_PPMMU1              GIC_SRC_SPI(103) /* 135 */ 
+#define AW_IRQ_GPU_GP                  GIC_SRC_SPI(97) /* 129 */
+#define AW_IRQ_GPU_GPMMU               GIC_SRC_SPI(98) /* 130 */
+#define AW_IRQ_GPU_PP0                 GIC_SRC_SPI(99) /* 131 */
+#define AW_IRQ_GPU_PP0MMU              GIC_SRC_SPI(100) /* 132 */
+#define AW_IRQ_GPU_PMU                 GIC_SRC_SPI(101) /* 133 */
+#define AW_IRQ_GPU_PP1                 GIC_SRC_SPI(102) /* 134 */
+#define AW_IRQ_GPU_PPMMU1              GIC_SRC_SPI(103) /* 135 */
 
-#define AW_IRQ_CTI0                   GIC_SRC_SPI(108) /* 140 */ 
-#define AW_IRQ_CTI1                   GIC_SRC_SPI(109) /* 141 */ 
-#define AW_IRQ_CTI2                   GIC_SRC_SPI(110) /* 142 */ 
-#define AW_IRQ_CTI3                   GIC_SRC_SPI(111) /* 143 */ 
-#define AW_IRQ_COMMTX0                GIC_SRC_SPI(112) /* 144 */ 
-#define AW_IRQ_COMMTX1                GIC_SRC_SPI(113) /* 145 */ 
-#define AW_IRQ_COMMTX2                GIC_SRC_SPI(114) /* 146 */ 
-#define AW_IRQ_COMMTX3                GIC_SRC_SPI(115) /* 147 */ 
-#define AW_IRQ_COMMRX0                GIC_SRC_SPI(116) /* 148 */ 
-#define AW_IRQ_COMMRX1                GIC_SRC_SPI(117) /* 149 */ 
-#define AW_IRQ_COMMRX2                GIC_SRC_SPI(118) /* 150 */ 
-#define AW_IRQ_COMMRX3                GIC_SRC_SPI(119) /* 151 */ 
-#define AW_IRQ_PMU0                   GIC_SRC_SPI(120) /* 152 */ 
-#define AW_IRQ_PMU1                   GIC_SRC_SPI(121) /* 153 */ 
-#define AW_IRQ_PMU2                   GIC_SRC_SPI(122) /* 154 */ 
-#define AW_IRQ_PMU3                   GIC_SRC_SPI(123) /* 155 */ 
+#define AW_IRQ_CTI0                   GIC_SRC_SPI(108) /* 140 */
+#define AW_IRQ_CTI1                   GIC_SRC_SPI(109) /* 141 */
+#define AW_IRQ_CTI2                   GIC_SRC_SPI(110) /* 142 */
+#define AW_IRQ_CTI3                   GIC_SRC_SPI(111) /* 143 */
+#define AW_IRQ_COMMTX0                GIC_SRC_SPI(112) /* 144 */
+#define AW_IRQ_COMMTX1                GIC_SRC_SPI(113) /* 145 */
+#define AW_IRQ_COMMTX2                GIC_SRC_SPI(114) /* 146 */
+#define AW_IRQ_COMMTX3                GIC_SRC_SPI(115) /* 147 */
+#define AW_IRQ_COMMRX0                GIC_SRC_SPI(116) /* 148 */
+#define AW_IRQ_COMMRX1                GIC_SRC_SPI(117) /* 149 */
+#define AW_IRQ_COMMRX2                GIC_SRC_SPI(118) /* 150 */
+#define AW_IRQ_COMMRX3                GIC_SRC_SPI(119) /* 151 */
+#define AW_IRQ_PMU0                   GIC_SRC_SPI(120) /* 152 */
+#define AW_IRQ_PMU1                   GIC_SRC_SPI(121) /* 153 */
+#define AW_IRQ_PMU2                   GIC_SRC_SPI(122) /* 154 */
+#define AW_IRQ_PMU3                   GIC_SRC_SPI(123) /* 155 */
 #define AW_IRQ_AXI_ERROR              GIC_SRC_SPI(124) /*156*/
 
 #define GIC_IRQ_NUM                    (AW_IRQ_AXI_ERROR + 1)
@@ -206,5 +206,8 @@ extern int irq_enable(int irq_no);
 extern int irq_disable(int irq_no);
 extern void irq_install_handler (int irq, interrupt_handler_t handle_irq, void *data);
 extern void irq_free_handler(int irq);
+
+extern int sunxi_gic_cpu_interface_init(int cpu);
+extern int sunxi_gic_cpu_interface_exit(void);
 
 #endif

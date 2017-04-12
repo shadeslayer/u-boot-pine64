@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -49,12 +55,16 @@ void set_pll_cpux_axi(void)
 	//cpu/axi /sys apb  clock ratio
 	writel((1<<16) | (3<<8) | (2<<0), CCMU_CPUX_AXI_CFG_REG);
 	__usdelay(20);
-    
+
 	//set PLL_CPUX, the  default  clk is 1008M  ,PLL_OUTPUT= 24M*N*K/( M*P)
 	disable_pll_lock_bit(LOCK_EN_PLL_CPUX);
 	writel((0x1000), CCMU_PLL_CPUX_CTRL_REG);
 	enable_pll_lock_bit(LOCK_EN_PLL_CPUX);
-	writel((1<<31) | readl(CCMU_PLL_CPUX_CTRL_REG), CCMU_PLL_CPUX_CTRL_REG);
+	//writel((1<<31) | readl(CCMU_PLL_CPUX_CTRL_REG), CCMU_PLL_CPUX_CTRL_REG);
+	reg_val = readl(CCMU_PLL_CPUX_CTRL_REG);
+	reg_val &= ~((1<<31) | (0x03 << 16) | (0x1f << 8) | (0x03 << 4) | (0x03 << 0));
+	reg_val |=  ((1<<31) | (0 << 16) | (20<<8) | (1<<4) | (0 << 0)) ;
+	writel(reg_val, CCMU_PLL_CPUX_CTRL_REG);
 	//wait PLL_CPUX stable
 #ifndef FPGA_PLATFORM
 	while(!(readl(CCMU_PLL_CPUX_CTRL_REG) & (0x1<<28)));
@@ -65,7 +75,7 @@ void set_pll_cpux_axi(void)
 	//set and change cpu clk src to PLL_CPUX,  PLL_CPUX:AXI0 = 408M:136M
 	reg_val = readl(CCMU_CPUX_AXI_CFG_REG);
 	reg_val &=  ~(3 << 16);
-	reg_val |=  (2 << 16);    
+	reg_val |=  (2 << 16);
 	writel(reg_val, CCMU_CPUX_AXI_CFG_REG);
 	__usdelay(1000);
 }
@@ -104,10 +114,36 @@ void set_pll_periph0_ahb_apb(void)
 	//ahb1 clock src is PLL6,                           (0x03<< 12)
 	//apb1 clk src is ahb1 clk src, divide  ratio is 2  (1<<8)
 	//ahb1 pre divide  ratio is 2:    0:1  , 1:2,  2:3,   3:4 (2<<6)
-	//PLL6:AHB1:APB1 = 600M:200M:100M ,
-	writel((1<<8) | (2<<6) | (0<<4), CCMU_AHB1_APB1_CFG_REG);
+	//PLL6:AHB1:APB1 = 600M:100M:50M ,
+	writel((1<<8) | (3<<6) | (0<<4), CCMU_AHB1_APB1_CFG_REG);
 	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
 }
+
+void set_pll_periph0_ahb_apb_in_secure_mode(void)
+{
+	//change ahb src before set pll6
+	writel((0x01 << 12) | (readl(CCMU_AHB1_APB1_CFG_REG)&(~(0x3<<12))), CCMU_AHB1_APB1_CFG_REG);
+
+	//enable PLL6:  600M(1X)  1200M(2x)
+	disable_pll_lock_bit(LOCK_EN_PLL_PERIPH0);
+	writel( 0x41811, CCMU_PLL_PERIPH0_CTRL_REG);
+	enable_pll_lock_bit(LOCK_EN_PLL_PERIPH0);
+	writel( (1U << 31)|readl(CCMU_PLL_PERIPH0_CTRL_REG), CCMU_PLL_PERIPH0_CTRL_REG);
+#ifndef FPGA_PLATFORM
+	while(!(readl(CCMU_PLL_PERIPH0_CTRL_REG) & (0x1<<28)));
+	__usdelay(20);
+#endif
+	disable_pll_lock_bit(LOCK_EN_PLL_PERIPH0);
+
+	//set AHB1/APB1 clock  divide ratio
+	//ahb1 clock src is PLL6,                           (0x03<< 12)
+	//apb1 clk src is ahb1 clk src, divide  ratio is 2  (1<<8)
+	//ahb1 pre divide  ratio is 2:    0:1  , 1:2,  2:3,   3:4 (2<<6)
+	//PLL6:AHB1:APB1 = 600M:100M:50M ,
+	writel((1<<8) | (2<<6) | (1<<4), CCMU_AHB1_APB1_CFG_REG);
+	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
+}
+
 void set_pll_dma(void)
 {
 	//----DMA function--------
@@ -125,7 +161,10 @@ void set_pll_mbus(void)
 	//reset mbus domain
 	writel(0x80000000, CCMU_MBUS_RST_REG);
 	//open MBUS,clk src is pll6(2x) , pll6/(m+1) = 400M
-	writel((1<<31) | (1<<24) | (2<<0), CCMU_MBUS_CLK_REG);
+	//writel((1<<31) | (1<<24) | (2<<0), CCMU_MBUS_CLK_REG);
+	writel((2<<0), CCMU_MBUS_CLK_REG); __usdelay(1);//set MBUS div
+	writel((1<<24) | (2<<0), CCMU_MBUS_CLK_REG); __usdelay(1);//set MBUS clock source
+	writel((1<<31) | (1<<24) | (2<<0), CCMU_MBUS_CLK_REG); __usdelay(1);//open MBUS clock
 }
 
 void set_pll( void )
@@ -139,15 +178,32 @@ void set_pll( void )
 	set_pll_periph0_ahb_apb();
 	set_pll_dma();
 	set_pll_mbus();
- 
+
 	disable_pll_lock_bit(LOCK_EN_NEW_MODE);
 	printf("set pll end\n");
 	return ;
 }
 
+void set_pll_in_secure_mode( void )
+{
+	//use new mode
+	printf("set pll start\n");
+	enable_pll_lock_bit(LOCK_EN_NEW_MODE);
+
+	set_pll_cpux_axi();
+	set_pll_hsic();
+	set_pll_periph0_ahb_apb_in_secure_mode();
+	set_pll_dma();
+	set_pll_mbus();
+
+	disable_pll_lock_bit(LOCK_EN_NEW_MODE);
+	printf("set pll end\n");
+	return ;
+}
 
 void reset_pll( void )
 {
+	writel(0x01010, CCMU_AHB1_APB1_CFG_REG);
 	writel(0x10300, CCMU_CPUX_AXI_CFG_REG);
 	return ;
 }

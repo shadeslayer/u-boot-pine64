@@ -357,7 +357,7 @@ struct multi_unseq_mem_s
 	struct unseq_mem_config  *unseq_mem;
 };
 
-#define SUNXI_EFEX_RECV_MEM_SIZE	(1024 * 1024)
+#define SUNXI_EFEX_RECV_MEM_SIZE	(4*1024 * 1024)
 
 
 typedef struct

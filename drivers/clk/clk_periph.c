@@ -4,109 +4,102 @@
 //#include"clk.h"
 static u8 sunxi_clk_periph_get_parent(struct clk_hw *hw)
 {
-    u8 parent;
-    unsigned long reg;
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	u8 parent;
+	unsigned long reg;
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
 
-    if(!periph->mux.reg)
-        return 0;
+	if(!periph->mux.reg)
+		return 0;
 
-    reg = periph_readl(periph,periph->mux.reg);
-    parent = GET_BITS(periph->mux.shift, periph->mux.width, reg); 
+	reg = periph_readl(periph,periph->mux.reg);
+	parent = GET_BITS(periph->mux.shift, periph->mux.width, reg);
     
-    return parent;
+	return parent;
 }
 
 
 static int sunxi_clk_periph_set_parent(struct clk_hw *hw, u8 index)
 {
-    unsigned long reg;
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	unsigned long reg;
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
 
-    if(periph->flags & CLK_READONLY)
-        return 0;
+	if(periph->flags & CLK_READONLY)
+		return 0;
 
-    if(!periph->mux.reg)
-        return 0;
+	if(!periph->mux.reg)
+		return 0;
 
-    reg = periph_readl(periph,periph->mux.reg);
-    reg = SET_BITS(periph->mux.shift, periph->mux.width, reg, index);
-    periph_writel(periph,reg, periph->mux.reg);
+	reg = periph_readl(periph,periph->mux.reg);
+	reg = SET_BITS(periph->mux.shift, periph->mux.width, reg, index);
+	periph_writel(periph,reg, periph->mux.reg);
 
-    return 0;
+	return 0;
 }
 
 static int __sunxi_clk_periph_enable_shared(struct sunxi_clk_periph *periph)
 {
-    unsigned long reg;
-    struct sunxi_clk_periph_gate *gate = &periph->gate;
+	unsigned long reg;
+	struct sunxi_clk_periph_gate *gate = &periph->gate;
 
-    if(!periph->com_gate)
-        return -1;        
+	if(!periph->com_gate)
+		return -1;
 
-    if(!periph->com_gate->val)
-    {
-        /* de-assert module */
-        if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET) && IS_SHARE_RST_GATE(periph)) {
-            reg = periph_readl(periph,gate->reset);
-            reg = SET_BITS(gate->rst_shift, 1, reg, 1);
-            periph_writel(periph,reg, gate->reset);
-        }
-        /* enable bus gating */
-        if(gate->bus && IS_SHARE_BUS_GATE(periph)) {
-            reg = periph_readl(periph,gate->bus);
-            reg = SET_BITS(gate->bus_shift, 1, reg, 1);
-            periph_writel(periph,reg, gate->bus);
-        }
+	if(!periph->com_gate->val) {
+		/* de-assert module */
+		if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET)
+			&& IS_SHARE_RST_GATE(periph)) {
+			reg = periph_readl(periph,gate->reset);
+			reg = SET_BITS(gate->rst_shift, 1, reg, 1);
+			periph_writel(periph,reg, gate->reset);
+		}
+		/* enable bus gating */
+		if(gate->bus && IS_SHARE_BUS_GATE(periph)) {
+			reg = periph_readl(periph,gate->bus);
+			reg = SET_BITS(gate->bus_shift, 1, reg, 1);
+			periph_writel(periph,reg, gate->bus);
+		}
 
-        /* enable module gating */
-        if(gate->enable&& IS_SHARE_MOD_GATE(periph)) {
-            reg = periph_readl(periph,gate->enable);
-            reg = SET_BITS(gate->enb_shift, 1, reg, 1);
-            periph_writel(periph,reg, gate->enable);
-        }
+		/* enable module gating */
+		if(gate->enable&& IS_SHARE_MOD_GATE(periph)) {
+			reg = periph_readl(periph,gate->enable);
+			reg = SET_BITS(gate->enb_shift, 1, reg, 1);
+			periph_writel(periph,reg, gate->enable);
+		}
 
-        /* enable dram gating */
-        if(gate->dram&& IS_SHARE_MBUS_GATE(periph)) {
-            reg = periph_readl(periph,gate->dram);
-            reg = SET_BITS(gate->ddr_shift, 1, reg, 1);
-            periph_writel(periph,reg, gate->dram);
-        }       
-    }
-    periph->com_gate->val |= 1 << periph->com_gate_off;
+		/* enable dram gating */
+		if(gate->dram&& IS_SHARE_MBUS_GATE(periph)) {
+			reg = periph_readl(periph,gate->dram);
+			reg = SET_BITS(gate->ddr_shift, 1, reg, 1);
+			periph_writel(periph,reg, gate->dram);
+		}
+	}
+	periph->com_gate->val |= 1 << periph->com_gate_off;
 
-    return 0;
+	return 0;
 }
-static int sunxi_clk_periph_enable_shared(struct sunxi_clk_periph *periph)
-{
-    int ret = 0;
-    if(!periph->com_gate)
-        return -1;        
 
-    ret = __sunxi_clk_periph_enable_shared(periph);
-    return ret;        
-}
 static int __sunxi_clk_periph_enable(struct clk_hw *hw)
 {
-    unsigned long reg;
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
-    struct sunxi_clk_periph_gate *gate = &periph->gate;
+	unsigned long reg;
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	struct sunxi_clk_periph_gate *gate = &periph->gate;
 
-    /* de-assert module */
-    if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET) && !IS_SHARE_RST_GATE(periph)) {
-        reg = periph_readl(periph,gate->reset);
-        reg = SET_BITS(gate->rst_shift, 1, reg, 1);
-        periph_writel(periph,reg, gate->reset);
-    }
+	/* de-assert module */
+	if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET)
+		&& !IS_SHARE_RST_GATE(periph)) {
+		reg = periph_readl(periph,gate->reset);
+		reg = SET_BITS(gate->rst_shift, 1, reg, 1);
+		periph_writel(periph,reg, gate->reset);
+	}
 
-    /* enable bus gating */
+/* enable bus gating */
     if(gate->bus && !IS_SHARE_BUS_GATE(periph)) {
-        reg = periph_readl(periph,gate->bus);
-        reg = SET_BITS(gate->bus_shift, 1, reg, 1);
-        periph_writel(periph,reg, gate->bus);
-    }
+    reg = periph_readl(periph,gate->bus);
+    reg = SET_BITS(gate->bus_shift, 1, reg, 1);
+    periph_writel(periph,reg, gate->bus);
+}
 
-    /* enable module gating */
+/* enable module gating */
     if(gate->enable&& !IS_SHARE_MOD_GATE(periph)) {
         reg = periph_readl(periph,gate->enable);
         if(periph->flags & CLK_REVERT_ENABLE)
@@ -126,155 +119,157 @@ static int __sunxi_clk_periph_enable(struct clk_hw *hw)
 
     return 0;
 }
+
 static int sunxi_clk_periph_enable(struct clk_hw *hw)
 {
-    int ret = 0;
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
-    if(periph->flags & CLK_READONLY)
-        return 0;
+	int ret = 0;
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
 
-    if(periph->com_gate)
-        sunxi_clk_periph_enable_shared(periph);
+	if(periph->flags & CLK_READONLY)
+		return 0;
 
-    ret = __sunxi_clk_periph_enable(hw);
+	if(periph->com_gate)
+		ret = __sunxi_clk_periph_enable_shared(periph);
 
-    return ret;
+	if (!ret)
+		ret = __sunxi_clk_periph_enable(hw);
+
+	return ret;
 }
+
 static int __sunxi_clk_periph_is_enabled(struct clk_hw *hw)
 {
-    int state = 1;
-    unsigned long reg;
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
-    struct sunxi_clk_periph_gate *gate = &periph->gate;
+	int state = 1;
+	unsigned long reg;
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	struct sunxi_clk_periph_gate *gate = &periph->gate;
 
-    /* enable bus gating */
-    if(gate->bus) {
-        reg = periph_readl(periph,gate->bus);
-        state &= GET_BITS(gate->bus_shift, 1, reg);
-    }
+	/* enable bus gating */
+	if(gate->bus) {
+		reg = periph_readl(periph,gate->bus);
+		state &= GET_BITS(gate->bus_shift, 1, reg);
+	}
 
-    /* enable module gating */
-    if(gate->enable) {
-        reg = periph_readl(periph,gate->enable);
-        state &= GET_BITS(gate->enb_shift, 1, reg);
-    }
-    /* de-assert module */
-    if(gate->reset) {
-        reg = periph_readl(periph,gate->reset);
-        state &= GET_BITS(gate->rst_shift, 1, reg);
-    }
+	/* enable module gating */
+	if(gate->enable) {
+		reg = periph_readl(periph,gate->enable);
+		state &= GET_BITS(gate->enb_shift, 1, reg);
+	}
+	/* de-assert module */
+	if(gate->reset) {
+		reg = periph_readl(periph,gate->reset);
+		state &= GET_BITS(gate->rst_shift, 1, reg);
+	}
 
-    /* enable dram gating */
-    if(gate->dram) {
-        reg = periph_readl(periph,gate->dram);
-        state &= GET_BITS(gate->ddr_shift, 1, reg);
-    }
+	/* enable dram gating */
+	if(gate->dram) {
+		reg = periph_readl(periph,gate->dram);
+		state &= GET_BITS(gate->ddr_shift, 1, reg);
+	}
 
-    return state;
+	return state;
 }
+
 static int sunxi_clk_periph_is_enabled(struct clk_hw *hw)
 {
-    int state = 0;
-    //struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	int state = 0;
+	//struct sunxi_clk_periph *periph = to_clk_periph(hw);
 
-    state = __sunxi_clk_periph_is_enabled(hw);    
-    return state;
+	state = __sunxi_clk_periph_is_enabled(hw);
+	return state;
 }
 static void __sunxi_clk_periph_disable_shared(struct sunxi_clk_periph *periph)
 {
-    unsigned long reg;
-    struct sunxi_clk_periph_gate *gate = &periph->gate;
-    if(!periph->com_gate->val)
-     return ;
+	unsigned long reg;
+	struct sunxi_clk_periph_gate *gate = &periph->gate;
 
-    periph->com_gate->val &= ~(1 << periph->com_gate_off);      
+	if(!periph->com_gate->val)
+		return ;
 
-    if(!periph->com_gate->val)
-    {
-        /* disable dram gating */
-        if(gate->dram&& IS_SHARE_MBUS_GATE(periph)) {
-            reg = periph_readl(periph,gate->dram);
-            reg = SET_BITS(gate->ddr_shift, 1, reg, 0);
-            periph_writel(periph,reg, gate->dram);
+	periph->com_gate->val &= ~(1 << periph->com_gate_off);
+
+	if(!periph->com_gate->val) {
+		/* disable dram gating */
+		if(gate->dram&& IS_SHARE_MBUS_GATE(periph)) {
+		reg = periph_readl(periph,gate->dram);
+		reg = SET_BITS(gate->ddr_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->dram);
         }
 
         /* disable module gating */
         if(gate->enable&& IS_SHARE_MOD_GATE(periph)) {
-            reg = periph_readl(periph,gate->enable);
-            reg = SET_BITS(gate->enb_shift, 1, reg, 0);
-            periph_writel(periph,reg, gate->enable);
-        }
+		reg = periph_readl(periph,gate->enable);
+		reg = SET_BITS(gate->enb_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->enable);
+	}
 
-        /* disable bus gating */
-        if(gate->bus&& IS_SHARE_BUS_GATE(periph)) {
-            reg = periph_readl(periph,gate->bus);
-            reg = SET_BITS(gate->bus_shift, 1, reg, 0);
-            periph_writel(periph,reg, gate->bus);
+	/* disable bus gating */
+	if(gate->bus&& IS_SHARE_BUS_GATE(periph)) {
+		reg = periph_readl(periph,gate->bus);
+		reg = SET_BITS(gate->bus_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->bus);
         }
         /* assert module */
-        if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET) && IS_SHARE_RST_GATE(periph)) {
-            reg = periph_readl(periph,gate->reset);
-            reg = SET_BITS(gate->rst_shift, 1, reg, 0);
-            periph_writel(periph,reg, gate->reset);
+	if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET)
+		&& IS_SHARE_RST_GATE(periph)) {
+		reg = periph_readl(periph,gate->reset);
+		reg = SET_BITS(gate->rst_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->reset);
         }
     }
 
 }
-static void sunxi_clk_periph_disable_shared(struct sunxi_clk_periph *periph)
-{
-    if(!periph->com_gate->val)
-     return ;
 
-	__sunxi_clk_periph_disable_shared(periph);         
-}
 static void __sunxi_clk_periph_disable(struct sunxi_clk_periph *pperiph)
 {
-    unsigned long reg;
-    struct sunxi_clk_periph *periph = pperiph;
-    struct sunxi_clk_periph_gate *gate = &periph->gate;
+	unsigned long reg;
+	struct sunxi_clk_periph *periph = pperiph;
+	struct sunxi_clk_periph_gate *gate = &periph->gate;
 
-    /* disable dram gating */
-    if(gate->dram&& !IS_SHARE_MBUS_GATE(periph)) {
-        reg = periph_readl(periph,gate->dram);
-        reg = SET_BITS(gate->ddr_shift, 1, reg, 0);
-        periph_writel(periph,reg, gate->dram);
-    }
+	/* disable dram gating */
+	if(gate->dram&& !IS_SHARE_MBUS_GATE(periph)) {
+		reg = periph_readl(periph,gate->dram);
+		reg = SET_BITS(gate->ddr_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->dram);
+	}
 
-    /* disable module gating */
-    if(gate->enable&& !IS_SHARE_MOD_GATE(periph)) {
-        reg = periph_readl(periph,gate->enable);
-        if(periph->flags & CLK_REVERT_ENABLE)
-            reg = SET_BITS(gate->enb_shift, 1, reg, 1);
-        else
-            reg = SET_BITS(gate->enb_shift, 1, reg, 0);
+	/* disable module gating */
+	if(gate->enable&& !IS_SHARE_MOD_GATE(periph)) {
+		reg = periph_readl(periph,gate->enable);
+		if(periph->flags & CLK_REVERT_ENABLE)
+			reg = SET_BITS(gate->enb_shift, 1, reg, 1);
+		else
+			reg = SET_BITS(gate->enb_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->enable);
+	}
 
-        periph_writel(periph,reg, gate->enable);
-    }
+	/* disable bus gating */
+	if(gate->bus&& !IS_SHARE_BUS_GATE(periph)) {
+		reg = periph_readl(periph,gate->bus);
+		reg = SET_BITS(gate->bus_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->bus);
+	}
 
-    /* disable bus gating */
-    if(gate->bus&& !IS_SHARE_BUS_GATE(periph)) {
-        reg = periph_readl(periph,gate->bus);
-        reg = SET_BITS(gate->bus_shift, 1, reg, 0);
-        periph_writel(periph,reg, gate->bus);
-    }
-
-    /* assert module */
-    if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET) &&!IS_SHARE_RST_GATE(periph)) {
-        reg = periph_readl(periph,gate->reset);
-        reg = SET_BITS(gate->rst_shift, 1, reg, 0);
-        periph_writel(periph,reg, gate->reset);
-    }
+	/* assert module */
+	if(gate->reset && !(periph->flags & CLK_IGNORE_AUTORESET)
+		&&!IS_SHARE_RST_GATE(periph)) {
+		reg = periph_readl(periph,gate->reset);
+		reg = SET_BITS(gate->rst_shift, 1, reg, 0);
+		periph_writel(periph,reg, gate->reset);
+	}
 }
+
 static void sunxi_clk_periph_disable(struct clk_hw *hw)
 {
-    struct sunxi_clk_periph *periph = to_clk_periph(hw);
+	struct sunxi_clk_periph *periph = to_clk_periph(hw);
 
-    if(periph->flags & CLK_READONLY)
-        return ;
+	if(periph->flags & CLK_READONLY)
+		return;
 
-    __sunxi_clk_periph_disable(periph);    
-    if(periph->com_gate)
-        sunxi_clk_periph_disable_shared(periph);        
+	__sunxi_clk_periph_disable(periph);
+
+	if(periph->com_gate)
+		__sunxi_clk_periph_disable_shared(periph);
 }
 
 static unsigned long sunxi_clk_periph_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
@@ -446,37 +441,45 @@ void sunxi_clk_get_periph_ops(struct clk_ops* ops)
     memcpy(ops,&sunxi_clk_periph_ops,sizeof(sunxi_clk_periph_ops));
 }
 
-int sunxi_clk_register_periph(const char *name,
-            const char **parent_names, int num_parents,unsigned long flags,
-            void  *base, struct sunxi_clk_periph *periph)
+int sunxi_clk_register_periph(struct periph_init_data *pd, void *base)
 {
-    struct clk_init_data init;
+	struct clk_init_data init;
 	struct clk *clk;
+	struct sunxi_clk_periph *periph;
+
 #ifdef __SUNXI_ALL_CLK_IGNORE_UNUSED__
 		flags |= CLK_IGNORE_UNUSED;
 #endif
-    init.name = name;
-    init.ops = periph->priv_clkops?periph->priv_clkops:&sunxi_clk_periph_ops;
-    init.flags = flags;
-    init.parent_names = parent_names;
-    init.num_parents = num_parents;
+	periph = pd->periph;
 
-    /* Data in .init is copied by clk_register(), so stack variable OK */
-    periph->hw.init = &init;
-    periph->flags = init.flags;
-    /* fix registers */
-    periph->mux.reg = periph->mux.reg ? (base + (u32)periph->mux.reg) : NULL;
-    periph->divider.reg = periph->divider.reg ? (base + (u32)periph->divider.reg) : NULL;
+	init.name = pd->name;
+	init.ops = periph->priv_clkops?periph->priv_clkops:&sunxi_clk_periph_ops;
+	init.flags = pd->flags;
+	init.parent_names = pd->parent_names;
+	init.num_parents = pd->num_parents;
 
-	//printf("%s: periph_mux_reg_address = 0x%x, periph_mux_reg_address = 0x%x\n",__func__, (u32)periph->mux.reg, (u32)periph->divider.reg);
-    periph->gate.enable = periph->gate.enable ? (base + (u32)periph->gate.enable) : NULL;
-    periph->gate.reset = periph->gate.reset ? (base + (u32)periph->gate.reset) : NULL;
-    periph->gate.bus = periph->gate.bus ? (base + (u32)periph->gate.bus) : NULL;
-    periph->gate.dram = periph->gate.dram ? (base + (u32)periph->gate.dram) : NULL;
+	/* Data in .init is copied by clk_register(), so stack variable OK */
+	periph->hw.init = &init;
+	periph->flags = init.flags;
+
+	/* fix registers */
+	periph->mux.reg = periph->mux.reg ? (base + (u32)periph->mux.reg) : NULL;
+	periph->divider.reg = periph->divider.reg ?
+				(base + (u32)periph->divider.reg) : NULL;
+
+	periph->gate.enable = periph->gate.enable ?
+				(base + (u32)periph->gate.enable) : NULL;
+	periph->gate.reset = periph->gate.reset ?
+				(base + (u32)periph->gate.reset) : NULL;
+	periph->gate.bus = periph->gate.bus ?
+				(base + (u32)periph->gate.bus) : NULL;
+	periph->gate.dram = periph->gate.dram ?
+				(base + (u32)periph->gate.dram) : NULL;
 
 	clk = clk_register(&periph->hw);
 	if (NULL == clk)
 		return -1;
-    return 0;
+
+	return 0;
 }
 

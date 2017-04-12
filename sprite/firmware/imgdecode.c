@@ -28,6 +28,7 @@
 #include "imgdecode.h"
 #include "imagefile_new.h"
 #include "../sprite_card.h"
+#include "../sprite_auto_update.h"
 
 #define HEAD_ID				0		//头加密接口索引
 #define TABLE_ID			1		//表加密接口索引
@@ -159,6 +160,67 @@ _img_open_fail_:
 	return NULL;
 }
 
+HIMAGE Img_Fat_Open(char * ImageFile)
+{
+	IMAGE_HANDLE * pImage = NULL;
+	uint ItemTableSize = 0;
+
+	pImage = (IMAGE_HANDLE *)malloc_aligned(sizeof(IMAGE_HANDLE),ARCH_DMA_MINALIGN);
+	if (NULL == pImage)
+	{
+		printf("sunxi sprite error: fail to malloc memory for img head\n");
+
+		return NULL;
+	}
+	memset(pImage, 0, sizeof(IMAGE_HANDLE));
+
+	/* read img head*/
+	if (fat_fs_read(ImageFile,(void *)&pImage->ImageHead, 0, IMAGE_HEAD_SIZE) <= 0)
+	{
+		printf("sunxi sprite error: read iamge head fail\n");
+
+		goto _img_fs_open_fail_;
+	}
+
+	/* check magic*/
+	if (memcmp(pImage->ImageHead.magic, IMAGE_MAGIC, 8) != 0)
+	{
+		printf("sunxi sprite error: iamge magic is bad\n");
+
+		goto _img_fs_open_fail_;
+	}
+
+	ItemTableSize = pImage->ImageHead.itemcount * sizeof(ImageItem_t);
+	pImage->ItemTable = (ImageItem_t*)malloc_aligned(ItemTableSize,ARCH_DMA_MINALIGN);
+	if (NULL == pImage->ItemTable)
+	{
+		printf("sunxi sprite error: fail to malloc memory for item table\n");
+
+		goto _img_fs_open_fail_;
+	}
+
+	/* read itemtable*/
+	if (fat_fs_read(ImageFile,(void *)pImage->ItemTable, IMAGE_HEAD_SIZE, ItemTableSize) <= 0)
+	{
+		printf("sunxi sprite error: read iamge item table fail\n");
+
+		goto _img_fs_open_fail_;
+	}
+
+	return pImage;
+
+_img_fs_open_fail_:
+	if(pImage->ItemTable)
+	{
+		free(pImage->ItemTable);
+	}
+	if(pImage)
+	{
+		free_aligned(pImage);
+	}
+
+	return NULL;
+}
 
 //------------------------------------------------------------------------------------------------------------
 //
@@ -344,6 +406,27 @@ uint Img_GetItemStart	(HIMAGE hImage, HIMAGEITEM hItem)
 
 	return ((uint)start + img_file_start);
 }
+
+uint Img_GetItemOffset(HIMAGE hImage, HIMAGEITEM hItem)
+{
+	IMAGE_HANDLE* pImage = (IMAGE_HANDLE *)hImage;
+	ITEM_HANDLE * pItem  = (ITEM_HANDLE  *)hItem;
+	long long offset;
+
+	if (NULL == pItem)
+	{
+		printf("sunxi sprite error : item is NULL\n");
+
+		return 0;
+	}
+
+	offset = pImage->ItemTable[pItem->index].offsetHi;
+	offset <<= 32;
+	offset |= pImage->ItemTable[pItem->index].offsetLo;
+
+	return ((uint)offset);
+}
+
 //------------------------------------------------------------------------------------------------------------
 //
 // 函数说明
@@ -466,6 +549,49 @@ uint Img_ReadItem(HIMAGE hImage, HIMAGEITEM hItem, void *buffer, uint buffer_siz
 	return file_size;
 }
 #endif
+
+uint Img_Fat_ReadItem(HIMAGE hImage, HIMAGEITEM hItem, char * ImageFile, void *buffer, uint buffer_size)
+{
+	IMAGE_HANDLE* pImage = (IMAGE_HANDLE *)hImage;
+	ITEM_HANDLE * pItem  = (ITEM_HANDLE  *)hItem;
+	long long	  offset;
+	uint	      file_size;
+
+	if (NULL == pItem)
+	{
+		printf("sunxi sprite error : item is NULL\n");
+
+		return 0;
+	}
+	if(pImage->ItemTable[pItem->index].filelenHi)
+	{
+		printf("sunxi sprite error : the item too big\n");
+
+		return 0;
+	}
+	file_size = pImage->ItemTable[pItem->index].filelenLo;
+	file_size = (file_size + 1023) & (~(1024 - 1));
+	debug("file size=%d, buffer size=%d\n", file_size, buffer_size);
+	if(file_size > buffer_size)
+	{
+		printf("sunxi sprite error : buffer is smaller than data size\n");
+
+		return 0;
+	}
+	offset = pImage->ItemTable[pItem->index].offsetHi;
+	offset <<= 32;
+	offset |= pImage->ItemTable[pItem->index].offsetLo;
+
+	if (fat_fs_read(ImageFile,buffer, offset, file_size) <= 0)
+	{
+		printf("sunxi sprite error : read item data failed\n");
+
+		return 0;
+	}
+
+	return file_size;
+}
+
 //------------------------------------------------------------------------------------------------------------
 //
 // 函数说明

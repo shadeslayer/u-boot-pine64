@@ -40,6 +40,8 @@
 #include <mmc.h>
 #include <sys_config.h>
 #include <private_boot0.h>
+#include <sunxi_board.h>
+
 #define  SPRITE_CARD_HEAD_BUFF		   (32 * 1024)
 #if defined (CONFIG_SUNXI_SPINOR)
 #define  SPRITE_CARD_ONCE_DATA_DEAL    (2 * 1024 * 1024)
@@ -50,6 +52,8 @@
 
 static void *imghd = NULL;
 static void *imgitemhd = NULL;
+
+DECLARE_GLOBAL_DATA_PTR;
 
 //extern int sunxi_flash_mmc_phywipe(unsigned long start_block, unsigned long nblock, unsigned long *skip);
 static int __download_normal_part(dl_one_part_info *part_info,  uchar *source_buff);
@@ -153,13 +157,20 @@ int sprite_card_fetch_download_map(sunxi_download_info  *dl_map)
 */
 int sprite_card_fetch_mbr(void  *img_mbr)
 {
+	int mbr_num = SUNXI_MBR_COPY_NUM;
+
+	if (get_boot_storage_type() == STORAGE_NOR)
+	{
+	   mbr_num = 1;
+	}
+
 	imgitemhd = Img_OpenItem(imghd, "12345678", "1234567890___MBR");
 	if(!imgitemhd)
 	{
 		return -1;
 	}
-	debug("try to read item dl map\n");
-	if(!Img_ReadItem(imghd, imgitemhd, img_mbr, sizeof(sunxi_mbr_t) * SUNXI_MBR_COPY_NUM))
+	debug("try to read item mbr\n");
+	if(!Img_ReadItem(imghd, imgitemhd, img_mbr, sizeof(sunxi_mbr_t) * mbr_num))
 	{
 		printf("sunxi sprite error : read mbr failed\n");
 
@@ -217,7 +228,7 @@ static int __download_udisk(dl_one_part_info *part_info,  uchar *source_buff)
 		goto __download_udisk_err1;
 	}
 	//分区镜像够大，需要进行烧录
-	flash_sector = sunxi_flash_size();
+	flash_sector = sunxi_sprite_size();
 	if(!flash_sector)
 	{
 		printf("sunxi sprite error: download_udisk, the flash size is invalid(0)\n");
@@ -780,39 +791,57 @@ __sunxi_sprite_deal_part_err2:
 */
 int sunxi_sprite_deal_uboot(int production_media)
 {
-	char buffer[1024 * 1024];
+	char buffer[4 * 1024 * 1024];
 	uint item_original_size;
+	if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL )
+	{
+		imgitemhd = Img_OpenItem(imghd, "12345678", "UBOOT_0000000000");
+	}
+	else if(gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG)
+	{
+		if (get_boot_storage_type() != STORAGE_NOR)
+		{
+			imgitemhd = Img_OpenItem(imghd, "12345678", "BOOTPKG-00000000");
+		}
+		else
+		{
+			imgitemhd = Img_OpenItem(imghd, "12345678", "BOOTPKG-NOR00000");
+		}
+	}
+	else
+	{
+		imgitemhd = Img_OpenItem(imghd, "12345678", "TOC1_00000000000");
+	}
 
-    imgitemhd = Img_OpenItem(imghd, "12345678", "UBOOT_0000000000");
-    if(!imgitemhd)
-    {
-        printf("sprite update error: fail to open uboot item\n");
-        return -1;
-    }
-    //uboot长度
-    item_original_size = Img_GetItemSize(imghd, imgitemhd);
-    if(!item_original_size)
-    {
-        printf("sprite update error: fail to get uboot item size\n");
-        return -1;
-    }
-    /*获取uboot的数据*/
-    if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer, 1024 * 1024))
-    {
-        printf("update error: fail to read data from for uboot\n");
-        return -1;
-    }
-    Img_CloseItem(imghd, imgitemhd);
-    imgitemhd = NULL;
+	if(!imgitemhd)
+	{
+		printf("sprite update error: fail to open uboot item\n");
+		return -1;
+	}
+	//uboot长度
+	item_original_size = Img_GetItemSize(imghd, imgitemhd);
+	if(!item_original_size)
+	{
+		printf("sprite update error: fail to get uboot item size\n");
+		return -1;
+	}
+	/*获取uboot的数据*/
+	if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer, 4 * 1024 * 1024))
+	{
+		printf("update error: fail to read data from for uboot\n");
+		return -1;
+	}
+	Img_CloseItem(imghd, imgitemhd);
+	imgitemhd = NULL;
 
-    if(sunxi_sprite_download_uboot(buffer, production_media, 0))
-    {
-    	printf("update error: fail to write uboot\n");
-        return -1;
-    }
-    printf("sunxi_sprite_deal_uboot ok\n");
+	if(sunxi_sprite_download_uboot(buffer, production_media, 0))
+	{
+		printf("update error: fail to write uboot\n");
+		return -1;
+	}
+	printf("sunxi_sprite_deal_uboot ok\n");
 
-    return 0;
+	return 0;
 }
 /*
 ************************************************************************************************************
@@ -832,31 +861,128 @@ int sunxi_sprite_deal_uboot(int production_media)
 */
 int sunxi_sprite_deal_boot0(int production_media)
 {
-	char buffer[32 * 1024];
+	char buffer[1*1024*1024];
 	uint item_original_size;
 
-	if(production_media == 0)
+	if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL || gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG )
 	{
-		imgitemhd = Img_OpenItem(imghd, "BOOT    ", "BOOT0_0000000000");
+		if(production_media == STORAGE_NAND)
+		{
+			imgitemhd = Img_OpenItem(imghd, "BOOT    ", "BOOT0_0000000000");
+		}
+		else if (production_media == STORAGE_NOR)
+		{
+			imgitemhd = Img_OpenItem(imghd, "12345678", "1234567890BNOR_0");
+		}
+		else
+		{
+			imgitemhd = Img_OpenItem(imghd, "12345678", "1234567890BOOT_0");
+		}
 	}
 	else
 	{
-		imgitemhd = Img_OpenItem(imghd, "12345678", "1234567890BOOT_0");
+		imgitemhd = Img_OpenItem(imghd, "12345678", "TOC0_00000000000");
 	}
+
+	if(!imgitemhd)
+	{
+		printf("sprite update error: fail to open boot0 item\n");
+		return -1;
+	}
+	//boot0长度
+	item_original_size = Img_GetItemSize(imghd, imgitemhd);
+	if(!item_original_size)
+	{
+		printf("sprite update error: fail to get boot0 item size\n");
+		return -1;
+	}
+	/*获取boot0的数据*/
+	if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer, 1 * 1024 * 1024))
+	{
+		printf("update error: fail to read data from for boot0\n");
+		return -1;
+	}
+	Img_CloseItem(imghd, imgitemhd);
+	imgitemhd = NULL;
+
+	if(sunxi_sprite_download_boot0(buffer, production_media))
+	{
+		printf("update error: fail to write boot0\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int sunxi_sprite_deal_recorvery_boot(int production_media)
+{
+    char buffer_uboot[4 * 1024 * 1024];
+    char buffer_boot0[1 *1024 * 1024];
+    uint item_size_uboot;
+    uint item_size_boot0;
+    if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL )
+    {
+        imgitemhd = Img_OpenItem(imghd, "12345678", "UBOOT_0000000000");
+    }
+    else if(gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG)
+    {
+        imgitemhd = Img_OpenItem(imghd, "12345678", "BOOTPKG-00000000");
+    }
+    else
+    {
+        imgitemhd = Img_OpenItem(imghd, "12345678", "TOC1_00000000000");
+    }
+
+    if(!imgitemhd)
+    {
+        printf("sprite update error: fail to open uboot item\n");
+        return -1;
+    }
+
+    item_size_uboot = Img_GetItemSize(imghd, imgitemhd);
+    if(!item_size_uboot)
+    {
+        printf("sprite update error: fail to get uboot item size\n");
+        return -1;
+    }
+    if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer_uboot, 4 * 1024 * 1024))
+    {
+        printf("update error: fail to read data from for uboot\n");
+        return -1;
+    }
+    Img_CloseItem(imghd, imgitemhd);
+    imgitemhd = NULL;
+
+    if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL || gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG)
+    {
+        if(production_media == 0)
+        {
+            imgitemhd = Img_OpenItem(imghd, "BOOT    ", "BOOT0_0000000000");
+        }
+        else
+        {
+            imgitemhd = Img_OpenItem(imghd, "12345678", "1234567890BOOT_0");
+        }
+    }
+    else
+    {
+        imgitemhd = Img_OpenItem(imghd, "12345678", "TOC0_00000000000");
+    }
+
     if(!imgitemhd)
     {
         printf("sprite update error: fail to open boot0 item\n");
         return -1;
     }
-    //boot0长度
-    item_original_size = Img_GetItemSize(imghd, imgitemhd);
-    if(!item_original_size)
+
+    item_size_boot0 = Img_GetItemSize(imghd, imgitemhd);
+    if(!item_size_boot0)
     {
         printf("sprite update error: fail to get boot0 item size\n");
         return -1;
     }
-    /*获取boot0的数据*/
-    if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer, 32 * 1024))
+
+    if(!Img_ReadItem(imghd, imgitemhd, (void *)buffer_boot0, 1 * 1024 * 1024))
     {
         printf("update error: fail to read data from for boot0\n");
         return -1;
@@ -864,15 +990,22 @@ int sunxi_sprite_deal_boot0(int production_media)
     Img_CloseItem(imghd, imgitemhd);
     imgitemhd = NULL;
 
-    if(sunxi_sprite_download_boot0(buffer, production_media))
+    /*write boot data*/
+    if(sunxi_sprite_download_uboot(buffer_uboot, production_media, 0))
     {
-    	printf("update error: fail to write boot0\n");
+        printf("update error: fail to write uboot\n");
         return -1;
     }
-
+    tick_printf("successed in downloading uboot\n");
+    if(sunxi_sprite_download_boot0(buffer_boot0, production_media))
+    {
+        printf("update error: fail to write boot0\n");
+        return -1;
+    }
+    tick_printf("successed in downloading boot0\n");
+    printf("sunxi_sprite_deal_recorvery_boot ok\n");
     return 0;
 }
-
 /*
 ************************************************************************************************************
 *
@@ -898,30 +1031,7 @@ int card_download_uboot(uint length, void *buffer)
 	{
 		return -1;
 	}
-
-	return 0;
-}
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
-int card_download_boot0(uint length, void *buffer)
-{
-	int ret;
-
-	ret = sunxi_sprite_phywrite(BOOT0_SDMMC_START_ADDR, length/512, buffer);
+	ret = sunxi_sprite_phywrite(UBOOT_BACKUP_START_SECTOR_IN_SDMMC, length/512, buffer);
 	if(!ret)
 	{
 		return -1;
@@ -945,18 +1055,95 @@ int card_download_boot0(uint length, void *buffer)
 *
 ************************************************************************************************************
 */
-int card_upload_boot0(uint length, void *buffer)
+int card_download_boot0(uint length, void *buffer, uint storage_type)
 {
-	int ret;
+	int ret = 0;
+	char *erase_buffer = NULL;
 
-	ret = sunxi_sprite_phyread(BOOT0_SDMMC_START_ADDR, (length+511)/512, buffer);
-	if(!ret)
+	erase_buffer = (char *)malloc(length);
+	if (!erase_buffer)
 	{
+		printf("%s: malloc %d byte memory fail\n",  __func__, length);
 		return -1;
 	}
+	memset(erase_buffer, 0, length);
 
-	return 0;
+	//for card2
+	if (storage_type == STORAGE_EMMC)
+	{
+		printf("card2 download boot0 \n");
+		//write boot0 bankup copy firstly
+		ret = sunxi_sprite_phywrite(BOOT0_SDMMC_BACKUP_START_ADDR, length/512, buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_SDMMC_BACKUP_START_ADDR);
+			goto ERR_OUT;
+		}
+		ret = sunxi_sprite_phywrite(BOOT0_SDMMC_START_ADDR, length/512, buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_SDMMC_START_ADDR);
+			goto ERR_OUT;
+		}
+
+#ifdef PLATFORM_SUPPORT_EMMC3
+		ret = sunxi_sprite_phywrite(BOOT0_EMMC3_START_ADDR, length/512, erase_buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_EMMC3_START_ADDR);
+			goto ERR_OUT;
+		}
+		ret = sunxi_sprite_phywrite(BOOT0_EMMC3_BACKUP_START_ADDR, length/512, erase_buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_EMMC3_BACKUP_START_ADDR);
+			goto ERR_OUT;
+		}
+#endif
+	}
+	else //for card3
+	{
+#ifdef PLATFORM_SUPPORT_EMMC3
+		printf("card3 download boot0 \n");
+		//write boot0 bankup copy firstly
+		ret = sunxi_sprite_phywrite(BOOT0_EMMC3_BACKUP_START_ADDR, length/512, buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_EMMC3_BACKUP_START_ADDR);
+			goto ERR_OUT;
+		}
+		ret = sunxi_sprite_phywrite(BOOT0_EMMC3_START_ADDR, length/512, buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_EMMC3_START_ADDR);
+			goto ERR_OUT;
+		}
+
+		ret = sunxi_sprite_phywrite(BOOT0_SDMMC_START_ADDR, length/512, erase_buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_SDMMC_START_ADDR);
+			goto ERR_OUT;
+		}
+		ret = sunxi_sprite_phywrite(BOOT0_SDMMC_BACKUP_START_ADDR, length/512, erase_buffer);
+		if(!ret)
+		{
+			printf("%s: write boot0 from %d fail\n", __func__, BOOT0_SDMMC_BACKUP_START_ADDR);
+			goto ERR_OUT;
+		}
+#endif
+	}
+
+ERR_OUT:
+	if (erase_buffer != NULL)
+		free(erase_buffer);
+
+	if (!ret)
+		return -1;
+	else
+		return 0;
 }
+
 /*
 ************************************************************************************************************
 *
@@ -1065,6 +1252,7 @@ int card_download_standard_mbr(void *buffer)
 
 	return 0;
 }
+
 /*
 ************************************************************************************************************
 *
@@ -1113,7 +1301,7 @@ int card_erase(int erase, void *mbr_buffer)
 	memset(erase_buffer, 0, CARD_ERASE_BLOCK_BYTES);
 
 	//erase boot0,write 0x00
-	card_download_boot0(32 * 1024, erase_buffer);
+	card_download_boot0(32 * 1024, erase_buffer, uboot_spare_head.boot_data.storage_type);
 	printf("erase boot0, size:32k, write 0x00\n");
 
 	for(i=1;i<mbr->PartCount;i++)
@@ -1207,98 +1395,6 @@ int card_erase(int erase, void *mbr_buffer)
 	//tick_printf("erase all part end\n");
 	return 0;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :
-*
-*
-************************************************************************************************************
-*/
-#if defined(CONFIG_ARCH_SUN8IW1P1)
-
-#define  BOOT0_MAX_SIZE   (32 * 1024)
-
-int sunxi_card_probe_mmc0_boot(void)
-{
-	char  buffer[BOOT0_MAX_SIZE];
-	boot0_file_head_t  *boot0_head;
-	uint src_sum, cal_sum;
-	struct mmc *mmc0;
-	char  debug_info[1024];
-
-	puts("probe mmc0 if exist\n");
-	memset(debug_info, 0, 1024);
-	board_mmc_pre_init(0);
-	mmc0 = find_mmc_device(0);
-	if(!mmc0)
-	{
-		strcpy(debug_info, "fail to find mmc0");
-
-		goto __sunxi_card_probe_mmc0_boot_exit;
-	}
-	debug("try to init mmc0\n");
-	if (mmc_init(mmc0))
-	{
-		strcpy(debug_info, "MMC0 init failed");
-
-		goto __sunxi_card_probe_mmc0_boot_exit;
-	}
-	memset(buffer, 0, BOOT0_MAX_SIZE);
-
-	if(mmc0->block_dev.block_read_mass_pro(mmc0->block_dev.dev, 16, BOOT0_MAX_SIZE/512, buffer) != BOOT0_MAX_SIZE/512)
-	{
-		strcpy(debug_info, "read mmc boot0 failed");
-
-		goto __sunxi_card_probe_mmc0_boot_exit;
-	}
-	//reset uart gpio
-	gpio_request_simple("uart_para", NULL);
-	//reset jtag
-	gpio_request_simple("jtag_para", NULL);
-	//compare data
-	boot0_head = (boot0_file_head_t *)buffer;
-	printf("boot0 magic = %s\n", boot0_head->boot_head.magic);
-	if(strncmp((const char *)boot0_head->boot_head.magic, BOOT0_MAGIC, 8))
-	{
-		puts("boot0 magic invalid\n");
-
-		return 0;
-	}
-
-	src_sum = boot0_head->boot_head.check_sum;
-	boot0_head->boot_head.check_sum = STAMP_VALUE;
-	cal_sum = add_sum(buffer, boot0_head->boot_head.length);
-	if(src_sum != cal_sum)
-	{
-		puts("boot0 addsum error\n");
-
-		return 0;
-	}
-
-	sunxi_board_run_fel();
-
-	return 0;
-
-__sunxi_card_probe_mmc0_boot_exit:
-	//reset uart gpio
-	gpio_request_simple("uart_para", NULL);
-	//reset jtag
-	gpio_request_simple("jtag_para", NULL);
-
-	printf("%s\n", debug_info);
-
-	return 0;
-}
-#endif
 
 #define  BOOT0_MAX_SIZE   (32 * 1024)
 int sunxi_card_fill_boot0_magic(void)
@@ -1335,23 +1431,17 @@ int sunxi_card_fill_boot0_magic(void)
 
 		goto __sunxi_card_fill_boot0_magic_exit;
 	}
-#ifdef CONFIG_ARCH_SUN8IW3P1
-	//reset uart gpio
-	gpio_request_simple("uart_para", NULL);
-	//reset jtag
-	gpio_request_simple("jtag_para", NULL);
-#endif
-    //compare data
+	//compare data
 	boot0_head = (boot0_file_head_t *)buffer;
 	//fill boot0 magic
 	memcpy((char *)boot0_head->boot_head.magic, BOOT0_MAGIC,8);
-    printf("boot0_head->boot_head.magic   == %s \n",(char*)boot0_head->boot_head.magic);
+	printf("boot0_head->boot_head.magic   == %s \n",(char*)boot0_head->boot_head.magic);
 	src_sum = boot0_head->boot_head.check_sum;
-    printf("src_sum = %x \n" ,src_sum);
-    //boot0_head->boot_head.check_sum = STAMP_VALUE;
-    printf("boot0_head->boot_head.length  =  %d \n",boot0_head->boot_head.length);
+	printf("src_sum = %x \n" ,src_sum);
+	//boot0_head->boot_head.check_sum = STAMP_VALUE;
+	printf("boot0_head->boot_head.length  =  %d \n",boot0_head->boot_head.length);
 	boot0_head->boot_head.check_sum = STAMP_VALUE;
-    cal_sum = add_sum(buffer, boot0_head->boot_head.length);
+	cal_sum = add_sum(buffer, boot0_head->boot_head.length);
 	if(src_sum != cal_sum)
 	{
 		puts("boot0 addsum error\n");
@@ -1360,7 +1450,7 @@ int sunxi_card_fill_boot0_magic(void)
 	}
 
 	boot0_head->boot_head.check_sum = src_sum;
-    flush_cache((ulong)buffer,BOOT0_MAX_SIZE);
+	flush_cache((ulong)buffer,BOOT0_MAX_SIZE);
 	if(mmc0->block_dev.block_write_mass_pro(mmc0->block_dev.dev, 16, BOOT0_MAX_SIZE/512, buffer) != BOOT0_MAX_SIZE/512)
 	{
 		strcpy(debug_info, "write mmc boot0 failed");
@@ -1372,95 +1462,60 @@ int sunxi_card_fill_boot0_magic(void)
 	return ret ;
 
 __sunxi_card_fill_boot0_magic_exit:
-#ifdef CONFIG_ARCH_SUN8IW3P1
-	//reset uart gpio
-	gpio_request_simple("uart_para", NULL);
-	//reset jtag
-	gpio_request_simple("jtag_para", NULL);
-#endif
 	printf("%s\n", debug_info);
-
 	return ret ;
 }
 
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :  一键恢复烧写分区
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :	yanjianbo@allwinnertech.com
-*
-*
-************************************************************************************************************
-*/
 int sunxi_sprite_deal_part_from_sysrevoery(sunxi_download_info *dl_map)
 {
-    dl_one_part_info  	*part_info;
+	dl_one_part_info  	*part_info;
 	int 				ret  = -1;
 	int 				ret1;
 	int 				  i  = 0;
-    uchar *down_buff         = NULL;
-    int					rate;
+	uchar *down_buff         = NULL;
+	int					rate;
 
 	if(!dl_map->download_count)
 	{
 		printf("sunxi sprite: no part need to write\n");
-
 		return 0;
 	}
-	rate = (80)/dl_map->download_count;
-	//初始化flash，nand或者mmc
-	//
-/*
-	if(sunxi_sprite_init(1))
+	rate = (80)/(dl_map->download_count+1);
+
+	down_buff = (uchar *)malloc(SPRITE_CARD_ONCE_DATA_DEAL + SPRITE_CARD_HEAD_BUFF);
+	if(!down_buff)
 	{
-		printf("sunxi sprite err: init flash err\n");
-
-		return -1;
+		printf("sunxi sprite err: unable to malloc memory for sunxi_sprite_deal_part\n");
+		goto __sunxi_sprite_deal_part_err1;
 	}
-*/
- 	//申请内存
-    down_buff = (uchar *)malloc(SPRITE_CARD_ONCE_DATA_DEAL + SPRITE_CARD_HEAD_BUFF);
-    if(!down_buff)
-    {
-    	printf("sunxi sprite err: unable to malloc memory for sunxi_sprite_deal_part\n");
 
-    	goto __sunxi_sprite_deal_part_err1;
-    }
-
-    for(part_info = dl_map->one_part_info, i = 0; i < dl_map->download_count; i++, part_info++)
-    {
-    	tick_printf("begin to download part %s\n", part_info->name);
+	for(part_info = dl_map->one_part_info, i = 0; i < dl_map->download_count; i++, part_info++)
+	{
+		tick_printf("begin to download part %s\n", part_info->name);
 		if (!strcmp("env", (const char *)part_info->name))
-	    {
-	    	printf("env part do not need to rewrite\n");
+		{
+			printf("env part do not need to rewrite\n");
 			sprite_cartoon_upgrade(20 + rate * (i+1));
-	    	continue;
-	    }
+			continue;
+		}
 		else if (!strcmp("sysrecovery", (const char *)part_info->name))
-	    {
-	    	printf("THIS_IMG_SELF_00 do not need to rewrite\n");
+		{
+			printf("THIS_IMG_SELF_00 do not need to rewrite\n");
 			sprite_cartoon_upgrade(20 + rate * (i+1));
-	    	continue;
-	    }
+			continue;
+		}
 		else if (!strcmp("UDISK", (const char *)part_info->name))
-	    {
-	    	printf("UDISK do not need to rewrite\n");
+		{
+			printf("UDISK do not need to rewrite\n");
 			sprite_cartoon_upgrade(20 + rate * (i+1));
-	    	continue;
-	    }
+			continue;
+		}
 		else if (!strcmp("private", (const char *)part_info->name))
-	    {
-	    	printf("private do not need to rewrite\n");
+		{
+			printf("private do not need to rewrite\n");
 			sprite_cartoon_upgrade(20 + rate * (i+1));
-	    	continue;
-	    }
+			continue;
+		}
 		else
 		{
 			ret1 = __download_normal_part(part_info, down_buff);
@@ -1481,31 +1536,14 @@ __sunxi_sprite_deal_part_err1:
 
 __sunxi_sprite_deal_part_err2:
 
-    if(down_buff)
-    {
-    	free(down_buff);
-    }
+	if(down_buff)
+	{
+		free(down_buff);
+	}
 
-    return ret;
+	return ret;
 }
 
-
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :  这个函数主要主要为了用sprite的函数接口
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :  yanjianbo@allwinnertech.com
-*
-*
-************************************************************************************************************
-*/
 int __imagehd(HIMAGE tmp_himage)
 {
 	imghd = tmp_himage;
@@ -1515,35 +1553,20 @@ int __imagehd(HIMAGE tmp_himage)
 	}
 	return -1;
 }
-/*
-************************************************************************************************************
-*
-*                                             function
-*
-*    name          :  这个函数主要主要为了用sprite的函数接口
-*
-*    parmeters     :
-*
-*    return        :
-*
-*    note          :  guoyingyang@allwinnertech.com
-*
-*
-************************************************************************************************************
-*/
+
 #ifdef CONFIG_SUNXI_SPINOR
 extern int sunxi_sprite_setdata_finish(void);
 static int __download_fullimg_part(uchar *source_buff)
 {
     uint tmp_partstart_by_sector;
 
-    s64  partdata_by_byte;                  //Dèòa????μ?・???êy?Y(×??úμ￥??)
+    s64  partdata_by_byte;
     s64  tmp_partdata_by_bytes;
 
-    uint onetime_read_sectors;              //ò?′??áD′μ?éè??êy
+    uint onetime_read_sectors;
     uint first_write_bytes;
 
-    uint imgfile_start;                     //・???êy?Y?ù?úμ?éè??
+    uint imgfile_start;
     uint tmp_imgfile_start;
 
     u8 *down_buffer           = source_buff + SPRITE_CARD_HEAD_BUFF;

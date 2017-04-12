@@ -28,6 +28,7 @@
 #include <asm/u-boot.h>
 #include <sunxi_flash.h>
 #include <spare_head.h>
+#include <boot_gui.h>
 
 extern int sunxi_oem_op_lock(int lock_flag, char *info, int force);
 
@@ -74,6 +75,7 @@ extern void board_status_probe(int standby_mode);
 extern void power_limit_detect_enter(void);
 extern void power_limit_detect_exit(void);
 extern void power_limit_init(void);
+extern void power_limit_for_vbus(int battery_exist,int power_type);
 
 extern int usb_detect_enter(void);
 extern int usb_detect_exit(void);
@@ -119,12 +121,23 @@ extern int check_physical_key_early(void);
 extern void sunxi_set_fel_flag(void);
 extern void sunxi_clear_fel_flag(void);
 
+extern int sunxi_verify_embed_signature(void *buff, unsigned int len, const char *cert_name,\
+										void *cert, unsigned cert_len);
 extern int sunxi_verify_signature(void *buff, uint len, const char *cert_name);
+extern int sunxi_verify_rotpk_hash(void *input_hash_buf, int len);
 
 extern void sunxi_dump(void *addr, unsigned int size);
 extern char* board_hardware_info(void);
 extern int get_boot_work_mode(void);
 extern int get_boot_storage_type(void);
+extern u32 get_boot_dram_para_addr(void);
+extern u32 get_boot_dram_para_size(void);
+extern u32 get_boot_dram_update_flag(void);
+extern void set_boot_dram_update_flag(u32 *dram_para);
+
+extern int mmc_request_update_boot0(int dev_num);
+extern int mmc_write_info(int dev_num,void *buffer,u32 buffer_size);
+
 extern int get_debugmode_flag(void);
 
 extern int sunxi_probe_securemode(void);
@@ -132,5 +145,20 @@ extern int sunxi_get_securemode(void);
 extern int sunxi_probe_secure_monitor(void);
 extern int smc_init(void);
 
+
+extern int erase_all_private_data(void);
+extern int read_private_key_by_name(const char * name, char *buffer, int buffer_len, int *data_len);
+extern int save_user_private_data(char *name, char *data, int length);
+
+extern int sunxi_download_boot0_atfter_ota(void *buffer, int production_media);
+
+extern int get_core_pos(void);
+
+extern void sunxi_store_gp_status(void);
+extern void sunxi_set_gp_status(void);
+extern void sunxi_restore_gp_status(void);
+
+extern int  cleanup_before_powerdown(void);
+void sunxi_dump(void *addr, unsigned int size);
 
 #endif /*_SUNXI_BOARD_H_ */

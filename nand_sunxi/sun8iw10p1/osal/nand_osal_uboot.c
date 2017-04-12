@@ -31,10 +31,10 @@
 
 //#define get_wvalue(addr)	(*((volatile unsigned long  *)(addr)))
 //#define put_wvalue(addr, v)	(*((volatile unsigned long  *)(addr)) = (unsigned long)(v))
-#define  NAND_DRV_VERSION_0		0x2
-#define  NAND_DRV_VERSION_1		0x24
-#define  NAND_DRV_DATE			0x20150402
-#define  NAND_DRV_TIME			0x1122
+#define  NAND_DRV_VERSION_0		0x03
+#define  NAND_DRV_VERSION_1		0x5001
+#define  NAND_DRV_DATE			0x20160512
+#define  NAND_DRV_TIME			0x1716
 
 
 extern int sunxi_get_securemode(void);
@@ -51,6 +51,7 @@ void put_wvalue(__u32 addr,__u32 v)
 __u32 NAND_GetNdfcVersion(void);
 void * NAND_Malloc(unsigned int Size);
 void NAND_Free(void *pAddr, unsigned int Size);
+int NAND_Get_Version(void);
 static __u32 boot_mode;
 //static __u32 gpio_hdl;
 static int nand_nodeoffset;
@@ -77,7 +78,7 @@ int NAND_Print(const char * str, ...)
 	    tick_printf(_buf);
 		return 0;
 	}
-    
+
 }
 
 int NAND_Print_DBG(const char * str, ...)
@@ -95,7 +96,7 @@ int NAND_Print_DBG(const char * str, ...)
 	    tick_printf(_buf);
 		return 0;
 	}
-    
+
 }
 
 __s32 NAND_CleanFlushDCacheRegion(void *buff_addr, __u32 len)
@@ -191,7 +192,7 @@ __u32 _Getpll6Clk(void)
 	factor_k = ((reg_val >> 4) & 0x3) + 1;
 	//div_m = ((reg_val >> 0) & 0x3) + 1;
 
-	clock = 24000000 * factor_n * factor_k/2;
+	clock = 24000000 * factor_n * factor_k;
 	//NAND_Print("pll6 clock is %d Hz\n", clock);
 	//if(clock != 600000000)
 		//printf("pll6 clock rate error, %d!!!!!!!\n", clock);
@@ -223,7 +224,7 @@ __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk)
 	sclk_pre_ratio_n = (reg_val>>16) & 0x3;;
 	sclk_ratio_m     = (reg_val) & 0xf;
 	if (sclk_src_sel == 0)
-		sclk_src = 24;
+		sclk_src = 26;
 	else
 		sclk_src = _Getpll6Clk()/1000000;
 	sclk0 = (sclk_src >> sclk_pre_ratio_n) / (sclk_ratio_m+1);
@@ -271,7 +272,7 @@ __s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk)
 
 	if(sclk0_src_sel == 0x0) {
 		//osc pll
-        sclk0_src = 24;
+        sclk0_src = 26;
 	} else {
 		//pll6 for ndfc version 1
 		sclk0_src = _Getpll6Clk()/1000000;
@@ -351,7 +352,7 @@ __s32 _close_ndfc_clk_v1(__u32 nand_index)
 
 	reg_val = get_wvalue(sclk0_reg_adr);
 	//printf("ndfc clk release,sclk reg adr %x:%x\n",sclk0_reg_adr,reg_val);
-	
+
 	//printf(" close sclk0 and sclk1\n");
 	return 0;
 }
@@ -384,7 +385,7 @@ __s32 _open_ndfc_ahb_gate_and_reset_v1(__u32 nand_index)
 		reg_val &= (~(0x1U<<13));
 //		*(volatile __u32 *)(0x01c20000 + 0x2c0) = reg_val;
 		put_wvalue((0x01c20000 + 0x2c0),reg_val);
-		
+
 		reg_val = get_wvalue(0x01c20000 + 0x2c0);
 		reg_val |= (0x1U<<13);
 //		*(volatile __u32 *)(0x01c20000 + 0x2c0) = reg_val;
@@ -411,7 +412,7 @@ __s32 _close_ndfc_ahb_gate_and_reset_v1(__u32 nand_index)
 		reg_val &= (~(0x1U<<13));
 //		*(volatile __u32 *)(0x01c20000 + 0x2c0) = reg_val;
 		put_wvalue((0x01c20000 + 0x2c0),reg_val);
-		
+
 		// ahb clock gate
 		reg_val = get_wvalue(0x01c20000 + 0x60);
 		reg_val &= (~(0x1U<<13));
@@ -435,11 +436,13 @@ __s32 _cfg_ndfc_gpio_v1(__u32 nand_index)
 	if (nand_index == 0) {
 		*(volatile __u32 *)(0x01c20800 + 0x48) = 0x22222222;
 		*(volatile __u32 *)(0x01c20800 + 0x4c) = 0x22222222;
-		*(volatile __u32 *)(0x01c20800 + 0x50) = 0x222;
+//		*(volatile __u32 *)(0x01c20800 + 0x50) = 0x222;
+		*(volatile __u32 *)(0x01c20800 + 0x5c) = 0x15555555;
+		*(volatile __u32 *)(0x01c20800 + 0x64) = 0x00000440;
 		NAND_Print("NAND_PIORequest, nand_index: 0x%x\n", nand_index);
 		NAND_Print("Reg 0x01c20848: 0x%x\n", *(volatile __u32 *)(0x01c20848));
 		NAND_Print("Reg 0x01c2084c: 0x%x\n", *(volatile __u32 *)(0x01c2084c));
-		NAND_Print("Reg 0x01c20850: 0x%x\n", *(volatile __u32 *)(0x01c20850));
+//		NAND_Print("Reg 0x01c20850: 0x%x\n", *(volatile __u32 *)(0x01c20850));
 	} else {
 		printf("_cfg_ndfc_gpio_v1, wrong nand index %d\n", nand_index);
 		return -1;
@@ -493,8 +496,8 @@ void NAND_ClkRelease(__u32 nand_index)
 		_close_ndfc_clk_v1(nand_index);
 
 		_close_ndfc_ahb_gate_and_reset_v1(nand_index);
-				
-	} 
+
+	}
 
 	return;
 
@@ -572,7 +575,7 @@ int NAND_GetClk(__u32 nand_index, __u32 *pnand_clk0, __u32 *pnand_clk1)
 
 __s32 NAND_PIORequest(__u32 nand_index)
 {
-#if 0	
+#if 0
 	__s32 ret = 0;
 	__u32 ndfc_version = NAND_GetNdfcVersion();
 
@@ -607,8 +610,8 @@ __s32 NAND_PIORequest(__u32 nand_index)
 		printf("NAND_PIORequest, failed!\n");
 		return -1;
 	}
-	
-	 
+
+
 #endif
 	return 0;
 }
@@ -673,7 +676,7 @@ __s32 NAND_PIOFuncChange_REc(__u32 nand_index, __u32 en)
 void NAND_PIORelease(__u32 nand_index)
 {
 	//int ret;
-	
+
 	//ret = gpio_release(gpio_hdl, 2);
 	//if(ret)
 	//	printf("nand gpio release fail\n");
@@ -719,7 +722,19 @@ void NAND_Free(void *pAddr, unsigned int Size)
 #else
 void * NAND_Malloc(unsigned int Size)
 {
-	return malloc(Size);
+    void * buf;
+    if(Size == 0)
+    {
+        printf("NAND_Malloc 0!\n");
+        return NULL;
+    }
+
+    buf = malloc(Size);
+    if(buf == NULL)
+    {
+        printf("NAND_Malloc fail!\n");
+    }
+	return buf;
 }
 
 void NAND_Free(void *pAddr, unsigned int Size)
@@ -894,17 +909,17 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 	int nand_para;
 	int ret;
     char str[9];
-    
+
     str[0] = 'n';
     str[1] = 'a';
     str[2] = 'n';
-    str[3] = 'd'; 
-	str[4] = '0'; 
+    str[3] = 'd';
+	str[4] = '0';
     str[5] = '_';
-    str[6] = 'p';     
+    str[6] = 'p';
     str[7] = '0';
-    str[8] = '\0'; 
- 
+    str[8] = '\0';
+
     if(para_num == 0)//frequency
     {
         str[7] = '0';
@@ -935,7 +950,8 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 		return 0xffffffff;
     }
 
-	ret = nand_para = 0;
+	ret = 0;
+	nand_para = 0;
 	ret = fdt_getprop_u32(working_fdt, nand_nodeoffset,str, (uint32_t*)&nand_para);
 	if(ret < 0)
 	{
@@ -968,6 +984,11 @@ __u32 NAND_GetNandIDNumCtrl(void)
 		else
 			return id_number_ctl;
 	}
+}
+
+void nand_cond_resched(void)
+{
+	;
 }
 
 __u32 NAND_GetNandCapacityLevel(void)
@@ -1033,10 +1054,10 @@ int NAND_IS_Secure_sys(void)
 {
 	int mode=0;
 
-	mode = sunxi_get_securemode();	
+	mode = sunxi_get_securemode();
 	if(mode==0) //normal mode
 		return 0;
-	else if((mode==1)||(mode==2))//secure 
+	else if((mode==1)||(mode==2))//secure
 		return 1;
 
 	return 0;
@@ -1065,8 +1086,11 @@ void NAND_Print_Version(void)
 	val[1] = NAND_DRV_VERSION_1;
 	val[2] = NAND_DRV_DATE;
 	val[3] = NAND_DRV_TIME;
-	
+
 	printf("uboot: nand version: %x %x %x %x \n",val[0],val[1],val[2],val[3]);
 }
 
-
+int NAND_Get_Version(void)
+{
+    return NAND_DRV_DATE;
+}

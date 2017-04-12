@@ -31,8 +31,70 @@
 #include "sprite_card.h"
 #include <sunxi_nand.h>
 #include <sunxi_flash.h>
+#include <sunxi_board.h>
 
 DECLARE_GLOBAL_DATA_PTR;
+
+extern int sunxi_set_secure_mode(void);
+
+int  __attribute__((weak)) nand_force_download_uboot(uint length,void *buffer)
+{
+	return -1;
+}
+
+int  __attribute__((weak))  nand_download_uboot(uint length, void *buffer)
+{
+	return -1;
+}
+
+int  __attribute__((weak))  nand_write_boot0(void *buffer,uint length)
+{
+	return -1;
+}
+uint __attribute__((weak)) nand_uboot_get_flash_info(void *buffer, uint length)
+{
+	return 0;
+}
+int __attribute__((weak)) nand_download_boot0(uint length, void *buffer)
+{
+	return -1;
+}
+int __attribute__((weak)) spinor_download_uboot(uint length, void *buffer)
+{
+	return -1;
+}
+int __attribute__((weak)) spinor_download_boot0(uint length, void *buffer)
+{
+	return -1;
+}
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+void dump_dram_para(void* dram, uint size)
+{
+	int i;
+	uint *addr = (uint *)dram;
+
+	for(i=0;i<size;i++)
+	{
+		printf("dram para[%d] = %x\n", i, addr[i]);
+	}
+}
+
 /*
 ************************************************************************************************************
 *
@@ -52,8 +114,15 @@ DECLARE_GLOBAL_DATA_PTR;
 int sunxi_sprite_download_mbr(void *buffer, uint buffer_size)
 {
 	int ret;
+	int storage_type = 0;
+	int mbr_num = SUNXI_MBR_COPY_NUM;
 
-	if(buffer_size != (SUNXI_MBR_SIZE * SUNXI_MBR_COPY_NUM))
+	if (get_boot_storage_type() == STORAGE_NOR)
+	{
+		  mbr_num = 1;
+	}
+
+	if(buffer_size != (SUNXI_MBR_SIZE * mbr_num))
 	{
 		printf("the mbr size is bad\n");
 
@@ -77,7 +146,8 @@ int sunxi_sprite_download_mbr(void *buffer, uint buffer_size)
 
 		ret = -1;
 	}
-	if(uboot_spare_head.boot_data.storage_type == 2)
+	storage_type = get_boot_storage_type();
+	if(STORAGE_EMMC == storage_type || STORAGE_EMMC3 == storage_type)
 	{
 		printf("begin to write standard mbr\n");
 		if(card_download_standard_mbr(buffer))
@@ -114,91 +184,73 @@ int sunxi_sprite_download_mbr(void *buffer, uint buffer_size)
 *
 ************************************************************************************************************
 */
-int sunxi_sprite_download_uboot(void *buffer, int production_media, int mode)
+int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate_checksum)
 {
-	if(!gd->securemode)
-    {
-    	struct spare_boot_head_t    *uboot  = (struct spare_boot_head_t *)buffer;
-
-		//校验特征字符是否正确
-		debug("%s\n", uboot->boot_head.magic);
+	int length = 0;
+	if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL)
+	{
+		struct spare_boot_head_t    *uboot  = (struct spare_boot_head_t *)buffer;
+		printf("uboot magic %s\n", uboot->boot_head.magic);
 		if(strncmp((const char *)uboot->boot_head.magic, UBOOT_MAGIC, MAGIC_SIZE))
 		{
 			printf("sunxi sprite: uboot magic is error\n");
-
 			return -1;
 		}
-		//校验数据是否正确
-		if(!mode)
-		{
-			if(sunxi_sprite_verify_checksum(buffer, uboot->boot_head.length, uboot->boot_head.check_sum))
-			{
-				printf("sunxi sprite: uboot checksum is error\n");
+		length = uboot->boot_head.length;
 
-				return -1;
-			}
-			//读出dram参数
-			//填充FLASH信息
-			if(!production_media)
-			{
-				nand_uboot_get_flash_info((void *)uboot->boot_data.nand_spare_data, STORAGE_BUFFER_SIZE);
-			}
-		}
-		/* regenerate check sum */
-		uboot->boot_head.check_sum = sunxi_sprite_generate_checksum(buffer, uboot->boot_head.length, uboot->boot_head.check_sum);
-		//校验数据是否正确
-		if(sunxi_sprite_verify_checksum(buffer, uboot->boot_head.length, uboot->boot_head.check_sum))
-		{
-			printf("sunxi sprite: uboot checksum is error\n");
-
-			return -1;
-		}
-
-		printf("uboot size = 0x%x\n", uboot->boot_head.length);
-		printf("storage type = %d\n", production_media);
-		if(!production_media)
-		{
-			debug("nand down uboot\n");
-	        if(uboot_spare_head.boot_data.work_mode == WORK_MODE_BOOT)
-	        {
-	            printf("work_mode_boot \n");
-	            return nand_force_download_uboot(uboot->boot_head.length,buffer);
-	        }
-	        else
-	        {
-			    return nand_download_uboot(uboot->boot_head.length, buffer);
-	        }
-	    }
-		else
-		{
-			printf("mmc down uboot\n");
-			return card_download_uboot(uboot->boot_head.length, buffer);
-		}
 	}
 	else
 	{
 		sbrom_toc1_head_info_t *toc1 = (sbrom_toc1_head_info_t *)buffer;
-
-		if(!production_media)
+		if(gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG )
 		{
-			debug("nand down uboot\n");
-			if(uboot_spare_head.boot_data.work_mode == WORK_MODE_BOOT)
-			{
-			    printf("work_mode_boot\n");
-			    return nand_force_download_uboot(toc1->valid_len,buffer);
-			}
-			else
-			{
-				return nand_download_uboot(toc1->valid_len, buffer);
-			}
-	    }
+			printf("uboot_pkg magic 0x%x\n", toc1->magic);
+		}
 		else
 		{
-			printf("mmc down uboot\n");
-			return card_download_uboot(toc1->valid_len, buffer);
+			printf("toc magic 0x%x\n", toc1->magic);
+		}
+		if(toc1->magic != TOC_MAIN_INFO_MAGIC)
+		{
+			printf("sunxi sprite: toc magic is error\n");
+			return -1;
+		}
+		length = toc1->valid_len;
+		if(generate_checksum)
+		{
+			toc1->add_sum = sunxi_sprite_generate_checksum(buffer,
+		                toc1->valid_len,toc1->add_sum);
 		}
 	}
+
+	printf("uboot size = 0x%x\n", length);
+	printf("storage type = %d\n", production_media);
+	if (production_media == STORAGE_NAND)
+	{
+		debug("nand down uboot\n");
+		if(uboot_spare_head.boot_data.work_mode == WORK_MODE_BOOT)
+		{
+			printf("work_mode_boot \n");
+			return nand_force_download_uboot(length,buffer);
+		}
+		else
+		{
+			return nand_download_uboot(length, buffer);
+		}
+	}
+	else if (production_media == STORAGE_NOR)
+	{
+		printf("spinor down uboot\n");
+		return spinor_download_uboot(length, buffer);
+	}
+	else
+	{
+		printf("mmc down uboot\n");
+		return card_download_uboot(length, buffer);
+	}
 }
+
+
 /*
 ************************************************************************************************************
 *
@@ -217,11 +269,10 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int mode)
 */
 int sunxi_sprite_download_boot0(void *buffer, int production_media)
 {
-	if(!gd->securemode)
-    {
-    	boot0_file_head_t    *boot0  = (boot0_file_head_t *)buffer;
+	if(gd->bootfile_mode  == SUNXI_BOOT_FILE_NORMAL || gd->bootfile_mode  == SUNXI_BOOT_FILE_PKG)
+	{
+		boot0_file_head_t    *boot0  = (boot0_file_head_t *)buffer;
 
-		//校验特征字符是否正确
 		debug("%s\n", boot0->boot_head.magic);
 		if(strncmp((const char *)boot0->boot_head.magic, BOOT0_MAGIC, MAGIC_SIZE))
 		{
@@ -229,35 +280,43 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 
 			return -1;
 		}
-		//校验数据是否正确
+
 		if(sunxi_sprite_verify_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
 
 			return -1;
 		}
-		//读出dram参数
-		//填充FLASH信息
+
 		if(!production_media)
 		{
 			nand_uboot_get_flash_info((void *)boot0->prvt_head.storage_data, STORAGE_BUFFER_SIZE);
-		}else{
-			extern int mmc_write_info(int dev_num,void *buffer,u32 buffer_size);
-			mmc_write_info(2,(void *)boot0->prvt_head.storage_data,STORAGE_BUFFER_SIZE);
 		}
+		else
 		{
-			int i;
-			uint *addr = (uint *)DRAM_PARA_STORE_ADDR;
+			if (production_media == STORAGE_EMMC) {
+				if (mmc_write_info(2,(void *)boot0->prvt_head.storage_data, STORAGE_BUFFER_SIZE)) {
+					printf("add sdmmc2 private info fail!\n");
+					return -1;
+				}
 
-			for(i=0;i<32;i++)
-			{
-				printf("dram para[%d] = %x\n", i, addr[i]);
+			} else if (production_media == STORAGE_EMMC3) {
+				if (mmc_write_info(3,(void *)boot0->prvt_head.storage_data,STORAGE_BUFFER_SIZE)) {
+					printf("add sdmmc3 private info fail!\n");
+					return -1;
+				}
 			}
 		}
-		memcpy((void *)&boot0->prvt_head.dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+		if (uboot_spare_head.boot_data.work_mode != WORK_MODE_SPRITE_RECOVERY)
+		{
+			memcpy((void *)&boot0->prvt_head.dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+			/*update dram flag*/
+			set_boot_dram_update_flag(boot0->prvt_head.dram_para);
+		}
+		dump_dram_para(boot0->prvt_head.dram_para,32);
+
 		/* regenerate check sum */
 		boot0->boot_head.check_sum = sunxi_sprite_generate_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum);
-		//校验数据是否正确
 		if(sunxi_sprite_verify_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
@@ -265,20 +324,25 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 			return -1;
 		}
 		printf("storage type = %d\n", production_media);
-		if(!production_media)
+		if (production_media == STORAGE_NAND)
 		{
 			return nand_download_boot0(boot0->boot_head.length, buffer);
 		}
+		else if (production_media == STORAGE_NOR)
+		{
+			return  spinor_download_boot0(boot0->boot_head.length, buffer);
+		}
 		else
 		{
-			return card_download_boot0(boot0->boot_head.length, buffer);
+			return card_download_boot0(boot0->boot_head.length, buffer,production_media);
 		}
 	}
 	else
 	{
 		toc0_private_head_t  *toc0   = (toc0_private_head_t *)buffer;
 		sbrom_toc0_config_t  *toc0_config = (sbrom_toc0_config_t *)(buffer + 0x80);
-		//校验特征字符是否正确
+		int ret;
+
 		debug("%s\n", (char *)toc0->name);
 		if(strncmp((const char *)toc0->name, TOC0_MAGIC, MAGIC_SIZE))
 		{
@@ -286,36 +350,55 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 
 			return -1;
 		}
-		//校验数据是否正确
+		//
 		if(sunxi_sprite_verify_checksum(buffer, toc0->length, toc0->check_sum))
 		{
 			printf("sunxi sprite: toc0 checksum is error\n");
 
 			return -1;
 		}
-		//读出dram参数
-		//填充FLASH信息
+		//update flash param
 		if(!production_media)
 		{
 			nand_uboot_get_flash_info((void *)toc0_config->storage_data, STORAGE_BUFFER_SIZE);
 		}else{
-			extern int mmc_write_info(int dev_num,void *buffer,u32 buffer_size);
-			//storage_data[384];  // 0-159,存储nand信息；160-255,存放卡信息
-			mmc_write_info(2,(void *)(toc0_config->storage_data+160),384-160);
-		}
-		{
-			int i;
-			uint *addr = (uint *)DRAM_PARA_STORE_ADDR;
-
-			for(i=0;i<32;i++)
-			{
-				printf("dram para[%d] = 0x%x\n", i, addr[i]);
+			//storage_data[384];  // 0-159:nand info  160-255:card info
+			if (production_media == STORAGE_EMMC) {
+				if (mmc_write_info(2,(void *)(toc0_config->storage_data+160),384-160)){
+					printf("add sdmmc2 gpio info fail!\n");
+					return -1;
+				}
+			} else if (production_media == STORAGE_EMMC3) {
+				if (mmc_write_info(3,(void *)(toc0_config->storage_data+160),384-160)){
+					printf("add sdmmc3 gpio info fail!\n");
+					return -1;
+				}
 			}
 		}
-		memcpy((void *)toc0_config->dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+
+		//update dram param
+		if(uboot_spare_head.boot_data.work_mode == WORK_MODE_CARD_PRODUCT)
+		{
+			memcpy((void *)toc0_config->dram_para, (void *)(uboot_spare_head.boot_data.dram_para), 32 * 4);
+			//toc0_config->dram_para[4] += toc0_config->secure_dram_mbytes;
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
+		}
+		else if (uboot_spare_head.boot_data.work_mode == WORK_MODE_SPRITE_RECOVERY)
+		{
+			printf("skip memcpy dram para for work_mode recovery\n");
+		}
+		else
+		{
+			memcpy((void *)toc0_config->dram_para, (void *)DRAM_PARA_STORE_ADDR, 32 * 4);
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
+		}
+
+		dump_dram_para( toc0_config->dram_para,32);
+
 		/* regenerate check sum */
 		toc0->check_sum = sunxi_sprite_generate_checksum(buffer, toc0->length, toc0->check_sum);
-		//校验数据是否正确
 		if(sunxi_sprite_verify_checksum(buffer, toc0->length, toc0->check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
@@ -323,124 +406,154 @@ int sunxi_sprite_download_boot0(void *buffer, int production_media)
 			return -1;
 		}
 		printf("storage type = %d\n", production_media);
-		if(!production_media)
+		if (production_media == STORAGE_NAND)
 		{
-			return nand_download_boot0(toc0->length, buffer);
+			ret = nand_download_boot0(toc0->length, buffer);
+		}
+		else if (production_media == STORAGE_NOR)
+		{
+			ret = spinor_download_boot0(toc0->length, buffer);
 		}
 		else
 		{
-			return card_download_boot0(toc0->length, buffer);
+			ret = card_download_boot0(toc0->length, buffer,production_media);
 		}
+		if(!ret)
+		{
+			sunxi_set_secure_mode();
+		}
+
+		return ret;
 	}
 }
+
 /*
 ************************************************************************************************************
 *
 *                                             function
 *
-*    name          :
+*    name          : sunxi_download_boot0_atfter_ota
 *
 *    parmeters     :
 *
 *    return        :
 *
-*    note          :
+*    note          : only for dram para update ater ota
 *
 *
 ************************************************************************************************************
 */
-#ifdef CONFIG_BOOT_A15
-int sunxi_sprite_download_boot0_simple(void)
+int sunxi_download_boot0_atfter_ota(void *buffer, int production_media)
 {
-	int production_media = uboot_spare_head.boot_data.storage_type;
-	u8  buffer[200 * 1024];
+	u32 length;
+	int card_num = 2;
 
-	if(!(uboot_spare_head.boot_data.reserved[0] & 0xff))    //不需要保存boot0/toc0
-		return 0;
-	if(!production_media)
-		nand_upload_boot0(200 * 1024, buffer);
-	else
-		card_upload_boot0(200 * 1024, buffer);
+	if (production_media == STORAGE_EMMC3)
+	{
+		card_num = 3;
+	}
 
-	if(!gd->securemode)
-    {
-    	boot0_file_head_t    *boot0  = (boot0_file_head_t *)buffer;
+	if(SUNXI_NORMAL_MODE == sunxi_get_securemode())
+	{
+		boot0_file_head_t    *boot0  = (boot0_file_head_t *)buffer;
 
-		//校验特征字符是否正确
-		debug("%s\n", boot0->boot_head.magic);
+		printf("normal mode\n");
 		if(strncmp((const char *)boot0->boot_head.magic, BOOT0_MAGIC, MAGIC_SIZE))
 		{
 			printf("sunxi sprite: boot0 magic is error\n");
-
 			return -1;
 		}
-		//校验数据是否正确
+
 		if(sunxi_sprite_verify_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
-
 			return -1;
 		}
-		boot0->boot_head.boot_cpu = uboot_spare_head.boot_data.reserved[0] & 0xff00;
-		printf("next boot_cpu=0x%x\n", boot0->boot_head.boot_cpu);
+
+		if(get_boot_dram_update_flag())
+		{
+			memcpy((void *)&boot0->prvt_head.dram_para,
+				(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
+			/*update ota flag*/
+			set_boot_dram_update_flag(boot0->prvt_head.dram_para);
+			dump_dram_para(boot0->prvt_head.dram_para,32);
+		}
+
+		/* udpate mmc private info */
+		if (mmc_request_update_boot0(card_num))
+		{
+			if (mmc_write_info(card_num,(void *)boot0->prvt_head.storage_data, STORAGE_BUFFER_SIZE)) {
+				printf("%s: update mmc private info fail!\n", __FUNCTION__);
+				return -1;
+			}
+		}
+
 		/* regenerate check sum */
 		boot0->boot_head.check_sum = sunxi_sprite_generate_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum);
-		//校验数据是否正确
 		if(sunxi_sprite_verify_checksum(buffer, boot0->boot_head.length, boot0->boot_head.check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
 
 			return -1;
 		}
-		printf("storage type = %d\n", production_media);
-		if(!production_media)
-		{
-			return nand_download_boot0_simple(boot0->boot_head.length, buffer);
-		}
-		else
-		{
-			return card_download_boot0(boot0->boot_head.length, buffer);
-		}
+		length = boot0->boot_head.length;
+
 	}
 	else
 	{
 		toc0_private_head_t  *toc0   = (toc0_private_head_t *)buffer;
 		sbrom_toc0_config_t  *toc0_config = (sbrom_toc0_config_t *)(buffer + 0x80);
-		//校验特征字符是否正确
-		debug("%s\n", (char *)toc0->name);
+
+		printf("secure mode\n");
 		if(strncmp((const char *)toc0->name, TOC0_MAGIC, MAGIC_SIZE))
 		{
-			printf("sunxi sprite: boot0 magic is error\n");
-
+			printf("sunxi sprite: toc0 magic is error\n");
 			return -1;
 		}
-		//校验数据是否正确
+
 		if(sunxi_sprite_verify_checksum(buffer, toc0->length, toc0->check_sum))
 		{
-			printf("sunxi sprite: toc0 verify error\n");
-
+			printf("sunxi sprite: toc0 checksum is error\n");
 			return -1;
 		}
-		toc0_config->boot_cpu = uboot_spare_head.boot_data.reserved[0] & 0xff00;
-		printf("next boot_cpu=0x%x\n", toc0_config->boot_cpu);
+
+		//update dram param
+		if(get_boot_dram_update_flag())
+		{
+			memcpy((void *)toc0_config->dram_para,
+				(void *)get_boot_dram_para_addr(), get_boot_dram_para_size());
+			/*update dram flag*/
+			set_boot_dram_update_flag(toc0_config->dram_para);
+			dump_dram_para(toc0_config->dram_para,32);
+		}
+
+
+		/* udpate mmc private info */
+		if (mmc_request_update_boot0(card_num))
+		{
+			if (mmc_write_info(2,(void *)(toc0_config->storage_data+160),384-160)){
+				printf("%s: update sdmmc2 gpio info fail!\n", __FUNCTION__);
+				return -1;
+			}
+		}
+
+		/* regenerate check sum */
 		toc0->check_sum = sunxi_sprite_generate_checksum(buffer, toc0->length, toc0->check_sum);
-		//校验数据是否正确
 		if(sunxi_sprite_verify_checksum(buffer, toc0->length, toc0->check_sum))
 		{
 			printf("sunxi sprite: boot0 checksum is error\n");
-
 			return -1;
 		}
-		printf("storage type = %d\n", production_media);
-		if(!production_media)
-		{
-			return nand_download_boot0_simple(toc0->length, buffer);
-		}
-		else
-		{
-			return card_download_boot0(toc0->length, buffer);
-		}
+		length = toc0->length;
+	}
+
+	if(!production_media)
+	{
+		return nand_write_boot0(buffer,length);
+	}
+	else
+	{
+		return card_download_boot0(length, buffer,production_media);
 	}
 }
-#endif
 

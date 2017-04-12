@@ -93,6 +93,13 @@ typedef struct NS16550 *NS16550_t;
 #define UART_FCR_TXSR		0x04 /* Transmitter soft reset */
 
 /*
+ * These are the definitions for the Status Register
+ */
+#define UART_USR                0x7c      /* UART Status Register*/
+#define UART_USR_TFNF           (0x1<<1)  /* TX FIFO full bit ofs*/
+#define TX_FIFO_FULL            0x1       /* TX FIFO not full */
+#define TX_FIFO_NOT_FULL        0x0       /* TX FIFO full */
+/*
  * These are the definitions for the Modem Control Register
  */
 #define UART_MCR_DTR	0x01		/* DTR   */

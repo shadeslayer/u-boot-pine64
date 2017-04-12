@@ -113,7 +113,7 @@ int saveenv(void)
 	if(ret)
 		goto fini;
 
-	return sunxi_flash_write(start, CONFIG_ENV_SIZE/512, &env_new);
+	return sunxi_flash_write(start, CONFIG_ENV_SIZE/512, env_new);
 fini:
 	return ret;
 }

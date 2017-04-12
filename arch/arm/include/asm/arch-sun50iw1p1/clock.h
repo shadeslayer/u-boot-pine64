@@ -38,5 +38,6 @@ extern int sunxi_clock_get_mbus(void);
 extern void set_pll( void );
 extern void set_gpio_gate(void);
 extern void reset_pll(void);
+extern void set_pll_in_secure_mode( void );
 
 #endif /* _SUNXI_CLOCK_H */

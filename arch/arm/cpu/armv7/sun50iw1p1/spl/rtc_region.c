@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -50,7 +56,8 @@ uint rtc_region_probe_fel_flag(void)
 	for(i=0;i<=5;i++)
 	{
 		reg_value = readl(RTC_DATA_HOLD_REG_BASE + i*4);
-		printf("rtc[%d] value = 0x%x\n", i, reg_value);
+		if(reg_value)
+			printf("rtc[%d] value = 0x%x\n", i, reg_value);
 	}
 
 	return fel_flag;
@@ -73,10 +80,12 @@ uint rtc_region_probe_fel_flag(void)
 */
 void rtc_region_clear_fel_flag(void)
 {
-	uint flag = 0;
+	volatile uint flag = 0;
 	do
 	{
 		writel(0, RTC_DATA_HOLD_REG_FEL);
+		__usdelay(10);
+		asm volatile("ISB SY");
 		asm volatile("DMB SY");
 		flag  = readl(RTC_DATA_HOLD_REG_FEL);
 	}

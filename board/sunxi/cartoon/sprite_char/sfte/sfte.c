@@ -150,7 +150,7 @@ int  SFTE_Set_Pixel_Sizes( SFTE_Face face, unsigned int pixel_size )
 	if( !is_valid_face( face ) )
 	{
 		printf("Fail in setting pixel size %x. Because face is invalid\n", pixel_size);
-		return 0;
+		return -1;
 	}
 
 	ret = SFTE_Set_Pixel_Sizes_i( face, pixel_size );
@@ -165,7 +165,7 @@ int  SFTE_Get_Pixel_Sizes( SFTE_Face face, unsigned int pixel_size )
 	if( !is_valid_face( face ) )
 	{
 		printf("Fail in setting pixel size %x. Because face is invalid\n", pixel_size);
-		return 0;
+		return -1;
 	}
 
 	return SFTE_Get_Pixel_Size_Count_i( face );
@@ -177,7 +177,7 @@ int  SFTE_Get_Pixel_Size_List( SFTE_Face face, unsigned int *list_p, unsigned in
 {
 	if( !is_valid_face( face ) || list_p == NULL )
 	{
-		return 0;
+		return -1;
 	}
 
 	return SFTE_Get_Pixel_Size_List_i( face, list_p, count );
@@ -191,7 +191,7 @@ int  SFTE_Get_Pixel_Size_Count( SFTE_Face face )
 
 	if( !is_valid_face( face ) )
 	{
-		return 0;
+		return -1;
 	}
 
 	ret = SFTE_Get_Pixel_Size_Count_i( face );
@@ -207,7 +207,7 @@ int  SFTE_Get_Glyph( SFTE_Face face, __u16 unicode )
 	if( !is_valid_face( face ) )
 	{
 		printf("Fail in getting glyph of unicode %x. Because face is invalid\n", unicode);
-		return 0;
+		return -1;
 	}
 
 	ret = SFTE_Get_Glyph_i( face, unicode );
@@ -224,7 +224,7 @@ unsigned int  SFTE_Get_XAdvance( SFTE_Face face, __u16 unicode )
 	if( !is_valid_face( face ) )
 	{
 		printf("Fail in getting x advance of unicode %x. Because face is invalid\n", unicode);
-		return 0;
+		return -1;
 	}
 
 	ret = SFTE_Get_XAdvance_i( face, unicode );
@@ -346,7 +346,7 @@ static unsigned int  SFTE_Get_XAdvance_i( SFTE_Face face, __u16 unicode )
 	if( pd->cur_pixel_size.pixel_size == INVALID_PIXEL_SIZE )
 	{
 		printf("Fail in getting glyph of unicode %x. Because pixel size is NOT valid.\n", unicode);
-		return 0;
+		return -1;
 	}
 
 	/* check whether the input unicode is the current unicode */

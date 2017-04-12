@@ -177,6 +177,136 @@ U_BOOT_CMD(
 	"parameters 2 : option para, the address where the bmp display\n"
 );
 
+#ifdef CONFIG_BOOT_GUI
+
+int show_bmp_on_fb(char *bmp_head_addr, unsigned int fb_id)
+{
+	bmp_image_t *bmp = (bmp_image_t *)bmp_head_addr;
+	struct canvas *cv = NULL;
+	char *src_addr;
+	int src_width, src_height, src_stride, src_cp_bytes;
+	char *dst_addr_b, *dst_addr_e;
+	rect_t dst_crop;
+	int need_set_bg = 0;
+
+	cv = fb_lock(fb_id);
+	if ((NULL == cv) || (NULL == cv->base)) {
+		printf("cv=%p, base= %p\n", cv,
+			(cv != NULL) ? cv->base : 0x0);
+		goto err_out;
+	}
+	if ((bmp->header.signature[0] != 'B')
+		|| (bmp->header.signature[1] != 'M')) {
+		printf("this is not a bmp picture\n");
+		goto err_out;
+	}
+	if (((24 != bmp->header.bit_count)
+		&& (32 != bmp->header.bit_count))
+		|| (cv->bpp != bmp->header.bit_count)) {
+		printf("no support %dbit bmp picture on %dbit fb\n",
+			bmp->header.bit_count, cv->bpp);
+		goto err_out;
+	}
+	if ((bmp->header.width > cv->width)
+		|| (bmp->header.height > cv->height)) {
+		printf("no support big size bmp[%dx%d] on fb[%dx%d]\n",
+			bmp->header.width, bmp->header.height,
+			cv->width, cv->height);
+		goto err_out;
+	}
+
+	src_width = bmp->header.width;
+	src_cp_bytes = src_width * bmp->header.bit_count >> 3;
+	src_stride = ((src_width * bmp->header.bit_count + 31) >> 5) << 2;
+	src_addr = (char *)(bmp_head_addr + bmp->header.data_offset);
+	if (bmp->header.height & 0x80000000) {
+		src_height = -bmp->header.height;
+	} else {
+		src_height = bmp->header.height;
+		src_addr += (src_stride * (src_height - 1));
+		src_stride = -src_stride;
+	}
+
+	dst_crop.left = (cv->width - src_width) >> 1;
+	dst_crop.right = dst_crop.left + src_width;
+	dst_crop.top = (cv->height - src_height) >> 1;
+	dst_crop.bottom = dst_crop.top + src_height;
+	dst_addr_b = (char *)cv->base + cv->stride * dst_crop.top
+		+ (dst_crop.left * cv->bpp >> 3);
+	dst_addr_e = dst_addr_b + cv->stride * src_height;
+
+	need_set_bg = cv->set_interest_region(cv, &dst_crop, 1, NULL);
+	if (0 != need_set_bg) {
+		if (src_width != cv->width) {
+			printf("memset full fb\n");
+			memset((void *)(cv->base), 0, cv->stride * cv->height);
+		} else if (0 != dst_crop.top) {
+			printf("memset top fb\n");
+			memset((void *)(cv->base), 0, cv->stride * dst_crop.top);
+		}
+	}
+	for (; dst_addr_b != dst_addr_e; dst_addr_b += cv->stride) {
+		memcpy((void *)dst_addr_b, (void *)src_addr, src_cp_bytes);
+		src_addr += src_stride;
+	}
+	if (0 != need_set_bg) {
+		if ((cv->height != dst_crop.bottom)
+			&& (src_width == cv->width)) {
+			printf("memset bottom fb\n");
+			memset((void *)(cv->base + cv->stride * dst_crop.bottom),
+				0, cv->stride * (cv->height - dst_crop.bottom));
+		}
+	}
+
+	fb_unlock(fb_id, NULL, 1);
+	save_disp_cmd();
+
+	return 0;
+
+err_out:
+	if (NULL != cv)
+		fb_unlock(fb_id, NULL, 0);
+	return -1;
+}
+
+
+int sunxi_bmp_display(char *name)
+{
+	int ret = 0;
+	char *argv[6];
+	char bmp_head[32];
+	char bmp_name[32];
+	char *bmp_head_addr = (char *)CONFIG_SYS_SDRAM_BASE;
+
+	if (NULL != bmp_head_addr) {
+		sprintf(bmp_head, "%lx", (ulong)bmp_head_addr);
+	} else {
+		printf("sunxi bmp: alloc buffer for %s fail\n", name);
+		return -1;
+	}
+	strncpy(bmp_name, name, sizeof(bmp_name));
+	printf("bmp_name=%s\n", bmp_name);
+
+	argv[0] = "fatload";
+	argv[1] = "sunxi_flash";
+	argv[2] = "0:0";
+	argv[3] = bmp_head;
+	argv[4] = bmp_name;
+	argv[5] = NULL;
+	if (do_fat_fsload(0, 0, 5, argv)) {
+		printf("sunxi bmp info error : unable to open logo file %s\n", argv[4]);
+		return -1;
+	}
+
+	ret = show_bmp_on_fb(bmp_head_addr, FB_ID_0);
+	if (0 != ret)
+		printf("show bmp on fb failed !\n");
+
+	return ret;
+}
+
+#else
+
 int sunxi_bmp_display(char *name)
 {
 
@@ -223,6 +353,33 @@ int sunxi_bmp_display(char *name)
 	return ret;
 
 }
+
+
+int sunxi_bmp_display_mem(unsigned char *source, sunxi_bmp_store_t *bmp_info)
+{
+	int  ret = -1;
+
+#if defined(CONFIG_SUNXI_LOGBUFFER)
+	bmp_info->buffer = (void *)(CONFIG_SYS_SDRAM_BASE + gd->ram_size - SUNXI_DISPLAY_FRAME_BUFFER_SIZE);
+#else
+	bmp_info->buffer = (void *)(SUNXI_DISPLAY_FRAME_BUFFER_ADDR);
+#endif
+	printf("bmp file buffer: 0x%lx, bmp_info.buffer: %lx\n",(ulong)source,(ulong)bmp_info->buffer);
+	ret = sunxi_bmp_decode((ulong)source, bmp_info);
+	if (!ret)
+		debug("decode bmp ok\n");
+
+	return ret;
+}
+
+int sunxi_bmp_dipslay_screen(sunxi_bmp_store_t bmp_info)
+{
+	return sunxi_bmp_show(bmp_info);
+}
+
+
+#endif
+
 /*
  * Subroutine:  bmp_info
  *
