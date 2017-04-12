@@ -44,24 +44,25 @@
 #define CONFIG_STORAGE_MEDIA_NAND
 #define CONFIG_STORAGE_MEDIA_MMC
 
-
 #define CONFIG_TARGET_NAME      sun50iw1p1
 #define CONFIG_SYS_GENERIC_BOARD
-
-
 #define HAVE_VENDOR_COMMON_LIB
+#define CONFIG_SUNXI_MULITCORE_BOOT
+#define CONFIG_MULTICORE_SUPPORT_POWER
 /*
  * High Level Configuration Options
  */
- //#define CONFIG_SUNXI_WINE
-//#define CONFIG_SUNXI_WINE_FPGA
 #define CONFIG_ARM_A53
 #define CONFIG_ALLWINNER			/* It's a Allwinner chip */
 #define	CONFIG_SUNXI				/* which is sunxi family */
 #define CONFIG_ARCH_SUN50IW1P1
 
-//#define CONFIG_SUNXI_SECURE_STORAGE
-//#define CONFIG_SUNXI_SECURE_SYSTEM
+#define CONFGI_SECURE_BOOT0_MAIN_VERSION    1
+#define CONFGI_SECURE_BOOT0_SUB_VERSION     1
+
+#define CONFIG_SUNXI_SECURE_STORAGE
+#define CONFIG_SUNXI_SECURE_SYSTEM
+#define CONFIG_SUNXI_WIDEVINE_KEYBOX
 //#define CONFIG_SUNXI_HDCP_IN_SECURESTORAGE
 
 
@@ -70,23 +71,24 @@
 #define CONFIG_SYS_SRAMA2_BASE           (0x40000)
 #define CONFIG_SYS_SRAMA2_SIZE           (0x14000)
 #define BOOT0_MMU_BASE_ADDRESS           (CONFIG_SYS_SRAMA2_BASE + 0x4000)
-#define TOC0_MMU_BASE_ADDRESS            (CONFIG_SYS_SRAMA2_BASE + 0x4000)
-#define CONFIG_BOOT0_STACK_BOTTOM        (CONFIG_SYS_SRAM_BASE+CONFIG_SYS_SRAM_SIZE-0x10)
-
+#define TOC0_MMU_BASE_ADDRESS            (CONFIG_SYS_SDRAM_BASE + 0x2800000)
+//#define CONFIG_BOOT0_STACK_BOTTOM        (CONFIG_SYS_SRAM_BASE+CONFIG_SYS_SRAM_SIZE-0x10)
+#define CONFIG_BOOT0_STACK_BOTTOM         0x20000
 
 #define PLAT_SDRAM_BASE                      0x40000000
 //trusted dram area
-#define PLAT_TRUSTED_DRAM_BASE             (PLAT_SDRAM_BASE)
+#define PLAT_TRUSTED_DRAM_BASE             (PLAT_SDRAM_BASE+(128<<20))
 #define PLAT_TRUSTED_DRAM_SIZE             0x01000000
 //uboot run addr
 #define CONFIG_SYS_TEXT_BASE                 0x4A000000
+#define CONFIG_BOOTPKG_STORE_IN_DRAM_BASE   (CONFIG_SYS_SDRAM_BASE + 0x2e00000)
+
 //dram base for uboot
-#define CONFIG_SYS_SDRAM_BASE                (PLAT_SDRAM_BASE+PLAT_TRUSTED_DRAM_SIZE)
+#define CONFIG_SYS_SDRAM_BASE                (PLAT_SDRAM_BASE)
 //base addr for boot 0 to load the fw image
 #define BL31_BASE                            (PLAT_TRUSTED_DRAM_BASE) //bl31:0x40000000-0x40200000
 #define BL31_SIZE                            (0x100000)  //1M
-//#define BL32_BASE                            (PLAT_TRUSTED_DRAM_BASE+0x00200000)
-//#define BL33_BASE                            (CONFIG_SYS_TEXT_BASE)
+
 #define SCP_SRAM_BASE                        (CONFIG_SYS_SRAMA2_BASE)
 #define SCP_SRAM_SIZE                        (CONFIG_SYS_SRAMA2_SIZE)
 #define SCP_DRAM_BASE                        (PLAT_TRUSTED_DRAM_BASE+BL31_SIZE)
@@ -100,6 +102,8 @@
 // the sram base address, and the stack address in stage1
 #define CONFIG_SYS_INIT_RAM_ADDR	     0x10000
 #define CONFIG_SYS_INIT_RAM_SIZE	     0x00007ff0
+
+#define CONFIG_BOOT0_CPU1_STACK_BOTTOM   0x30000
 
 #define CONFIG_SYS_INIT_SP_OFFSET \
 	(CONFIG_SYS_INIT_RAM_SIZE - GENERATED_GBL_DATA_SIZE)
@@ -144,13 +148,18 @@
 
 #define SUNXI_RUN_EFEX_ADDR              (0x01f00000 + 0x108)
 #define DRAM_PARA_STORE_ADDR             (CONFIG_SYS_SDRAM_BASE + 0x00800000)
-#define SYS_CONFIG_MEMBASE               (CONFIG_SYS_SDRAM_BASE + 0x00010000)
+//#define SYS_CONFIG_MEMBASE               (CONFIG_SYS_SDRAM_BASE + 0x00010000)
 
 //#define CONFIG_SUNXI_LOGBUFFER
 #define SUNXI_DISPLAY_FRAME_BUFFER_ADDR  (CONFIG_SYS_SDRAM_BASE + 0x06400000)
 #define SUNXI_DISPLAY_FRAME_BUFFER_SIZE  0x01000000
 
-
+#define SUNXI_LOGO_COMPRESSED_LOGO_SIZE_ADDR        		(0x43000000)
+#define SUNXI_LOGO_COMPRESSED_LOGO_BUFF     				(0x43000000 + 16)
+#define SUNXI_SHUTDOWN_CHARGE_COMPRESSED_LOGO_SIZE_ADDR  	(0x43100000)
+#define SUNXI_SHUTDOWN_CHARGE_COMPRESSED_LOGO_BUFF  		(0x43100000 + 16)
+#define SUNXI_ANDROID_CHARGE_COMPRESSED_LOGO_SIZE_ADDR   	(0x43200000)
+#define SUNXI_ANDROID_CHARGE_COMPRESSED_LOGO_BUFF   		(0x43200000 + 16)
 /*
 * define const value
 */
@@ -180,7 +189,9 @@
 
 #define CONFIG_SBROMSW_BASE              (CONFIG_SYS_SRAM_BASE)
 //#define CONFIG_STACK_BASE                (CONFIG_SYS_SRAMA2_BASE + CONFIG_SYS_SRAMA2_SIZE - 0x10)
-#define CONFIG_STACK_BASE                (0x3f000)
+#define CONFIG_STACK_BASE                (0x38000)
+#define CONFIG_DEBUG_BASE                (CONFIG_STACK_BASE)
+#define CONFIG_NORMAL_DEBUG_BASE         (0x30000)
 
 #define CONFIG_HEAP_BASE                 (CONFIG_SYS_SDRAM_BASE + 0x800000)
 #define CONFIG_HEAP_SIZE                 (16 * 1024 * 1024)
@@ -190,7 +201,7 @@
 #define CONFIG_BOOT0_RUN_ADDR            (0x10000)
 
 #define CONFIG_FES1_RET_ADDR             (CONFIG_SYS_SRAM_BASE + 0x7210)
-#define CONFIG_FES1_RUN_ADDR             (0x12000)
+#define CONFIG_FES1_RUN_ADDR             (0x18000)
 
 #define CONFIG_TOC0_RET_ADDR             (0)
 #define CONFIG_TOC0_RUN_ADDR             (0x10480)
@@ -224,14 +235,7 @@
 
 #define SUNXI_DMA_LINK_NULL       (0x1ffff800)
 
-#define CONFIG_SUNXI_AXP
-#define CONFIG_SUNXI_AXP81X
-#define CONFIG_SUNXI_AXP_MAIN        PMU_TYPE_81X
-#define PMU_SCRIPT_NAME                 "/soc/pmu0"
-#define CONFIG_SUNXI_AXP_CONFIG_ONOFF
-
-
-//#define CONFIG_USE_ARCH_MEMCPY
+#define CONFIG_USE_ARCH_MEMCPY
 #define CONFIG_USE_ARCH_MEMSET
 /*
  * Display CPU and Board information
@@ -240,6 +244,10 @@
 //#define CONFIG_DISPLAY_BOARDINFO
 #undef CONFIG_DISPLAY_CPUINFO
 #undef CONFIG_DISPLAY_BOARDINFO
+
+/* Key information */
+#define SUNXI_KEY_SUPPORT
+#define CONFIG_SUNXI_KEY_SUPPORT
 
 /* Serial & console */
 #define CONFIG_SYS_NS16550
@@ -250,33 +258,23 @@
 #define CONFIG_SYS_NS16550_COM2		SUNXI_UART1_BASE
 #define CONFIG_SYS_NS16550_COM3		SUNXI_UART2_BASE
 #define CONFIG_SYS_NS16550_COM4		SUNXI_UART3_BASE
+#define CONFIG_NS16550_FIFO_ENABLE	(1)
 
 #define CONFIG_CONS_INDEX			1			/* which serial channel for console */
 
 
-/* Nand config */
-#define CONFIG_NAND
-#define CONFIG_STORAGE_NAND
-#define CONFIG_NAND_SUNXI
-//#define CONFIG_CMD_NAND                         /* NAND support */
-#define CONFIG_SYS_MAX_NAND_DEVICE      1
-#define CONFIG_SYS_NAND_BASE            0x00
+
 
 #define CONFIG_SETUP_MEMORY_TAGS
 #define CONFIG_CMDLINE_TAG
 #define CONFIG_INITRD_TAG
 #define CONFIG_CMDLINE_EDITING
 
-/* mmc config */
-#define CONFIG_MMC
-#define CONFIG_GENERIC_MMC
-#define CONFIG_CMD_MMC
-#define CONFIG_MMC_SUNXI
-#define CONFIG_MMC_SUNXI_USE_DMA
-#define CONFIG_STORAGE_EMMC
-#define CONFIG_MMC_LOGICAL_OFFSET   (20 * 1024 * 1024/512)
+
 
 #define CONFIG_DOS_PARTITION
+
+
 /*
  * Miscellaneous configurable options
  */
@@ -302,18 +300,6 @@
 #define CONFIG_BAUDRATE				115200
 #define CONFIG_SYS_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
 
-/*-----------------------------------------------------------------------
- * Stack sizes
- *
- * The stack sizes are set up in start.S using the settings below
- */
-#define CONFIG_STACKSIZE			(256 << 10)				/* 256 KiB */
-#define LOW_LEVEL_SRAM_STACK		0x00013FFC
-
-#ifdef CONFIG_USE_IRQ
-#define CONFIG_STACKSIZE_IRQ    (4*1024)        /* IRQ stack */
-#define CONFIG_STACKSIZE_FIQ    (4*1024)        /* FIQ stack */
-#endif
 
 /*-----------------------------------------------------------------------
  * FLASH and environment organization
@@ -393,6 +379,59 @@
 #define CONFIG_SYS_BOOT_GET_CMDLINE
 #define CONFIG_AUTO_COMPLETE
 
+#define CONFIG_DOS_PARTITION
+#define CONFIG_USE_IRQ
+#define CONFIG_SUNXI_RSB
+#define CONFIG_AXP_USE_RSB
+
+#define CONFIG_OF_LIBFDT
+#define CONFIG_OF_CONTROL
+#define CONFIG_RELOCATE_SYSCONIFG      /*sysconfig.fex is relocate*/
+#define CONFIG_ANDROID_BOOT_IMAGE      /*image is android boot image*/
+#define CONFIG_USBD_HS
+#define BOARD_LATE_INIT		      /* init the fastboot partitions */
+#define CONFIG_SUNXI_KEY_BURN
+#define CONFIG_SUNXI_I2C
+#define CONFIG_CPUX_I2C
+#define CONFIG_SYS_I2C_SPEED    400000
+#define CONFIG_SYS_I2C_SLAVE    0x10
+//#define CONFIG_SUNXI_DMA
+#define CONFIG_SUNXI_KEY_SUPPORT
+/*-----------------------------------------------------------------------
+ * Stack sizes
+ *
+ * The stack sizes are set up in start.S using the settings below
+ */
+#define CONFIG_STACKSIZE			(256 << 10)				/* 256 KiB */
+#define LOW_LEVEL_SRAM_STACK		0x00013FFC
+#ifdef CONFIG_USE_IRQ
+#define CONFIG_STACKSIZE_IRQ    (4*1024)        /* IRQ stack */
+#define CONFIG_STACKSIZE_FIQ    (4*1024)        /* FIQ stack */
+#endif
+
+
+/***************************************
+ *module support
+ ****************************************/
+#define CONFIG_SUNXI_MODULE_SPRITE
+#define CONFIG_SUNXI_MODULE_NAND
+#define CONFIG_SUNXI_MODULE_SDMMC
+#define CONFIG_SUNXI_MODULE_AXP
+#define CONFIG_SUNXI_MODULE_USB
+#define CONFIG_SUNXI_MODULE_DISPLAY
+#define CONFIG_SUNXI_MODULE_HDMI
+#define CONFIG_SUNXI_MODULE_TV
+
+
+/***************************************************************
+*
+* all the config command
+*
+***************************************************************/
+#define CONFIG_CMD_IRQ
+#define CONFIG_CMD_ELF
+#define CONFIG_CMD_BOOTA
+#define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_FAT			/* with this we can access bootfs in nand */
 #define CONFIG_CMD_BOOTA		/* boot android image */
 #define CONFIG_CMD_RUN			/* run a command */
@@ -404,17 +443,88 @@
 #define CONFIG_CMD_SUNXI_BMP
 #define CONFIG_CMD_SUNXI_BURN
 #define CONFIG_CMD_SUNXI_MEMTEST
-//#define CONFIG_CMD_MODIFY_SYSCONFIG
+#define CONFIG_CMD_FDT
+#define CONFIG_LZMA
+#define CONFIG_CMD_LZMADEC
+#ifdef CONFIG_SUNXI_DMA
+#define CONFIG_SUNXI_CMD_DMA
+#endif
+#define CONFIG_SUNXI_CMD_SMC
+#define CONFIG_SUNXI_DRAGONBOARD_SUPPORT
 
-//#define CONFIG_ARMV8_SWITCH_TO_EL1
-#define CONFIG_OF_LIBFDT
-#define CONFIG_OF_CONTROL
-#define CONFIG_RELOCATE_SYSCONIFG      /*sysconfig.fex is relocate*/
-#define CONFIG_ANDROID_BOOT_IMAGE      /*image is android boot image*/
-#define CONFIG_USBD_HS
-#define BOARD_LATE_INIT		      /* init the fastboot partitions */
+
+
+
+#ifdef CONFIG_SUNXI_MODULE_SDMMC
+/* mmc config */
+#define CONFIG_MMC
+#define CONFIG_GENERIC_MMC
+#define CONFIG_CMD_MMC
+#define CONFIG_MMC_SUNXI
+#define CONFIG_MMC_SUNXI_USE_DMA
+#define CONFIG_STORAGE_EMMC
+#define CONFIG_MMC_LOGICAL_OFFSET   (20 * 1024 * 1024/512)
+#endif
+
+#ifdef CONFIG_SUNXI_MODULE_NAND
+/* Nand config */
+#define CONFIG_NAND
+#define CONFIG_STORAGE_NAND
+#define CONFIG_NAND_SUNXI
+//#define CONFIG_CMD_NAND                         /* NAND support */
+#define CONFIG_SYS_MAX_NAND_DEVICE      1
+#define CONFIG_SYS_NAND_BASE            0x00
+#endif
+
+#ifdef CONFIG_SUNXI_MODULE_DISPLAY
 #define CONFIG_SUNXI_DISPLAY
 #define CONFIG_VIDEO_SUNXI_V3
+#endif
+
+#ifdef CONFIG_SUNXI_MODULE_AXP
+#define CONFIG_SUNXI_AXP
+#define CONFIG_SUNXI_AXP81X
+#define CONFIG_SUNXI_AXP_MAIN        PMU_TYPE_81X
+//#define PMU_SCRIPT_NAME                 "/soc/pmu0"
+#define  PMU_SCRIPT_NAME              "pmu0"
+#define FDT_PATH_REGU                   "pmu0_regu"
+#define CONFIG_SUNXI_AXP_CONFIG_ONOFF
+#endif
+#define CONFIG_SUNXI_CORE_VOL         1200
+
+#ifdef CONFIG_SUNXI_MODULE_USB
+#define CONFIG_USB_EHCI_SUNXI
+//for usb host
+#ifdef CONFIG_USB_EHCI_SUNXI
+	#define CONFIG_EHCI_DCACHE
+	#define CONFIG_CMD_USB
+	#define CONFIG_USB_STORAGE
+	#define CONFIG_USB_EHCI
+	#define CONFIG_USB_MAX_CONTROLLER_COUNT 2
+#endif
+
+//#define CONFIG_USB_ETHER
+#ifdef CONFIG_USB_ETHER
+/* net support */
+#define CONFIG_CMD_NET
+#define CONFIG_NET_MULTI
+#define CONFIG_CMD_PING
+#define CONFIG_CMD_NFS
+/*
+ * Reducing the ARP timeout from default 5000UL to 1000UL we speed up the
+ * initial TFTP transfer or PING, etc, should the user wish one, significantly.
+ */
+#define CONFIG_ARP_TIMEOUT	1000UL
+
+/* USB SUSPORT */
+#define CONFIG_USB_ETHER
+#define CONFIG_USB_ETH_RNDIS
+#define CONFIG_USB_GADGET_DUALSPEED
+#define CONFIG_USB_SUNXI_UDC0
+
+#endif
+
+#endif
 //#define CONFIG_SYS_DCACHE_OFF
 
 // Make it actually useful.

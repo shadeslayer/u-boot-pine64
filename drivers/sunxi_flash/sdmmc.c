@@ -7,7 +7,7 @@
 #include "flash_interface.h"
 
 static struct mmc *mmc_boot,*mmc_sprite;
-
+static int mmc_no;
 //-------------------------------------noraml interface--------------------------------------------
 static int
 sunxi_flash_mmc_read(unsigned int start_block, unsigned int nblock, void *buffer)
@@ -135,17 +135,22 @@ int sunxi_sprite_mmc_force_erase(void)
 //-----------------------------secure interface---------------------------------------
 int sunxi_flash_mmc_secread( int item, unsigned char *buf, unsigned int nblock)
 {
-	return mmc_boot->block_dev.block_read_secure(2, item, (u8 *)buf, nblock);
+	return mmc_boot->block_dev.block_read_secure(mmc_no, item, (u8 *)buf, nblock);
+}
+
+int sunxi_flash_mmc_secread_backup( int item, unsigned char *buf, unsigned int nblock)
+{
+	return mmc_boot->block_dev.block_read_secure_backup(mmc_no, item, (u8 *)buf, nblock);
 }
 
 int sunxi_flash_mmc_secwrite( int item, unsigned char *buf, unsigned int nblock)
 {
-	return mmc_boot->block_dev.block_write_secure(2, item, (u8 *)buf, nblock);
+	return mmc_boot->block_dev.block_write_secure(mmc_no, item, (u8 *)buf, nblock);
 }
 
 int sunxi_sprite_mmc_secwrite(int item ,unsigned char *buf,unsigned int nblock)
 {
-	if(mmc_sprite->block_dev.block_write_secure(2, item, (u8 *)buf, nblock) >=0)
+    if(mmc_sprite->block_dev.block_write_secure(mmc_no, item, (u8 *)buf, nblock) >=0)
         return 0;
     else
         return -1;
@@ -153,7 +158,15 @@ int sunxi_sprite_mmc_secwrite(int item ,unsigned char *buf,unsigned int nblock)
 
 int sunxi_sprite_mmc_secread(int item ,unsigned char *buf,unsigned int nblock)
 {
-    if(mmc_sprite->block_dev.block_read_secure(2, item, (u8 *)buf, nblock) >=0)
+    if(mmc_sprite->block_dev.block_read_secure(mmc_no, item, (u8 *)buf, nblock) >=0)
+        return 0;
+    else
+        return -1;
+}
+
+int sunxi_sprite_mmc_secread_backup(int item ,unsigned char *buf,unsigned int nblock)
+{
+    if(mmc_sprite->block_dev.block_read_secure_backup(mmc_no, item, (u8 *)buf, nblock) >=0)
         return 0;
     else
         return -1;
@@ -170,6 +183,7 @@ int sdmmc_init_for_boot(int workmode, int card_no)
 	board_mmc_pre_init(card_no);
 	debug("begin to find mmc\n");
 	mmc_boot = find_mmc_device(card_no);
+	mmc_no = card_no;
 	if(!mmc_boot){
 		printf("fail to find one useful mmc card\n");
 		return -1;
@@ -201,13 +215,34 @@ int sdmmc_init_for_boot(int workmode, int card_no)
 int sdmmc_init_for_sprite(int workmode)
 {
 	printf("try nand fail\n");
-	board_mmc_pre_init(2);
+	printf("try card 2 \n");
+        board_mmc_pre_init(2);
 	mmc_sprite = find_mmc_device(2);
+	mmc_no = 2;
 	if(!mmc_sprite){
-		printf("fail to find one useful mmc card\n");
-		return -1;
+		printf("fail to find one useful mmc card2\n");
+#ifdef CONFIG_MMC3_SUPPORT
+                printf("try to find card3 \n");
+                board_mmc_pre_init(3);
+                mmc_sprite = find_mmc_device(3);
+		mmc_no = 3;
+                if(!mmc_sprite)
+                {
+                        printf("try card3 fail \n");
+                        return -1;
+                }
+                else
+                {
+                        uboot_spare_head.boot_data.storage_type = STORAGE_EMMC3;
+                }
+#else
+                return -1;
+#endif
 	}
-	
+        else
+        {
+	        uboot_spare_head.boot_data.storage_type = STORAGE_EMMC;
+        }
 	if (mmc_init(mmc_sprite)) {
 		printf("MMC init failed\n");
 		return  -1;
@@ -222,7 +257,6 @@ int sdmmc_init_for_sprite(int workmode)
 	sunxi_sprite_phywrite_pt = sunxi_sprite_mmc_phywrite;
 	sunxi_sprite_force_erase_pt = sunxi_sprite_mmc_force_erase;
 	debug("sunxi sprite has installed sdcard2 function\n");
-	uboot_spare_head.boot_data.storage_type = 2;
 	
 	return 0;
 }
@@ -258,3 +292,42 @@ int sdmmc_init_card0_for_sprite(void)
 	
 	return 0;
 }
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+int card_read_boot0( void *buffer, uint length )
+{
+	int ret;
+	int storage_type;
+	storage_type = get_boot_storage_type();
+	if(STORAGE_EMMC == storage_type)
+	{
+		ret = sunxi_sprite_phyread(BOOT0_SDMMC_START_ADDR, (length+511)/512, buffer);
+	}
+	else
+	{
+		ret = sunxi_sprite_phyread(BOOT0_EMMC3_BACKUP_START_ADDR, (length+511)/512, buffer);
+	}
+
+	if(!ret)
+	{
+		printf("%s: call fail\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+

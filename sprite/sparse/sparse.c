@@ -30,7 +30,7 @@
 #define   SPARSE_FORMAT_TYPE_TOTAL_HEAD       0xff00
 #define   SPARSE_FORMAT_TYPE_CHUNK_HEAD       0xff01
 #define   SPARSE_FORMAT_TYPE_CHUNK_DATA       0xff02
-
+#define   SPARSE_FORMAT_TYPE_CHUNK_FILL_DATA       0xff03
 
 static uint  android_format_checksum;
 static uint  sparse_format_type;
@@ -169,11 +169,9 @@ int  unsparse_direct_write(void *pbuf, uint length)
                                                 printf("spase : bad chunk size for chunk ,type FILL \n");
                                                 return -1;
                                             }
-                                            this_rest_size -= sizeof(u32);
-                                            tmp_buf += sizeof(u32);
-                                            flash_start += (chunk_length>>9);
-                                            sparse_format_type = SPARSE_FORMAT_TYPE_CHUNK_HEAD;
-                                            break;
+                                           sparse_format_type = SPARSE_FORMAT_TYPE_CHUNK_FILL_DATA;
+                                                                                  
+                                                break;
 					case CHUNK_TYPE_DONT_CARE:
 						if (chunk->total_sz != sizeof(chunk_header_t))
 						{
@@ -269,7 +267,25 @@ int  unsparse_direct_write(void *pbuf, uint length)
 
 				break;
 			}
-
+                        case SPARSE_FORMAT_TYPE_CHUNK_FILL_DATA:
+                        {
+                                if(this_rest_size >= 4)
+                                {
+                                        this_rest_size -= sizeof(u32);
+                                        tmp_buf += sizeof(u32);
+                                        flash_start += (chunk_length>>9);
+                                        sparse_format_type = SPARSE_FORMAT_TYPE_CHUNK_HEAD;
+                                }
+                                else
+                                {
+                                       tmp_dest_buf = (char *)pbuf - this_rest_size;
+                                        memcpy(tmp_dest_buf,tmp_buf,this_rest_size);
+                                       last_rest_size = this_rest_size;
+                                       this_rest_size = 0;
+                                       sparse_format_type = SPARSE_FORMAT_TYPE_CHUNK_FILL_DATA;
+                                }
+                                break;
+                        }
 			default:
 			{
 				printf("sparse: unknown status\n");

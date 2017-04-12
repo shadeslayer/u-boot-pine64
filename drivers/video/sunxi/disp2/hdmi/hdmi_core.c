@@ -7,8 +7,6 @@ static bool		video_enable = 0;
 static bool		audio_enable = false;
 static u32		cts_enable = 0;
 static u32		hdcp_enable = 0;
-static u8		isHDMI = 0;
-static u8		YCbCr444_Support = 0;
 static s32		HPD = 0;
 static struct audio_para glb_audio_para;
 static struct video_para glb_video_para;
@@ -22,6 +20,7 @@ extern u32 is_exp;
 u32	hdmi_print = 0;
 u32 hdmi_hpd_mask = 0x00;//0x10: force unplug; 0x11: force plug; 0x1xx: unreport hpd state
 static u32 hdmi_detect_time = 200;//ms
+static bool hdmi_cec_enable;
 
 static s32 video_config(u32 vic);
 
@@ -46,6 +45,7 @@ struct disp_video_timings video_timing[] =
 	{HDMI720P_60_3D_FP,  0,148500000, 0,  1280,  1440,  1650,  220,  110,  40,  750,   20,  5,  5,  1,   1,   0,   30,  1},
 	{HDMI3840_2160P_30,  0,297000000, 0,  3840,  2160,  4400,  296,  176,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
 	{HDMI3840_2160P_25,  0,297000000, 0,  3840,  2160,  5280,  296, 1056,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
+	{HDMI3840_2160P_24,  0, 297000000, 0,  3840,  2160,  5500,  296, 1276,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
 };
 
 static void hdmi_para_reset(void)
@@ -72,6 +72,18 @@ static void hdmi_para_init(void)
 	glb_audio_para.ca = 0;
 }
 
+static s32 hdmi_core_view_on(void)
+{
+	char buf[2];
+
+	buf[0] = 0;
+	buf[1] = HDMI_CEC_IMAGE_VIEW_ON;
+	bsp_hdmi_cec_free_time_set(1);
+	bsp_hdmi_cec_send(buf, 2);
+
+	return 0;
+}
+
 s32 hdmi_core_initial(bool sw_only)
 {
 	hdmi_bsp_func func;
@@ -83,10 +95,16 @@ s32 hdmi_core_initial(bool sw_only)
 
 	bsp_hdmi_set_version(hdmi_get_soc_version());
 	bsp_hdmi_set_func(&func);
+#if defined(HDMI_USING_INNER_BIAS)
+	bsp_hdmi_set_bias_source(HDMI_USING_INNER_BIAS);
+#endif
 	hdmi_para_init();
 	if (sw_only) {
 		video_enable = 1;
 		hdmi_state = HDMI_State_HPD_Done;
+		if (bsp_hdmi_get_hpd() && hdmi_cec_enable)
+			hdmi_core_view_on();
+
 		if (bsp_hdmi_get_hpd()) {
 			hdmi_edid_parse();
 			video_on = 1;
@@ -174,6 +192,9 @@ s32 hdmi_core_loop(void)
 			} else {
 				return 0;
 			}
+
+			if (hdmi_cec_enable)
+				hdmi_core_view_on();
 #if defined(__LINUX_PLAT__)
 			hdmi_delay_ms(200);
 #endif
@@ -359,6 +380,8 @@ bool hdmi_core_get_audio_enable(void)
 
 static s32 audio_config_internal(void)
 {
+	u8 isHDMI = hdmi_edid_is_hdmi();
+
 	__inf("audio_config_internal, type code:%d\n", glb_audio_para.type);
 	__inf("audio_config_internal, sample_rate:%d\n", glb_audio_para.sample_rate);
 	__inf("audio_config_internal, sample_bit:%d\n", glb_audio_para.sample_bit);
@@ -426,6 +449,7 @@ s32 hdmi_core_set_video_mode(u32 vic)
 	__inf("hdmi_core_set_video_mode = %x\n",vic);
 	mutex_lock(&hdmi_lock);
 	glb_video_para.vic = vic;
+	glb_audio_para.vic = vic;
 	mutex_unlock(&hdmi_lock);
 
 	return ret;
@@ -493,9 +517,7 @@ s32 hdmi_core_get_list_num(void)
 static s32 video_config(u32 vic)
 {
 	int ret = 0;
-
-	isHDMI = hdmi_edid_is_hdmi();
-	YCbCr444_Support = hdmi_edid_is_yuv();
+	u8 isHDMI = hdmi_edid_is_hdmi();
 
 	__inf("video_config, vic:%d,cts_enable:%d,isHDMI:%d,YCbCr444_Support:%d,hdcp_enable:%d\n",
 		vic,cts_enable,isHDMI,YCbCr444_Support,hdcp_enable);
@@ -559,9 +581,28 @@ s32 hdmi_core_dvi_support(void)
 		return 0;
 }
 
+s32 hdmi_core_cec_enable(bool enable)
+{
+	hdmi_cec_enable = enable;
+
+	return 0;
+}
+
 s32 hdmi_core_update_detect_time(u32 time_val)
 {
 	hdmi_detect_time = time_val;
 
 	return 0;
 }
+
+int hdmi_core_cec_get_simple_msg(unsigned char *msg)
+{
+	int ret = -1;
+
+	mutex_lock(&hdmi_lock);
+	ret = bsp_hdmi_cec_get_simple_msg(msg);
+	mutex_unlock(&hdmi_lock);
+
+	return ret;
+}
+

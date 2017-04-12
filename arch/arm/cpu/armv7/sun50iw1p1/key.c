@@ -30,10 +30,14 @@
 #include <power/sunxi/pmu.h>
 #include <fdt_support.h>
 
+__attribute__((section(".data")))
+static uint32_t keyen_flag = 1;
+
 int sunxi_key_init(void)
 {
 	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
 	uint reg_val = 0;
+	int nodeoffset;
 
 	reg_val = sunxi_key_base->ctrl;
 	reg_val &= ~((7<<1) | (0xffU << 24));
@@ -44,6 +48,12 @@ int sunxi_key_init(void)
 	/* disable all key irq */
 	sunxi_key_base->intc = 0;
 	sunxi_key_base->ints = 0x1f1f;
+
+	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_KEY_DETECT);
+	if(nodeoffset > 0)
+	{
+		fdt_getprop_u32(working_fdt,nodeoffset,"keyen_flag",&keyen_flag);
+	}
 
 	return 0;
 }
@@ -65,21 +75,12 @@ int sunxi_key_read(void)
 {
 	u32 ints;
 	int key = -1;
-	uint32_t keyen_flag = 1;
-	int nodeoffset;
-	
 	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
 
-	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_KEY_DETECT);
-	if(nodeoffset > 0)
+	if(!keyen_flag)
 	{
-		if(fdt_getprop_u32(working_fdt,nodeoffset,"keyen_flag",&keyen_flag)>0)
-		{
-			if(!keyen_flag)
-	       			return -1;
-		}
+		return -1;
 	}
-
 	ints = sunxi_key_base->ints;
 	/* clear the pending data */
 	sunxi_key_base->ints |= (ints & 0x1f);
@@ -117,7 +118,19 @@ int sunxi_key_read(void)
 int do_key_test(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
 	struct sunxi_lradc *sunxi_key_base = (struct sunxi_lradc *)SUNXI_KEYADC_BASE;
-        u32 power_key = 0;
+	u32 power_key = 0;
+	int nodeoffset;
+
+	nodeoffset = fdt_path_offset(working_fdt,FDT_PATH_KEY_DETECT);
+	if(nodeoffset > 0)
+	{
+		fdt_getprop_u32(working_fdt,nodeoffset,"keyen_flag",&keyen_flag);
+	}
+	if(!keyen_flag)
+	{
+		puts("warnning: not support,please set keyen_flag=1 in sys_config.fex\n");
+		return -1;
+	}
 	puts(" press a key:\n");
 	sunxi_key_base->ints = 0x1f1f;
 	while(!ctrlc())

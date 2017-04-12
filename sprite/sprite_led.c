@@ -27,6 +27,7 @@
 #include <sys_config.h>
 #include <asm/arch/platform.h>
 #include <fdt_support.h>
+#include <sys_config_old.h>
 
 struct timer_list TIMER0;
 static int   sprite_led_status;
@@ -80,30 +81,24 @@ int sprite_led_init(void)
 	user_gpio_set_t	gpio_init;
 	int	ret = 0;
 	int	delay = 0;
-	int nodeoffset;
-	
+
 	sprite_led_status = 1;
-	
+
 	//正常工作时，灯闪烁的时间
-	//ret = script_parser_fetch("card_boot", "sprite_work_delay", (void *)&delay, 1);
+	ret = script_parser_fetch("card_boot", "sprite_work_delay", (void *)&delay, 1);
 
 	delay = 0;
-	nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_CARD_BOOT);
-	if(nodeoffset >0)
-	{
-		fdt_getprop_u32(working_fdt, nodeoffset,"sprite_work_delay", (uint32_t*)&delay);
-	}
 	if(!delay)
 	{
 		delay = 500;
 	}
-	
+
 	printf("try sprite_led_gpio config\n");
 	memset(&gpio_init, 0, sizeof(user_gpio_set_t));
 
 	//配置输出gpio口
-	//ret = script_parser_fetch("card_boot", "sprite_gpio0", (void *)&gpio_init, sizeof(user_gpio_set_t)>>2);
-	ret = fdt_get_one_gpio(FDT_PATH_CARD_BOOT, "sprite_gpio0",&gpio_init);
+	ret = script_parser_fetch("card_boot", "sprite_gpio0", (void *)&gpio_init, sizeof(user_gpio_set_t)>>2);
+	//ret = fdt_get_one_gpio(FDT_PATH_CARD_BOOT, "sprite_gpio0",&gpio_init);
 	if(!ret)
 	{
 		if(gpio_init.port)

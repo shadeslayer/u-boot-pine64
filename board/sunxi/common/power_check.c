@@ -6,6 +6,7 @@
 #include <power/sunxi/power.h>
 #include <sunxi_board.h>
 #include <fdt_support.h>
+#include <sys_config_old.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -138,8 +139,10 @@ static int GetBatteryRatio( void)
 	{
 		//some board coulombmeter value is not precise whit low capacity, so open it again here
 		//note :in this case ,you should wait at least 1s berfore you read battery ratio again 
+#if 0
 		axp_set_coulombmeter_onoff(0);
 		axp_set_coulombmeter_onoff(1);
+#endif
 	}
 	return Ratio;
 }
@@ -218,44 +221,48 @@ static BOOT_POWER_STATE_E GetStateOnHighBatteryRatio(int PowerBus,int LowVoltage
 //note:  Decide whether to boot
 int PowerCheck(void)
 {
-	uint BatExist = 0;
-	uint PowerBus=0;
-	uint BatVol=0;
-	uint BatRatio=0;
-	uint32_t SafeVol =0;
+	int BatExist = 0;
+	int PowerBus=0;
+	int BatVol=0;
+	int BatRatio=0;
+	int SafeVol =0;
 	int PowerOnCause = 0;
 	int Ret = 0;
 	int LowVoltageFlag = 0;
 	int LowBatRatioFlag =0;
 	BOOT_POWER_STATE_E BootPowerState;
 	int nodeoffset;
+	uint pmu_bat_unused = 0;
 
 	if(get_boot_work_mode() != WORK_MODE_BOOT)
 	{
 		return 0;
 	}
 
-
 	nodeoffset =  fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
 	if(nodeoffset >0)
 	{
-		fdt_getprop_u32(working_fdt, nodeoffset,"power_start",&PowerStart);
+		script_parser_fetch(PMU_SCRIPT_NAME, "power_start", (int *)&PowerStart, 1);
+		script_parser_fetch(PMU_SCRIPT_NAME, "pmu_bat_unused", (int *)&pmu_bat_unused, 1);
 	}
 	//clear  power key 
 	axp_probe_key();
 
 	//check battery
-	BatExist = axp_probe_battery_exist();
+	BatExist = pmu_bat_unused?0:axp_probe_battery_exist();
+
+	//check power bus
+	PowerBus = axp_probe_power_source();
+	printf("PowerBus = %d( %d:vBus %d:acBus other: not exist)\n", PowerBus,AXP_VBUS_EXIST,AXP_DCIN_EXIST);
+
+	power_limit_for_vbus(BatExist,PowerBus);
+
 	if(BatExist <= 0)
 	{
 		printf("no battery exist\n");
 		EnterNormalBootMode();
 		return 0;
 	}
-
-	//check power bus
-	PowerBus = axp_probe_power_source();
-	printf("PowerBus = %x(0: not exist 1:vBus 2:acBus 3:vBus&acBus)\n", PowerBus);
 
 	//if android call shutdown when  charing , then boot should enter android charge mode
 	if((PMU_PRE_CHARGE_MODE == ProbePreSystemMode()))
@@ -278,12 +285,7 @@ int PowerCheck(void)
 	printf("Battery Voltage=%d, Ratio=%d\n", BatVol, BatRatio);
 
 	//PMU_SUPPLY_DCDC2 is for cpua
-	nodeoffset =  fdt_path_offset(working_fdt,PMU_SCRIPT_NAME);
-	if(nodeoffset >=0)
-	{
-		Ret = fdt_getprop_u32(working_fdt, nodeoffset, "pmu_safe_vol", &SafeVol);
-	}
-	//Ret = script_parser_fetch(PMU_SCRIPT_NAME, "pmu_safe_vol", &SafeVol, 1);
+	Ret = script_parser_fetch(PMU_SCRIPT_NAME, "pmu_safe_vol", &SafeVol, 1);
 	if((Ret) || (SafeVol < 3000))
 	{
 		SafeVol = 3500;

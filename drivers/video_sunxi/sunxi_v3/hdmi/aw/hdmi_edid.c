@@ -193,14 +193,25 @@ static __s32 Parse_DTD_Block(__u8 *pbuf)
 static __s32 Parse_VideoData_Block(__u8 *pbuf,__u8 size)
 {
 	int i=0;
-	while(i<size) {
-		Device_Support_VIC[pbuf[i] &0x7f] = 1;
-		if(pbuf[i] &0x80)	{
-			__inf("Parse_VideoData_Block: VIC %d(native) support\n", pbuf[i]&0x7f);
-		}
-		else {
-			__inf("Parse_VideoData_Block: VIC %d support\n", pbuf[i]);
-		}
+	u8 vic_data = 0;
+
+	while (i < size) {
+		vic_data = pbuf[i] & 0x7f;
+		if ((vic_data == 93) ||
+		    (vic_data == 94) ||
+		    (vic_data == 95))
+			Device_Support_VIC[96 - vic_data + 0x100] = 1;
+		else if (vic_data == 98)
+			Device_Support_VIC[0x104] = 1;
+		else
+			Device_Support_VIC[vic_data] = 1;
+
+
+		if (pbuf[i] & 0x80)
+			__inf("edid_parse_videodata_block: VIC %d(native) support\n", pbuf[i]&0x7f);
+		else
+			__inf("edid_parse_videodata_block: VIC %d support\n", pbuf[i]);
+
 		i++;
 	}
 
@@ -225,6 +236,9 @@ static __s32 Parse_AudioData_Block(__u8 *pbuf,__u8 size)
 static __s32 Parse_HDMI_VSDB(__u8 * pbuf,__u8 size)
 {
 	__u8 index = 8;
+	__u8 vic_len = 0;
+	__u8 vsbd_vic = 0;
+	__u8 i;
 
 	/* check if it's HDMI VSDB */
 	if((pbuf[0] ==0x03) &&	(pbuf[1] ==0x0c) &&	(pbuf[2] ==0x00)) {
@@ -256,6 +270,20 @@ static __s32 Parse_HDMI_VSDB(__u8 * pbuf,__u8 size)
 
 	if( ((pbuf[index]&0x60) ==1) || ((pbuf[index]&0x60) ==2) )
 		__inf("3D_multi_present\n");
+
+	vic_len = pbuf[index+1]>>5;
+	__inf("vsdb_vic_len = %d\n", vic_len);
+	for (i = 0; i < vic_len; i++) {
+		/* HDMI_VIC for extended resolution transmission */
+		vsbd_vic = pbuf[index+2+i];
+		if ((0 < vsbd_vic) && (vsbd_vic < 0x05)) {
+			Device_Support_VIC[vsbd_vic + 0x100] = 1;
+			__inf("edid_parse_vsdb: VIC %d support\n", vsbd_vic);
+		} else {
+			__inf("edid_parse_vsdb: VIC %d is a reserved VIC\n",
+				vsbd_vic);
+		}
+	}
 
 	index += (pbuf[index+1]&0xe0) + 2;
 	if(index > (size+1) )

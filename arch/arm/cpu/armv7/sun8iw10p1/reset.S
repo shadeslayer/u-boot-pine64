@@ -24,7 +24,7 @@
  * MA 02111-1307 USA
  */
 
-#include <asm/arch/cpu.h>
+#include <asm/arch/platform.h>
 
 #define SUNXI_WDOG_CTL    0x01C20C90
 #define SUNXI_WDOG_MODE   0x01C20C94

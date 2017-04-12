@@ -153,6 +153,9 @@ static void cache_disable(uint32_t cache_bit)
 		/* if cache isn;t enabled no need to disable */
 		if ((reg & CR_C) != CR_C)
 			return;
+#if defined(CONFIG_ARM_A7)
+                set_cr(reg & ~cache_bit);  /* added by jerry, to avoid the cache error */
+#endif
 		/* if disabling data cache, disable mmu too */
 		cache_bit |= CR_M;
 	}

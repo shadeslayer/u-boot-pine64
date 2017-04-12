@@ -166,7 +166,7 @@ s32 tcon_get_timing(u32 sel,u32 index, struct disp_video_timings* tt)
 
 s32 tcon_set_reg_base(u32 sel, uintptr_t base)
 {
-	lcd_dev[sel]=(__de_lcd_dev_t *)(uintptr_t)(base + sel*0x1000);
+	lcd_dev[sel]=(__de_lcd_dev_t *)(uintptr_t)(base);
 	return 0;
 }
 
@@ -337,6 +337,7 @@ static s32 tcon0_cfg_mode_auto(u32 sel, disp_panel_para * panel)
 	if (panel->lcd_interlace){
 		lcd_dev[sel]->tcon0_basic0.bits.y = panel->lcd_y/2 - 1;
 		lcd_dev[sel]->tcon0_basic2.bits.vt = (panel->lcd_hv_syuv_fdly == LCD_HV_SRGB_FDLY_2LINE)? 525:625;
+			start_delay = panel->lcd_vt/2-panel->lcd_y/2-10;
 	  } else {
 		lcd_dev[sel]->tcon0_basic0.bits.y = panel->lcd_y - 1;
 		lcd_dev[sel]->tcon0_basic2.bits.vt = (panel->lcd_hv_syuv_fdly == LCD_HV_SRGB_FDLY_2LINE)? 1050:1250;
@@ -345,7 +346,6 @@ static s32 tcon0_cfg_mode_auto(u32 sel, disp_panel_para * panel)
       lcd_dev[sel]->tcon0_basic1.bits.ht = (panel->lcd_ht==0)? 0:(panel->lcd_ht*2-1);
       lcd_dev[sel]->tcon0_basic1.bits.hbp = (panel->lcd_hbp==0)? 0:(panel->lcd_hbp*2-1);
       lcd_dev[sel]->tcon0_basic3.bits.hspw = (panel->lcd_hspw==0)? 0:(panel->lcd_hspw*2-1);
-      start_delay = panel->lcd_vt/2-panel->lcd_y/2-10;
   }
 	if (start_delay<10)
 		start_delay = 10;
@@ -466,6 +466,7 @@ s32 tcon0_cfg(u32 sel, disp_panel_para * panel)
 		lcd_dev[sel]->tcon0_hv_ctl.bits.srgb_seq = panel->lcd_hv_srgb_seq;
 		lcd_dev[sel]->tcon0_hv_ctl.bits.syuv_seq = panel->lcd_hv_syuv_seq;
 		lcd_dev[sel]->tcon0_hv_ctl.bits.syuv_fdly = panel->lcd_hv_syuv_fdly;
+		lcd_dev[sel]->tcon0_hv_ctl.bits.res0 = 0x80000;
 		panel->lcd_fresh_mode = 0;
         tcon0_cfg_mode_auto(sel,panel);
 	}
@@ -823,11 +824,11 @@ s32 tcon1_hdmi_color_remap(u32 sel,u32 onoff)
 	lcd_dev[sel]->tcon_ceu_coef_bb.bits.value = 0;
 	lcd_dev[sel]->tcon_ceu_coef_bc.bits.value = 0;
 
-	lcd_dev[sel]->tcon_ceu_coef_rv.bits.max = 235;
+	lcd_dev[sel]->tcon_ceu_coef_rv.bits.max = 240;//Pr
 	lcd_dev[sel]->tcon_ceu_coef_rv.bits.min = 16;
-	lcd_dev[sel]->tcon_ceu_coef_gv.bits.max = 235;
+	lcd_dev[sel]->tcon_ceu_coef_gv.bits.max = 235;//Y
 	lcd_dev[sel]->tcon_ceu_coef_gv.bits.min = 16;
-	lcd_dev[sel]->tcon_ceu_coef_bv.bits.max = 235;
+	lcd_dev[sel]->tcon_ceu_coef_bv.bits.max = 240;//Pb
 	lcd_dev[sel]->tcon_ceu_coef_bv.bits.min = 16;
 
 	if (onoff)

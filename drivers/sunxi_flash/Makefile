@@ -19,8 +19,7 @@
 # SPDX-License-Identifier:	GPL-2.0
 #
 
-ifndef  CONFIG_SUNXI_SPINOR_PLATFORM
-obj-y	+= sunxi_flash.o nand.o sdmmc.o
-else
-obj-y   += sunxi_nor_flash.o
-endif
+obj-y += sunxi_flash.o
+obj-$(CONFIG_SUNXI_MODULE_SDMMC) += sdmmc.o
+obj-$(CONFIG_SUNXI_MODULE_NAND) += nand.o
+obj-$(CONFIG_SUNXI_MODULE_SPINOR) += spinor.o

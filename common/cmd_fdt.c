@@ -45,6 +45,7 @@ int save_fdt_to_flash(void)
 /*
  * The working_fdt points to our working flattened device tree.
  */
+ #if 0
 struct fdt_header *working_fdt;
 
 void set_working_fdt_addr(void *addr)
@@ -55,7 +56,7 @@ void set_working_fdt_addr(void *addr)
 	working_fdt = buf;
 	setenv_addr("fdtaddr", addr);
 }
-
+#endif
 /*
  * Get a value from the fdt and format it to be set in the environment
  */

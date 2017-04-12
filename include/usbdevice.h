@@ -340,8 +340,8 @@ struct usb_bus_instance;
 /*
  * standard feature selectors
  */
-#define USB_ENDPOINT_HALT		0x00
-#define USB_DEVICE_REMOTE_WAKEUP	0x01
+//#define USB_ENDPOINT_HALT		0x00
+//#define USB_DEVICE_REMOTE_WAKEUP	0x01
 #define USB_TEST_MODE			0x02
 
 

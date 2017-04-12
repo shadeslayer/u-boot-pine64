@@ -1,30 +1,25 @@
-
-
 #define   PHY_ONLY_TOG_AND_SDR              1
-
 #define   PHY_WAIT_RB_BEFORE                0
 #define   PHY_WAIT_RB_INTERRRUPT            0
 #define   PHY_WAIT_DMA_INTERRRUPT           0
 
-
-
 /*****************************************************************************
-1.一个通道内需要贴同一种flash
-2.两个通道应该贴同样数目和类型的flash
+1.Single channel needs to be affixed to the same kind of flash
+2.Dual channel needs to be affixed to  the same number and type of flash
 
-单通道
-1.支持 two-plane
-2.支持 vertical_interleave
-3.如果超级页超过32k，不支持two-plane
-4.vertical_interleave 通道内rb不相同的chip配对
+Single channel
+1.support two-plane
+2.support vertical_interleave
+3.if superpage>32k,two-plane not supported
+4.vertical_interleave chip pairing with different rb in the channel
 
-双通道
-1.支持 two-plane
-2.支持dual_channel
-3.支持vertical_interleave
-4.如果超级页超过32k，不支持two-plane
-5.dual_channel 通道间chip0和chip0配对
-6.vertical_interleave 通道内rb不相同的chip配对
+Dual channel
+1.support two-plane
+2.support dual_channel
+3.support vertical_interleave
+4.if superpage>32k,two-plane not supported
+5.dual_channel chip pairing with same chip number between the channel
+6.vertical_interleave chip pairing with different rb in the channel
 *****************************************************************************/
 #define   PHY_SUPPORT_TWO_PLANE                          1
 #define   PHY_SUPPORT_VERTICAL_INTERLEAVE                1

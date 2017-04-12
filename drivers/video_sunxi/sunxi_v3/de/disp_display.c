@@ -482,6 +482,10 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 			width = 3840;
 			height = 2160;
 			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
+			height = 2160;
+			break;
 		}
 	}
 	/* FIXME: add other output device res */
@@ -517,6 +521,10 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		case DISP_TV_MOD_3840_2160P_25HZ:
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
+			height = 2160;
+			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
 			height = 2160;
 			break;
 		}

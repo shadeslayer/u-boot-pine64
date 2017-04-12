@@ -33,6 +33,7 @@
 #include <asm/io.h>
 #include <fdt_support.h>
 #include "efex_queue.h"
+#include <sys_config_old.h>
 
 #ifndef CONFIG_SUNXI_SPINOR
 #define _EFEX_USE_BUF_QUEUE_
@@ -73,10 +74,7 @@ static  struct multi_unseq_mem_s global_unseq_mem_addr;
 #if defined(SUNXI_USB_30)
 static  int sunxi_usb_efex_status_enable = 1;
 #endif
-#ifdef CONFIG_SUNXI_SPINOR
-static u32 fullimg_size = 0;
-extern u32 total_write_bytes ;
-#endif
+
 extern int do_bootelf(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 
 
@@ -1126,8 +1124,14 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 			{
 				uint *storage_type = (uint *)trans_data.base_send_buffer;
 
-				*storage_type = uboot_spare_head.boot_data.storage_type;
-
+                                if(uboot_spare_head.boot_data.storage_type == STORAGE_EMMC3)
+                                {
+                                        *storage_type = STORAGE_EMMC;
+                                }
+                                else
+                                {
+				        *storage_type = uboot_spare_head.boot_data.storage_type;
+                                }
 				trans_data.act_send_buffer   = trans_data.base_send_buffer;
 				trans_data.send_size         = 4;
 				trans_data.last_err          = 0;
@@ -1194,14 +1198,10 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 				{
 					if(!fes_work->next_mode)
 					{
-						int nodeoffset=0,fdt_ret=0;
-						nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_PLATFORM);
-						if(nodeoffset >0)
-						{
-							fdt_ret= fdt_getprop_u32(working_fdt, nodeoffset,"next_work", (uint32_t*)&sunxi_efex_next_action);
-						}
-						//if get next_work fail
-						if(nodeoffset < 0 || fdt_ret < 0)
+						int ret=0;
+
+						ret = script_parser_fetch("platform", "next_work", (int *)&sunxi_efex_next_action, 1);
+						if (ret < 0)
 						{
 							sunxi_efex_next_action = SUNXI_UPDATE_NEXT_ACTION_NORMAL;
 						}
@@ -1331,11 +1331,11 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 
 		case FEX_CMD_fes_query_secure:
 			{
-				uint *secure_type = (uint *)trans_data.base_send_buffer;
+				uint *bootfile_mode = (uint *)trans_data.base_send_buffer;
 
-				*secure_type = gd->securemode;
+				*bootfile_mode = gd->bootfile_mode;
 
-				printf("securemode=%ld\n", gd->securemode);
+				printf("bootfile_mode=%ld\n", gd->bootfile_mode);
 				trans_data.act_send_buffer   = trans_data.base_send_buffer;
 				trans_data.send_size         = 4;
 				trans_data.last_err          = 0;
@@ -1377,8 +1377,8 @@ static void dram_data_recv_finish(uint data_type)
 	if(data_type == SUNXI_EFEX_MBR_TAG)			//传输MBR已经完成
         {
 		//检查MBR的正确性
-            if(uboot_spare_head.boot_data.storage_type != 3 )
-            {
+
+
                 trans_data.last_err = sunxi_sprite_verify_mbr((void *)trans_data.base_recv_buffer);
 		if(!trans_data.last_err )
 		{
@@ -1395,9 +1395,8 @@ static void dram_data_recv_finish(uint data_type)
 		        trans_data.last_err = -1;
 		    }
 	        }
-            }
-            else
-                trans_data.last_err = 0;
+
+
 	}
 	else if(data_type == SUNXI_EFEX_BOOT1_TAG)	//传输BOOT1已经完成
 	{
@@ -1414,7 +1413,6 @@ static void dram_data_recv_finish(uint data_type)
 	else if(data_type == SUNXI_EFEX_ERASE_TAG)
 	{
 		uint erase_flag;
-		int nodeoffset;
 
 		printf("SUNXI_EFEX_ERASE_TAG\n");
 		erase_flag = *(uint *)trans_data.base_recv_buffer;
@@ -1423,13 +1421,7 @@ static void dram_data_recv_finish(uint data_type)
 		    erase_flag = 1;
 		}
 		printf("erase_flag = 0x%x\n", erase_flag);
-		nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_PLATFORM);
-		if(nodeoffset > 0)
-		{
-			fdt_setprop_u32(working_fdt,nodeoffset,"eraseflag",erase_flag);
-		}
-		//script_parser_patch("platform", "eraseflag", &erase_flag , 1);
-		
+		script_parser_patch("platform", "eraseflag", &erase_flag , 1);
 	}
 	else if(data_type == SUNXI_EFEX_PMU_SET)
 	{
@@ -1457,19 +1449,7 @@ static void dram_data_recv_finish(uint data_type)
 		printf("begin to set address to unsequency memory\n");
 		memcpy(unseq_mem, (void *)trans_data.act_recv_buffer, trans_data.recv_size);
 	}
-#ifdef CONFIG_SUNXI_SPINOR
-	else if(data_type == SUNXI_EFEX_FULLIMG_SIZE_TAG)
-	{
-		fullimg_size = *(uint *)trans_data.base_recv_buffer;
-		if(fullimg_size % 512 != 0)
-			fullimg_size = (fullimg_size + 512)&(~0x1ff) ;
-		printf("algin 512 byte  fullimg_size %d \n",fullimg_size);   //add by young
-		if(!fullimg_size)
-			trans_data.last_err = -1;
-		else
-			trans_data.last_err = 0;
-	}
-#endif
+
 
     else//其它数据，直接写入内存
 	{
@@ -1742,15 +1722,7 @@ static int sunxi_efex_state_loop(void  *buffer)
 
 							sunxi_usb_efex_app_step = SUNXI_USB_EFEX_APPS_IDLE;
 						}
-#ifdef CONFIG_SUNXI_SPINOR
-						if((uboot_spare_head.boot_data.storage_type == 3)&&(trans_data.type & SUNXI_EFEX_TRANS_FINISH_TAG)&&(fullimg_size == total_write_bytes))
-						{
-							//sunxi_usb_dbg("sunxi usb efex trans finish\n");
-							printf("before sunxi_sprite_setdata_finish\n");
 
-							sunxi_sprite_setdata_finish();
-						}
-#endif
 					}
 				}
 				sunxi_usb_efex_status   = SUNXI_USB_EFEX_STATUS;			//传输阶段，下一阶段传输状态(csw)
@@ -1893,15 +1865,8 @@ static int sunxi_efex_state_loop(void  *buffer)
                         printf("sunxi usb efex err: write flash from 0x%x, sectors 0x%x failed\n", trans_data.flash_start, trans_data.flash_sectors);
                         trans_data.last_err = -1;
                     }
-			
-#ifdef CONFIG_SUNXI_SPINOR
-					if((uboot_spare_head.boot_data.storage_type == 3)&&(trans_data.type & SUNXI_EFEX_TRANS_FINISH_TAG)&&(fullimg_size == total_write_bytes))
-					{
-						//sunxi_usb_dbg("sunxi usb efex trans finish\n");
-						printf("before sunxi_sprite_setdata_finish\n");
-						sunxi_sprite_setdata_finish();
-					}
-#endif
+
+
 #endif
                 }
                 csw.status = trans_data.last_err;

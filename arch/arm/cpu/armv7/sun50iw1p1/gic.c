@@ -41,6 +41,7 @@ struct _irq_handler sunxi_int_handlers[GIC_IRQ_NUM];
 
 extern int  interrupts_is_open(void);
 
+static void gic_spi_set_target(int irq_no, int cpu_id);
 /*
 ************************************************************************************************************
 *
@@ -93,6 +94,7 @@ int irq_enable(int irq_no)
 		*(volatile unsigned int *)(0x01f00c00 + 0x10) |= 1;
 		*(volatile unsigned int *)(0x01f00c00 + 0x40) |= 1;
 	}
+	gic_spi_set_target(irq_no, get_core_pos());
 
 	offset   = irq_no >> 5; // 除32
 	reg_val  = readl(GIC_SET_EN(offset));
@@ -132,6 +134,7 @@ int irq_disable(int irq_no)
 		*(volatile unsigned int *)(0x01f00c00 + 0x10) |= 1;
 		*(volatile unsigned int *)(0x01f00c00 + 0x40) &= ~1;
 	}
+	gic_spi_set_target(irq_no, 0);
 
 	offset   = irq_no >> 5; // 除32
 	reg_val  = (1 << (irq_no & 0x1f));
@@ -224,8 +227,8 @@ static void gic_clear_pending(uint irq_no)
 	uint offset;
 
 	offset = irq_no >> 5; // 除32
-	reg_val = readl(GIC_PEND_CLR(offset));
-	reg_val |= (1 << (irq_no & 0x1f));
+	//reg_val = readl(GIC_PEND_CLR(offset));
+	reg_val = (1 << (irq_no & 0x1f));
 	writel(reg_val, GIC_PEND_CLR(offset));
 
 	return ;
@@ -249,7 +252,7 @@ static void gic_clear_pending(uint irq_no)
 void irq_install_handler (int irq, interrupt_handler_t handle_irq, void *data)
 {
 	int flag = interrupts_is_open();
-	//when irq_handler call this function , irq enable bit has already disabled in irq_mode,so don't need to enable I bit 
+	//when irq_handler call this function , irq enable bit has already disabled in irq_mode,so don't need to enable I bit
 	if(flag)
 	{
 		disable_interrupts();
@@ -331,6 +334,7 @@ void do_irq (struct pt_regs *pt_regs)
 		printf("irq NO.(%d) > GIC_IRQ_NUM(%d) !!\n", idnum, GIC_IRQ_NUM-32);
 		return;
 	}
+
 	if (idnum < 16)
 		gic_sgi_handler(idnum);
 	else if (idnum < 32)
@@ -478,6 +482,39 @@ static void gic_cpuif_init(void)
 
 	return ;
 }
+
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
+static void gic_spi_set_target(int irq_no, int cpu_id)
+{
+	uint reg_val, addr, offset;
+
+	irq_no -= 32;
+	/* dispatch the usb interrupt to CPU1 */
+	addr = GIC_SPI_PROC_TARG(irq_no>>2);
+	reg_val = readl(addr);
+	offset  = 8 * (irq_no & 3);
+	reg_val &= ~(0xff<<offset);
+	reg_val |=  (((1<<cpu_id) & 0xf) <<offset);
+	writel(reg_val, addr);
+
+	return ;
+}
+
 /*
 ************************************************************************************************************
 *
@@ -541,4 +578,17 @@ int arch_interrupt_exit(void)
 	return 0;
 }
 
+int sunxi_gic_cpu_interface_init(int cpu)
+{
+	gic_cpuif_init();
+
+	return 0;
+}
+
+int sunxi_gic_cpu_interface_exit(void)
+{
+	writel(0, GIC_CPU_IF_CTRL);
+
+	return 0;
+}
 

@@ -34,6 +34,7 @@
 #define WORK_MODE_CARD_PRODUCT	0x11	//用于卡量产
 #define WORK_MODE_USB_DEBUG	    0x12    //利用usb量产协议完成的测试
 #define WORK_MODE_SPRITE_RECOVERY 0x13	//一键恢复
+#define WORK_MODE_CARD_UPDATE	0x14	//update firmware from sdcard
 #define WORK_MODE_USB_UPDATE	0x20	//用于USB升级
 #define WORK_MODE_OUTER_UPDATE	0x21	//用于外部盘升级
 
@@ -59,16 +60,30 @@
 #define SUNXI_VBUS_NOT_EXIST                    (2)
 
 #define BOOT0_SDMMC_START_ADDR                  (16)
-#ifndef CONFIG_SUNXI_SECURE_SYSTEM
-#define UBOOT_START_SECTOR_IN_SDMMC             (38192)
-#else
+#define BOOT0_SDMMC_BACKUP_START_ADDR           (256)
+
+#define BOOT0_EMMC3_START_ADDR                  (384)
+#define BOOT0_EMMC3_BACKUP_START_ADDR           (512)
+
+
 #define UBOOT_START_SECTOR_IN_SDMMC             (32800)
-#define UBOOT_START_SECTOR_PRE_IN_SDMMC         (38192)
-#endif
+#define UBOOT_BACKUP_START_SECTOR_IN_SDMMC      (24576)
+
 
 #define SUNXI_NORMAL_MODE                            0
 #define SUNXI_SECURE_MODE_WITH_SECUREOS              1
 #define SUNXI_SECURE_MODE_NO_SECUREOS                2
+
+typedef enum _SUNXI_BOOT_FILE_MODE
+{
+	SUNXI_BOOT_FILE_NORMAL =0,
+	SUNXI_BOOT_FILE_TOC = 1,
+	SUNXI_BOOT_FILE_RES0 = 2,
+	SUNXI_BOOT_FILE_RES1 = 3,
+	SUNXI_BOOT_FILE_PKG = 4
+}SUNXI_BOOT_FILE_MODE;
+
+
 
 #define   BOOT_FROM_SD0     0
 #define   BOOT_FROM_SD2     2
@@ -87,6 +102,7 @@
 #define	TOC_ITEM_ENTRY_TYPE_KEY_CERTIF			0x01
 #define	TOC_ITEM_ENTRY_TYPE_BIN_CERTIF			0x02
 #define	TOC_ITEM_ENTRY_TYPE_BIN     			0x03
+#define TOC_ITEM_ENTRY_TYPE_LOGO                0x04
 
 typedef struct _normal_gpio_cfg
 {
@@ -122,7 +138,8 @@ typedef enum
 	STORAGE_NAND =0,
 	STORAGE_SD,
 	STORAGE_EMMC,
-	STORAGE_NOR
+	STORAGE_NOR,
+        STORAGE_EMMC3
 }SUNXI_BOOT_STORAGE;
 
 #endif

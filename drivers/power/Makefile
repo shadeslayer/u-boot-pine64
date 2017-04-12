@@ -18,6 +18,20 @@ obj-$(CONFIG_POWER_FSL) += power_fsl.o
 obj-$(CONFIG_POWER_I2C) += power_i2c.o
 obj-$(CONFIG_POWER_SPI) += power_spi.o
 
-obj-$(CONFIG_SUNXI_AXP) += sunxi/axp.o sunxi/axp_null.o sunxi/axp_supply_null.o
+obj-y += sunxi/axp_null.o sunxi/axp_supply_null.o
+
+obj-y += sunxi/axp.o
+ifdef CONFIG_SUNXI_MODULE_AXP
 obj-$(CONFIG_SUNXI_AXP81X) += sunxi/axp81X.o
 obj-$(CONFIG_SUNXI_AXP81X) += sunxi/axp81X_supply.o
+obj-$(CONFIG_SUNXI_AXP15) += sunxi/axp15.o
+obj-$(CONFIG_SUNXI_AXP15) += sunxi/axp15_supply.o
+obj-$(CONFIG_SUNXI_AXP20) += sunxi/axp20.o
+obj-$(CONFIG_SUNXI_AXP20) += sunxi/axp20_supply.o
+obj-$(CONFIG_SUNXI_AXP22) += sunxi/axp22.o
+obj-$(CONFIG_SUNXI_AXP22) += sunxi/axp22_supply.o
+obj-$(CONFIG_SUNXI_AXP806) += sunxi/axp806.o
+obj-$(CONFIG_SUNXI_AXP806) += sunxi/axp806_supply.o
+obj-$(CONFIG_SUNXI_AXP259) += sunxi/axp259.o
+obj-$(CONFIG_SUNXI_AXP259) += sunxi/axp259_supply.o
+endif

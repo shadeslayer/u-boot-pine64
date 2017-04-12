@@ -1,12 +1,16 @@
-
-##
-## Makefile for Sunxi Secure Boot
-##
+#
+# (C) Copyright 2013-2016
+#  Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+#
+#  SPDX-License-Identifier:     GPL-2.0+
+#
 
 
 include $(SPLDIR)/config.mk
 LIB	:= $(obj)libmmc.o
 
+COBJS-y += mmc_host_0_3_v4px.o
+COBJS-y += mmc_host_2_v5p1.o
 COBJS-y += mmc_bsp.o
 COBJS-y += mmc.o
 

@@ -1,3 +1,9 @@
+/*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
 /*********************************************************************************************************
 *                                                                NAND FLASH DRIVER
 *								(c) Copyright 2008, SoftWinners Co,Ld.

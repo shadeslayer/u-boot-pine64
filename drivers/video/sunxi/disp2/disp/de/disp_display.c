@@ -684,7 +684,9 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 		if (mgr && mgr->device && mgr->device->get_resolution) {
 			mgr->device->get_resolution(mgr->device, &width, &height);
 		}
-	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type) || (DISP_OUTPUT_TYPE_TV == output_type)) {
+	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type)
+			|| (DISP_OUTPUT_TYPE_TV == output_type)
+			|| (DISP_OUTPUT_TYPE_VGA == output_type)) {
 		switch(output_mode) {
 		case DISP_TV_MOD_NTSC:
 		case DISP_TV_MOD_480I:
@@ -710,6 +712,7 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 		case DISP_TV_MOD_1080P_24HZ:
 		case DISP_TV_MOD_1080I_50HZ:
 		case DISP_TV_MOD_1080I_60HZ:
+		case DISP_VGA_MOD_1920_1080P_60:
 			width = 1920;
 			height = 1080;
 			break;
@@ -718,6 +721,34 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
 			height = 2160;
+			break;
+		case DISP_VGA_MOD_800_600P_60:
+			width = 800;
+			height = 600;
+			break;
+		case DISP_VGA_MOD_1024_768P_60:
+			width = 1024;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_768P_60:
+			width = 1280;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_800P_60:
+			width = 1280;
+			height = 800;
+			break;
+		case DISP_VGA_MOD_1366_768P_60:
+			width = 1366;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1440_900P_60:
+			width = 1440;
+			height = 900;
+			break;
+		case DISP_VGA_MOD_1920_1200P_60:
+			width = 1920;
+			height = 1200;
 			break;
 		}
 	}
@@ -736,7 +767,9 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		if (mgr && mgr->device && mgr->device->get_resolution) {
 			mgr->device->get_resolution(mgr->device, &width, &height);
 		}
-	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type) || (DISP_OUTPUT_TYPE_TV == output_type)) {
+	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type)
+			|| (DISP_OUTPUT_TYPE_TV == output_type)
+			|| (DISP_OUTPUT_TYPE_VGA == output_type)) {
 		switch(output_mode) {
 		case DISP_TV_MOD_NTSC:
 		case DISP_TV_MOD_480I:
@@ -762,6 +795,7 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		case DISP_TV_MOD_1080P_24HZ:
 		case DISP_TV_MOD_1080I_50HZ:
 		case DISP_TV_MOD_1080I_60HZ:
+		case DISP_VGA_MOD_1920_1080P_60:
 			width = 1920;
 			height = 1080;
 			break;
@@ -770,6 +804,34 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
 			height = 2160;
+			break;
+		case DISP_VGA_MOD_800_600P_60:
+			width = 800;
+			height = 600;
+			break;
+		case DISP_VGA_MOD_1024_768P_60:
+			width = 1024;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_768P_60:
+			width = 1280;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_800P_60:
+			width = 1280;
+			height = 800;
+			break;
+		case DISP_VGA_MOD_1366_768P_60:
+			width = 1366;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1440_900P_60:
+			width = 1440;
+			height = 900;
+			break;
+		case DISP_VGA_MOD_1920_1200P_60:
+			width = 1920;
+			height = 1200;
 			break;
 		}
 	}
@@ -916,22 +978,30 @@ s32 bsp_disp_tv_register(struct disp_tv_func * func)
 	u32 disp = 0;
 	u32 num_screens = 0;
 	s32 ret = 0, registered_cnt = 0;
-	struct disp_device*  ptv = NULL;
-	disp_init_tv();
-	num_screens = bsp_disp_feat_get_num_screens();
-	for (disp=0; disp<num_screens; disp++) {
-		ptv = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
-		if (ptv) {
-			registered_cnt ++;
-		}
-		else {
-			DE_WRN("'ptv is null\n");
-			continue;
-		}
-		ret = disp_tv_set_func(ptv, func);
-	}
+	struct disp_device* dispdev = NULL;
 
-	if (0 != registered_cnt && !ret) {
+	num_screens = bsp_disp_feat_get_num_screens();
+	disp_init_tv();
+	for (disp=0; disp<num_screens; disp++) {
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
+		if (dispdev && dispdev->set_tv_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+			registered_cnt++;
+		}
+	}
+#if defined(SUPPORT_VGA)
+	disp_init_vga();
+	for (disp=0; disp<num_screens; disp++) {
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_VGA);
+		if (dispdev && dispdev->set_tv_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+				registered_cnt++;
+		}
+	}
+#endif
+	if (0 != registered_cnt) {
 		gdisp.tv_registered = 1;
 		if (gdisp.init_para.start_process) {
 			gdisp.init_para.start_process();

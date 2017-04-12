@@ -24,7 +24,6 @@
 #include <pwm.h>
 #include <fdt_support.h>
 #include <malloc.h>
-#include <asm/io.h>
 
 #define sys_get_wvalue(n)   (*((volatile uint *)(n)))          /* word input */
 #define sys_put_wvalue(n,c) (*((volatile uint *)(n))  = (c))   /* word output */
@@ -89,7 +88,7 @@ struct sunxi_pwm_chip {
 	const struct pwm_ops	*ops;
 	unsigned int            base;
 	int                     pwm;
-	int 					pwm_base;
+	int 			pwm_base;
 	struct sunxi_pwm_cfg *config;
 };
 
@@ -117,23 +116,6 @@ static inline u32 sunxi_pwm_writel(struct sunxi_pwm_chip *chip, u32 offset, u32 
 	writel(value, chip->base + offset);
 
 	return 0;
-}
-
-
-uint sunxi_pwm_read_reg(uint offset)
-{
-    uint value = 0;
-
-   value = sys_get_wvalue(SUNXI_PWM03_BASE + offset);
-
-    return value;
-}
-
-uint sunxi_pwm_write_reg(uint offset, uint value)
-{
-    sys_put_wvalue(SUNXI_PWM03_BASE + offset, value);
-
-    return 0;
 }
 
 extern int fdt_set_all_pin(const char* node_path,const char* pinctrl_name);
@@ -260,7 +242,8 @@ int sunxi_pwm_config(struct sunxi_pwm_chip* pchip, int duty_ns, int period_ns)
 
 	temp = SET_BITS(reg_shift, reg_width, temp, (pre_scal[pre_scal_id][0]));
 
-	printf("%s: reg_shift = %d, reg_width = %d, prescale temp = %x, pres=%d\n", __func__, reg_shift, reg_width, temp, pre_scal[pre_scal_id][0]);
+	pwm_debug("%s: reg_shift = %d, reg_width = %d, prescale temp = %x, pres=%d\n",
+			   __func__, reg_shift, reg_width, temp, pre_scal[pre_scal_id][0]);
 	sunxi_pwm_writel(pchip, reg_offset, temp);
 
 	/*config active cycles*/
@@ -279,8 +262,8 @@ int sunxi_pwm_config(struct sunxi_pwm_chip* pchip, int duty_ns, int period_ns)
 	temp = SET_BITS(reg_shift, reg_width, temp, (entire_cycles - 1));
 	sunxi_pwm_writel(pchip, reg_offset, temp);
 
-	printf("PWM _TEST: duty_ns=%d, period_ns=%d, freq=%d, per_scal=%d, period_reg=0x%x\n",
-		      duty_ns, period_ns, freq, pre_scal_id, temp);
+	pwm_debug("PWM %s: duty_ns=%d, period_ns=%d, freq=%d, per_scal=%d, period_reg=0x%x\n",
+		      __func__, duty_ns, period_ns, freq, pre_scal_id, temp);
 /*
     if(pwm == 0)
         temp = (temp & 0xfffffff0) |pre_scal[pre_scal_id][0];
@@ -301,11 +284,8 @@ int sunxi_pwm_enable(struct sunxi_pwm_chip* pchip)
 	int value;
 	char pin_name[5];
 	unsigned int reg_offset, reg_shift;
-
-#ifndef FPGA_PLATFORM
-
-    int i;
-    uint ret = 0;
+	int i;
+	uint ret = 0;
 	int pwm = pchip->pwm;
 	int base = pchip->pwm_base;
 
@@ -318,7 +298,6 @@ int sunxi_pwm_enable(struct sunxi_pwm_chip* pchip)
         gpio_release(ret, 2);
     }
 
-#endif
 /*
     temp = sunxi_pwm_read_reg(0);
 
@@ -431,9 +410,6 @@ static int sunxi_pwm_get_config(int node, struct sunxi_pwm_cfg *config)
 		printf( "failed to get reg_enable_offset! err=%d\n", ret);
 		goto err;
 	}
-
-	printf("reg_busy_offset=%u, reg_busy_shift = %u, reg_enable_offset = %u\n",
-				config->reg_busy_offset, config->reg_busy_shift, config->reg_enable_offset);
 
 	ret = fdt_getprop_u32(working_fdt, node, "reg_enable_shift", &config->reg_enable_shift);
 	if (ret < 0) {
@@ -596,8 +572,9 @@ int pwm_config(int pwm, int duty_ns, int period_ns)
 		if(pchip->pwm == pwm) {
 			if(pchip->ops->config)
 				return pchip->ops->config(pchip, duty_ns, period_ns);
-			break;
 		}
+
+		return 0;
 	}
 
 	return -1;
@@ -611,8 +588,8 @@ int pwm_enable(int pwm)
 		if(pchip->pwm == pwm) {
 			if(pchip->ops->enable)
 				return pchip->ops->enable(pchip);
-			break;
 		}
+		return 0;
 	}
 
 	return -1;
@@ -626,8 +603,8 @@ int pwm_disable(int pwm)
 		if(pchip->pwm == pwm) {
 			if(pchip->ops->disable)
 				pchip->ops->disable(pchip);
-			break;
 		}
+		return 0;
 	}
 
 	return -1;
@@ -641,8 +618,8 @@ int pwm_set_polarity(int pwm, enum pwm_polarity polarity)
 			if(pchip->pwm == pwm) {
 				if(pchip->ops->set_polarity)
 					pchip->ops->set_polarity(pchip, polarity);
-				break;
 			}
+			return 0;
 		}
 
 	return -1;
@@ -770,14 +747,14 @@ int pwm_request(int pwm, const char *label)
 		printf("%s: err: get reg-base err.\n", __func__);
 		return -1;
 	} else {
-		printf("%s: reg = 0x%x.pchip->pwm = %d\n", __func__, pchip->base, pchip->pwm);
+		printf("%s: reg = 0x%x. pwm = %d.\n", __func__, pchip->base, pchip->pwm);
 	}
 
 	ret = sunxi_pwm_get_config(sub_node, pchip->config);
 
 	list_add_tail(&pchip->list, &pwm_list);
 
-	printf("request pwm success, pwm = %d!\n", pwm);
+	printf("request pwm success, pwm = %d.\n", pwm);
 
 	return pwm;
 }

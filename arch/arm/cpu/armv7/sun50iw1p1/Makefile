@@ -23,17 +23,8 @@
 
 
 obj-y	+= clock.o
-obj-y	+= timer.o
 obj-y	+= board.o
-obj-y	+= key.o
-obj-y	+= efuse.o
-obj-y	+= ss.o
-obj-y	+= gic.o
+obj-y	+= usb_clock.o
 
-obj-y	+= usb/usbc.o
-obj-y	+= usb/usbc_dev.o
-obj-y	+= usb/usbc_dma.o
-obj-y	+= usb/usbc_host.o
-obj-y	+= usb/usbc_phy.o
-obj-y	+= usb/usbc_resource.o
+
 

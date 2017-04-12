@@ -1,4 +1,10 @@
 /*
+ * (C) Copyright 2013-2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ *
+ * SPDX-License-Identifier:     GPL-2.0+
+ */
+/*
  * (C) Copyright 2007-2012
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  *
@@ -15,23 +21,24 @@
 #include <asm/arch/ccmu.h>
 #include "asm/arch/archdef.h"
 
-
 #define SUNXI_MMC0_BASE				(SUNXI_SMHC0_BASE)
 #define SUNXI_MMC1_BASE				(SUNXI_SMHC1_BASE)
 #define SUNXI_MMC2_BASE				(SUNXI_SMHC2_BASE)
 
 
-#define MAX_MMC_NUM			3
+#define MAX_MMC_NUM			4   
 
 #define MMC_TRANS_BY_DMA
 //#define MMC_DEBUG
 #define MMC_REG_FIFO_OS		(0x200)
 
 #define MMC_REG_BASE		SUNXI_MMC0_BASE
-#define CCMU_HCLKGATE0_BASE CCMU_BUS_CLK_GATING_REG0
+#define CCMU_HCLKGATE0_BASE 	CCMU_BUS_CLK_GATING_REG0
 #define CCMU_HCLKRST0_BASE 	CCMU_BUS_SOFT_RST_REG0
 #define CCMU_MMC0_CLK_BASE 	CCMU_SDMMC0_CLK_REG
 #define CCMU_MMC2_CLK_BASE 	CCMU_SDMMC2_CLK_REG
+#define CCMU_MMC3_CLK_BASE 	CCMU_SDMMC3_CLK_REG
+
 
 
 //#define CCMU_PLL5_CLK_BASE 	0x01c20020
@@ -43,13 +50,13 @@
 #endif
 
 #ifdef MMC_DEBUG
-#define mmcinfo(fmt...)	printf("[mmc]: "fmt)
-#define mmcdbg(fmt...)	printf("[mmc]: "fmt)
-#define mmcmsg(fmt...)	printf(fmt)
+#define mmcinfo(fmt,args...)     printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcdbg(fmt,args...)      printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcmsg(fmt,args...)      printf("[mmc]: "fmt,##args) //printf(fmt,##args)
 #else
-#define mmcinfo(fmt...)	printf("[mmc]: "fmt)
-#define mmcdbg(fmt...)
-#define mmcmsg(fmt...)
+#define mmcinfo(fmt,args...)     printf("[mmc]: "fmt,##args) //printf(fmt,##args)
+#define mmcdbg(fmt,args...)
+#define mmcmsg(fmt,args...)
 #endif
 
 //#define readb(addr)		(*((volatile unsigned char  *)(addr)))
@@ -65,6 +72,6 @@
 #define DRAM_START_ADDR				(0x40000000)
 
 
-#define DRIVER_VER  "2015-05-08 20:06"
+#define DRIVER_VER  "2016-07-01 17:00"
 
 #endif /* _MMC_H_ */

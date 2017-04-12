@@ -67,7 +67,10 @@ typedef struct sbrom_toc1_head_info
 
 	u32  items_nr;	//total entry number
 	u32  valid_len;
-	u32  reserved[5];	//reserved for future
+	u32  version_main;	//only one byte
+	u32  version_sub;   //two bytes
+	u32  reserved[3];	//reserved for future
+
 	u32  end;
 }
 sbrom_toc1_head_info_t;
@@ -108,12 +111,26 @@ typedef struct sbrom_toc0_config
 	unsigned int       boot_cpu;           //
 	special_gpio_cfg    a15_power_gpio;  //the gpio config is to a15 extern power enable gpio
 	unsigned int       next_exe_pa;
-    unsigned int       secure_without_OS;   //secure boot without semelis
-    unsigned int       debug_mode;         //1:turn on printf; 0 :turn off printf
-	unsigned int      	res[3];   			// 总共1024字节
+	unsigned int       secure_without_OS;   //secure boot without semelis
+	unsigned char       debug_mode;         //1:turn on printf; 0 :turn off printf
+	unsigned char       power_mode;          /* 0:axp , 1: dummy pmu  */
+	unsigned char       reserver[2];
+	unsigned int		card_work_mode;
+	unsigned int      	res[2];   			// 总共1024字节
 
 }
 sbrom_toc0_config_t;
+
+#define ITEM_SCP_NAME             "scp"
+#define ITEM_MONITOR_NAME         "monitor"
+#define ITEM_UBOOT_NAME           "u-boot"
+#define ITEM_LOGO_NAME            "logo"
+#define ITEM_DTB_NAME         "dtb"
+#define ITEM_SOCCFG_NAME           "soc-cfg"
+#define ITEM_BDCFG_NAME            "board-cfg"
+#define ITEM_SHUTDOWNCHARGE_LOGO_NAME   "shutdowncharge"
+#define ITEM_ANDROIDCHARGE_LOGO_NAME    "androidcharge"
+#define ITEM_EMMC_FW_NAME         "emmc-fw"
 
 #endif     //  ifndef __toc_h
 

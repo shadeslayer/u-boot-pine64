@@ -67,7 +67,7 @@ static unsigned short* PWRSAVE_CORE(u32 sel)
 	if (backlight < PWRSAVE_PROC_THRES) {
 		/* if current backlight lt PWRSAVE_PROC_THRES, close smart backlight function */
 		memset(g_smbl_status[sel]->min_adj_index_hist, 255, sizeof(u8)*IEP_LH_PWRSV_NUM);
-		lgcaddr = pttab[sel] + ((128-1)<<10);
+		lgcaddr = (unsigned short*)((uintptr_t)pttab[sel] + ((128-1)<<9));
 
 		g_smbl_status[sel]->dimming = 256;
 	}	else {
@@ -158,7 +158,7 @@ static unsigned short* PWRSAVE_CORE(u32 sel)
 
 		g_smbl_status[sel]->dimming = min_adj_index + 1;
 
-		lgcaddr = pttab[sel] + ((min_adj_index - 128)<<10);
+		lgcaddr = (unsigned short*)((uintptr_t)pttab[sel] + ((min_adj_index - 128)<<9));
 
 		if (printf_cnt == 600)	{
 			__inf("save backlight power: %d percent\n", (256 - (u32)min_adj_index)*100 / 256);
@@ -262,7 +262,6 @@ int de_smbl_init(unsigned int sel, uintptr_t reg_base)
 	unsigned int lcdgamma;
 	int  value = 1;
 	char primary_key[20];
-	char sub_key[20];
 	int  ret;
 
 	base = reg_base + (sel+1)*0x00100000 + SMBL_OFST;

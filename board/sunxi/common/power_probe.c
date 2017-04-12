@@ -57,28 +57,10 @@ int usb_probe_vbus_type(void)
 
 void power_limit_init(void)
 {
-	int battery_exist = 0;
-	int dcin_exist = 0;
 	int vbus_type = 0;
-	int i = 0;
-
-	do
-	{
-		#ifdef CONFIG_ARCH_HOMELET
-			break;
-		#endif
-		axp_power_get_dcin_battery_exist(&dcin_exist, &battery_exist);//判断电池是否存在
-		if(battery_exist >= 0)
-		{
-			break;
-		}
-		i ++;
-		__msdelay(500);
-	}
-	while(i < 4);
 
 	vbus_type = usb_probe_vbus_type();
-	if(vbus_type == 1)								//属于dc类型电源
+	if(vbus_type == 1)
 	{
 		printf("vbus not exist\n");
 		gd->vbus_status = SUNXI_VBUS_NOT_EXIST;
@@ -86,46 +68,46 @@ void power_limit_init(void)
 	else
 	{
 		printf("vbus exist\n");
-		gd->vbus_status = SUNXI_VBUS_EXIST;			//属于vbus类型
+		gd->vbus_status = SUNXI_VBUS_EXIST;
 	}
+	return ;
+}
 
-	if(battery_exist != BATTERY_EXIST)			//电池不存在，则直接限流到DC模式
+void power_limit_for_vbus(int battery_exist,int power_type)
+{
+	int vbus_type = gd->vbus_status;
+
+	if(battery_exist != BATTERY_EXIST)
 	{
 		axp_set_vbus_limit_dc();
 		puts("no battery, limit to dc\n");
-
 		return ;
 	}
 
-	if(dcin_exist == AXP_DCIN_EXIST)		//如果普通外部电源存在，不是VBUS类型
+	if(power_type == AXP_DCIN_EXIST)
 	{
 		axp_set_vbus_limit_dc();
 		puts("normal dc exist, limit to dc\n");
-
-		return ;
 	}
-
-	if(dcin_exist == AXP_VBUS_EXIST)		//如果VBUS电源存在
+	else if(power_type == AXP_VBUS_EXIST)
 	{
-		vbus_type = usb_probe_vbus_type();
 
-		if(vbus_type == 1)					//属于dc类型电源
+		if(vbus_type == 1)
 		{
-			axp_set_vbus_limit_dc();    //dp_dm 拉高
+			axp_set_vbus_limit_dc();
 			puts("vbus dc exist, limit to dc\n");
 		}
 		else
 		{
-			axp_set_vbus_limit_pc();    //dp_dm 拉低
+			axp_set_vbus_limit_pc();
 			axp_set_charge_current(600);
 			puts("vbus pc exist, limit to pc\n");
 		}
-
-		return ;
 	}
-
-	axp_set_vbus_limit_dc();				//只有电池存在
-	puts("only battery exist, limit to dc\n");
-
-	return ;
+	else
+	{
+		axp_set_vbus_limit_dc();
+		puts("only battery exist, limit to dc\n");
+	}
 }
+

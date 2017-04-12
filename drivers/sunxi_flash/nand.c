@@ -64,7 +64,7 @@ int  nand_init_for_boot(int workmode)
 	int bootmode=0;
 	
 	tick_printf("NAND: ");
-	bootmode = workmode == WORK_MODE_SPRITE_RECOVERY? 2:1;
+	bootmode = workmode == WORK_MODE_SPRITE_RECOVERY? 0:1;
 	if(nand_uboot_init(bootmode))
 	{
 		tick_printf("nand init fail\n");
@@ -110,4 +110,5 @@ int nand_init_for_sprite(int workmode)
 	uboot_spare_head.boot_data.storage_type = 0;
 	return 0;
 }
+
 
