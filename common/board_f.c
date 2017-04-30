@@ -359,6 +359,15 @@ static int setup_fdt(void)
 	void *fdt = NULL;
 	fdt = (void*)(ulong)(CONFIG_DTB_STORE_IN_DRAM_BASE);
 
+	printf("Uboot DTB: %d\n", uboot_spare_head.boot_data.dtb_offset);
+
+	if(uboot_spare_head.boot_data.dtb_offset != 0)
+	{
+		fdt = (void*)(ulong)(uboot_spare_head.boot_data.dtb_offset+CONFIG_SYS_TEXT_BASE);
+	}
+
+	printf("DTB address: %p, total size: %d\n", fdt, fdt_totalsize(fdt));
+
 	if (fdt_totalsize(fdt))
 	{
 		gd->fdt_blob =(void*)CONFIG_SUNXI_FDT_ADDR;
