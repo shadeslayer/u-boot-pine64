@@ -105,13 +105,13 @@ int do_sunxi_aes(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	sunxi_dump(out_buff,len);
 	memset(in_buff, 0, len);
 
-#ifdef DEBUG
-	if(smc_aes_bssk_decrypt_to_keysram())
-	{
-		printf("aes ssk decrypt to sram fail\n");
-		return -1;
-	}
-#endif
+// #ifdef DEBUG
+// 	if(smc_aes_bssk_decrypt_to_keysram())
+// 	{
+// 		printf("aes ssk decrypt to sram fail\n");
+// 		return -1;
+// 	}
+// #endif
 
 	if(smc_tee_ssk_decrypt(in_buff, out_buff, len))
 	{

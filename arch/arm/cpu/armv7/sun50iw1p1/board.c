@@ -164,18 +164,18 @@ int sunxi_probe_securemode(void)
 		gd->bootfile_mode = SUNXI_BOOT_FILE_PKG;
 		printf("normal mode: with secure monitor\n");
 
-//		nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_TARGET);
-//		if(nodeoffset >=0)
-//		{
-//			fdt_getprop_u32(working_fdt, nodeoffset, "burn_secure_mode", &burn_secure_mode);
-//		}
-		if (script_parser_fetch("target", "burn_secure_mode", &burn_secure_mode, 1))
-			return 0;
+// //		nodeoffset =  fdt_path_offset(working_fdt,FDT_PATH_TARGET);
+// //		if(nodeoffset >=0)
+// //		{
+// //			fdt_getprop_u32(working_fdt, nodeoffset, "burn_secure_mode", &burn_secure_mode);
+// //		}
+// 		if (script_parser_fetch("target", "burn_secure_mode", &burn_secure_mode, 1))
+// 			return 0;
 
-		if(burn_secure_mode != 1)
-			return 0;
+// 		if(burn_secure_mode != 1)
+// 			return 0;
 
-		gd->bootfile_mode = SUNXI_BOOT_FILE_TOC;
+// 		gd->bootfile_mode = SUNXI_BOOT_FILE_TOC;
 	}
 	return 0;
 }
