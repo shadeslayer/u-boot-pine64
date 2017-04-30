@@ -1,10 +1,4 @@
 /*
- * (C) Copyright 2013-2016
- * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
- *
- * SPDX-License-Identifier:     GPL-2.0+
- */
-/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -60,11 +54,7 @@ void set_pll_cpux_axi(void)
 	disable_pll_lock_bit(LOCK_EN_PLL_CPUX);
 	writel((0x1000), CCMU_PLL_CPUX_CTRL_REG);
 	enable_pll_lock_bit(LOCK_EN_PLL_CPUX);
-	//writel((1<<31) | readl(CCMU_PLL_CPUX_CTRL_REG), CCMU_PLL_CPUX_CTRL_REG);
-	reg_val = readl(CCMU_PLL_CPUX_CTRL_REG);
-	reg_val &= ~((1<<31) | (0x03 << 16) | (0x1f << 8) | (0x03 << 4) | (0x03 << 0));
-	reg_val |=  ((1<<31) | (0 << 16) | (20<<8) | (1<<4) | (0 << 0)) ;
-	writel(reg_val, CCMU_PLL_CPUX_CTRL_REG);
+	writel((1<<31) | readl(CCMU_PLL_CPUX_CTRL_REG), CCMU_PLL_CPUX_CTRL_REG);
 	//wait PLL_CPUX stable
 #ifndef FPGA_PLATFORM
 	while(!(readl(CCMU_PLL_CPUX_CTRL_REG) & (0x1<<28)));
@@ -114,8 +104,8 @@ void set_pll_periph0_ahb_apb(void)
 	//ahb1 clock src is PLL6,                           (0x03<< 12)
 	//apb1 clk src is ahb1 clk src, divide  ratio is 2  (1<<8)
 	//ahb1 pre divide  ratio is 2:    0:1  , 1:2,  2:3,   3:4 (2<<6)
-	//PLL6:AHB1:APB1 = 600M:100M:50M ,
-	writel((1<<8) | (3<<6) | (0<<4), CCMU_AHB1_APB1_CFG_REG);
+	//PLL6:AHB1:APB1 = 600M:200M:100M ,
+	writel((1<<8) | (2<<6) | (0<<4), CCMU_AHB1_APB1_CFG_REG);
 	writel((0x03 << 12)|readl(CCMU_AHB1_APB1_CFG_REG), CCMU_AHB1_APB1_CFG_REG);
 }
 

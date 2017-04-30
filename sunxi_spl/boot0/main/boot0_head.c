@@ -35,10 +35,10 @@
 extern char uboot_hash_value[64];
 
 
-const boot0_file_head_t  BT0_head =
+const boot0_file_head_t  BT0_head = 
 {
     {
-        /* jump_instruction */
+        /* jump_instruction */         
         ( 0xEA000000 | ( ( ( sizeof( boot0_file_head_t ) + sizeof(uboot_hash_value) + sizeof( int ) - 1 ) / sizeof( int ) - 2 ) & 0x00FFFFFF ) ),
         BOOT0_MAGIC,
         STAMP_VALUE,
@@ -53,11 +53,42 @@ const boot0_file_head_t  BT0_head =
         CONFIG_BOOT0_RUN_ADDR,
         0,
         {
-        	0, 0, '4','.','0','.','0',0
+		//brom modify: nand-4bytes sdmmc-2bytes
+		0, 0,0,0, '4','.','0',0
         },
     },
 
     {
+        //__u32 prvt_head_size;
+        0,
+        //char prvt_head_vsn[4];      
+        1,
+        0,		/* power_mode */
+        {0},	/* reserver[2]  */
+        //unsigned int                dram_para[32] ; 
+        {0},
+        //__s32			     uart_port;   
+        0,
+        //normal_gpio_cfg       uart_ctrl[2];  
+        {
+		{ 6, 2, 4, 1, 1, 0, {0}},//PB8: 4--RX
+		{ 6, 4, 4, 1, 1, 0, {0}},//PB9: 4--TX
+        },
+        //__s32                         enable_jtag;  
+        0,
+        //normal_gpio_cfg	      jtag_gpio[5];   
+        {{0},{0},{0},{0},{0}},
+        //normal_gpio_cfg        storage_gpio[32]; 
+        {
+		{ 0, 0, 2, 1, 2, 0, {0}},//PF0-5: 2--SDC
+		{ 0, 1, 2, 1, 2, 0, {0}},
+		{ 0, 2, 2, 1, 2, 0, {0}},
+		{ 0, 3, 2, 1, 2, 0, {0}},
+		{ 0, 4, 2, 1, 2, 0, {0}},
+		{ 0, 5, 2, 1, 2, 0, {0}},
+        },
+        //char                             storage_data[512 - sizeof(normal_gpio_cfg) * 32]; 
+        {0}
     }
 
 };
@@ -100,3 +131,4 @@ const boot0_file_head_t  BT0_head =
 *  | 0xEA000000                                组装成B指令
 *
 *******************************************************************************/
+

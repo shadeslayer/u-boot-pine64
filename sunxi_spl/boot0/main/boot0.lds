@@ -34,4 +34,8 @@ SECTIONS
 	__bss_end = .;
 
 	_end = .;
+	ASSERT(. <= (BOOT0ADDR + (32<<10)), "boot0 image has exceeded its limit.")
 }
+
+
+

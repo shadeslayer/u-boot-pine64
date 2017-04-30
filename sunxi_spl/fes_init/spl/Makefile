@@ -29,7 +29,9 @@ COBJS-y	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/timer_spl.o
 COBJS-y	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/gpio_spl.o
 COBJS-y	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/serial_spl.o
 COBJS-y += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/clock_spl.o
-COBJS-$(CONFIG_SUNXI_RSB) += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rsb_spl.o
+COBJS-$(CONFIG_AXP_USE_RSB) += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rsb_spl.o
+COBJS-$(CONFIG_AXP_USE_I2C) += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/sunxi_i2c_spl.o
+COBJS-$(CONFIG_SUNXI_CHIPID)+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/efuse_spl.o
 
 #COBJS-$(CONFIG_XXXX)	+= xxxx.o
 COBJS 	:= $(COBJS-y)

@@ -161,14 +161,8 @@ __u32 g_mod( __u32 dividend, __u32 divisor, __u32 *quot_p )
 
 void set_dram_para(void *dram_addr , __u32 dram_size, __u32 boot_cpu)
 {
-	__dram_para_t   *dram_para = (__dram_para_t *)dram_addr;
 	struct spare_boot_head_t  *uboot_buf = (struct spare_boot_head_t *)CONFIG_SYS_TEXT_BASE;
-#if defined (CONFIG_ARCH_SUN7I) || defined(CONFIG_ARCH_SUN5I)
-	dram_para->dram_size = dram_size;
-#else
-	dram_para->dram_para1 &= 0xffff0000;
-	dram_para->dram_para1 |= (dram_size & 0xffff);
-#endif
+
 	memcpy((void *)uboot_buf->boot_data.dram_para, dram_addr, 32 * sizeof(int));
 #ifdef CONFIG_BOOT_A15
 	uboot_buf->boot_data.reserved[0] = boot_cpu;

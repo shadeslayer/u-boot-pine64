@@ -56,10 +56,6 @@ static int do_sunxi_dma_test(cmd_tbl_t * cmdtp, int flag, int argc, char * const
 
 	sunxi_dma_setting(hdma,&cfg);
 	sunxi_dma_start(hdma,src_addr,dst_addr,len);
-
-	while(sunxi_dma_request()){
-	
-	}
 	return 0;
 }
 

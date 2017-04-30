@@ -1,10 +1,4 @@
 /*
- * (C) Copyright 2013-2016
- * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
- *
- * SPDX-License-Identifier:     GPL-2.0+
- */
-/*
  * COM1 NS16550 support
  * originally from linux source (arch/powerpc/boot/ns16550.c)
  * modified to use CONFIG_SYS_ISA_MEM and new defines

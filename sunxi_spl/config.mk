@@ -1,11 +1,14 @@
 
 
 # Load generated board configuration
-include $(OBJTREE)/include/autoconf.mk
+sinclude $(OBJTREE)/include/autoconf.mk
+
+#CROSS_COMPILE := $(TOPDIR)/../toolchain/gcc-arm/bin/arm-linux-gnueabihf-
+CROSS_COMPILE := $(TOPDIR)/../toolchain/gcc-linaro-aarch/gcc-linaro/bin/arm-linux-gnueabi-
 
 AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
-CC		= $(CROSS_COMPILE)gcc-4.7
+CC		= $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -34,6 +37,7 @@ PLATFORM_RELFLAGS +=  -march=armv7-a
 	-mthumb-interwork \
 	-fno-stack-protector \
 	-Wall \
+	-Werror \
 	-Wstrict-prototypes \
 	-Wno-format-security \
 	-Wno-format-nonliteral \
@@ -73,3 +77,4 @@ cmd_link_o_target = $(if $(strip $1),\
 		      rm -f $@; $(AR) rcs $@ )
 
 #########################################################################
+

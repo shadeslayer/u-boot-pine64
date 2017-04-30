@@ -38,11 +38,11 @@ LIBS-y += sunxi_spl/sbrom/libs/libgeneric.o
 LIBS-y += sunxi_spl/sbrom/flash/libflash.o
 LIBS-y += sunxi_spl/sbrom/load/libload.o
 LIBS-y += sunxi_spl/spl/lib/libgeneric.o
+LIBS-y += sunxi_spl/sbrom/openssl/libopenssl.o
 LIBS-y += arch/$(ARCH)/cpu/$(CPU)/$(SOC)/nand/libnand.o
 LIBS-y += arch/$(ARCH)/cpu/$(CPU)/$(SOC)/mmc/libmmc.o
 LIBS-y += arch/$(ARCH)/cpu/$(CPU)/$(SOC)/dram/libdram.o
 LIBS-y += arch/$(ARCH)/cpu/$(CPU)/$(SOC)/dram/libchipid.o
-LIBS-y += lib/openssl/libopenssl.o
 
 
 LIBS := $(addprefix $(OBJTREE)/,$(sort $(LIBS-y)))

@@ -40,7 +40,7 @@ void boot0_jump(unsigned int addr)
 	asm volatile("mov r2, #0");
     asm volatile("mcr p15, 0, r2, c7, c5, 6");
 
-	asm volatile("bx r0");
+	asm volatile("blx r0");
 }
 
 

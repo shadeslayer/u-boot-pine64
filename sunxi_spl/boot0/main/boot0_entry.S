@@ -15,7 +15,11 @@ reset:
 	msr cpsr_c, r0
 
 	mrc	p15, 0, r0, c1, c0, 0
+#ifdef CONFIG_ARCH_SUN8IW10P1
+	orr	r0, r0, #0x00002000	@ set bits 13 (--V-)
+#else
 	bic	r0, r0, #0x00002000	@ clear bits 13 (--V-)
+#endif
 	bic	r0, r0, #0x00000007	@ clear bits 2:0 (-CAM)
 	orr	r0, r0, #0x00000800	@ set bit 11 (Z---) BTB
 	bic	r0, r0, #0x00001000	@ clear bit 12 (I) I-cache

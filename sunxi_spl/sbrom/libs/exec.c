@@ -33,64 +33,45 @@ void secure_switch_unsecure(u32 run_addr, u32 para_addr);
 void secure_switch_other(u32 run_addr, u32 para_addr);
 static void boot0_jmp_monitor(unsigned int addr);
 
-unsigned int go_exec (u32 run_addr, u32 para_addr, int out_secure)
+unsigned int go_exec (u32 run_addr, u32 para_addr, int out_secure, unsigned int dram_size)
 {
-	if(out_secure)
+	struct spare_boot_head_t *bfh = (struct spare_boot_head_t *)para_addr;
+	toc0_private_head_t *toc0 = (toc0_private_head_t *)CONFIG_SBROMSW_BASE;
+	int boot_type = toc0->platform[0]&0xf;
+	int card_work_mode = toc0_config->card_work_mode;
+
+	if(!boot_type)
 	{
-		//切换到非安全模式
-		asm volatile("stmfd sp!, {r0, r1}");
-
-		struct spare_boot_head_t *bfh = (struct spare_boot_head_t *)para_addr;
-		toc0_private_head_t *toc0 = (toc0_private_head_t *)CONFIG_SBROMSW_BASE;
-		int boot_type = toc0->platform[0];
-		uint dram_size;
-
-
-		if(!boot_type)
-		{
-			boot_type = 1;
-		}
-		else if(boot_type == 1)
-		{
-			boot_type = 0;
-		}else if(boot_type == 2){
-			//char  storage_data[384];  // 0-159,存储nand信息；160-255,存放卡信息^M
-			set_mmc_para(2,(void *)(toc0_config->storage_data+160));
-		}
-
-		printf("storage_type=%d\n", boot_type);
-		bfh->boot_data.storage_type = boot_type;
-        if(out_secure == SECURE_SWITCH_NORMAL)
-        {
-            bfh->boot_data.secureos_exist = 1;
-		    sunxi_spc_set_to_ns(0);
-        }
-		dram_size = toc0_config->dram_para[4] & 0xffff;
-        if(out_secure == SECURE_SWITCH_NORMAL)
-        {
-	    	printf("dram =%d M, reserved size = %d M\n", dram_size, toc0_config->secure_dram_mbytes);
-		    sunxi_smc_config(dram_size, toc0_config->secure_dram_mbytes);
-		    printf("switch to ns\n");
-		    memcpy(bfh->boot_data.dram_para, toc0_config->dram_para, 32 * 4);
-		    bfh->boot_data.dram_para[4] -= toc0_config->secure_dram_mbytes;
-        }
-        else
-        {
-            printf("still in secure world  \n");
-            printf("dram = %d M \n",dram_size);
-            bfh->boot_data.secureos_exist = 0;
-	    	memcpy(bfh->boot_data.dram_para, toc0_config->dram_para, 32 * 4);
-        }
-		asm volatile("ldmfd sp!, {r0, r1}");
-        //if(out_secure == SECURE_SWITCH_NORMAL)
-		//asm volatile("bx %0"::"r" (secure_switch_unsecure));
-        //    else
-		asm volatile("blx %0"::"r" (secure_switch_other));
+		boot_type = 1;
 	}
-	else
+	else if(boot_type == 1)
 	{
-		boot0_jmp_monitor(run_addr);
+		boot_type = 0;
+	}else if(boot_type == 2){
+		//char  storage_data[384];  // 0-159,存储nand信息；160-255,存放卡信息^M
+		set_mmc_para(2,(void *)(toc0_config->storage_data+160));
 	}
+
+	if(card_work_mode)
+	{
+		bfh->boot_data.work_mode = card_work_mode;
+		printf("card_work_mode=%d\n", card_work_mode);
+	}
+
+	sunxi_smc_config(dram_size, toc0_config->secure_dram_mbytes);
+	sunxi_drm_config(PLAT_SDRAM_BASE + (dram_size<<20), toc0_config->secure_dram_mbytes<<20);
+
+	printf("storage_type=%d\n", boot_type);
+	bfh->boot_data.storage_type = boot_type;
+
+    printf("dram = %d M \n",dram_size);
+    bfh->boot_data.dram_scan_size = dram_size;
+
+    bfh->boot_data.secureos_exist = 1;
+
+	memcpy(bfh->boot_data.dram_para, toc0_config->dram_para, 32 * 4);
+
+	boot0_jmp_monitor(run_addr);
 
 	return 0;
 }
@@ -121,3 +102,20 @@ __LOOP:
 	goto __LOOP;
 
 }
+
+int sunxi_deassert_arisc(void)
+{
+	printf("set arisc reset to de-assert state\n");
+	{
+		volatile unsigned long value;
+		value = readl(SUNXI_RCPUCFG_BASE + 0x0);
+		value &= ~1;
+		writel(value, SUNXI_RCPUCFG_BASE + 0x0);
+		value = readl(SUNXI_RCPUCFG_BASE + 0x0);
+		value |= 1;
+		writel(value, SUNXI_RCPUCFG_BASE + 0x0);
+	}
+
+	return 0;
+}
+

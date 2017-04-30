@@ -1,10 +1,4 @@
 /*
- * (C) Copyright 2013-2016
- * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
- *
- * SPDX-License-Identifier:     GPL-2.0+
- */
-/*
 **********************************************************************************************************************
 *
 *						           the Embedded Secure Bootloader System
@@ -90,7 +84,7 @@ int sunxi_smc_config(uint dram_size, uint secure_region_size)
 	//设置fullmemory访问属性
 	writel(permission | region_size | 1 , SMC_REGIN_ATTRIBUTE_REG(1));
 
-	//设置顶端Secure RAM起始地址
+	//设置顶端16M起始地址
 	region_size = (__tzasc_calc_2_power(secure_region_size*1024/32) + 0b001110)<<1;
 	permission  = 0b1100<<28;	//设置只允许安全模式访问
 

@@ -43,23 +43,34 @@
 #include "../libs/sbrom_libs.h"
 #include <asm/arch/dram.h>
 #include <private_toc.h>
+#include <asm/arch/base_pmu.h>
 
+static int pmu_type;
 
 extern void sid_read_rotpk(void *dst);
 extern void sunxi_certif_mem_reset(void);
-//extern int sunxi_certif_probe_pubkey(X509 *x, sunxi_key_t *pubkey);
+extern int sunxi_certif_probe_pubkey(X509 *x, sunxi_key_t *pubkey);
 extern void ndump(u8 *buf, int count);
 
 static void print_commit_log(void);
-static int sbromsw_toc1_traverse(void);
+static int sbromsw_toc1_traverse(u32 dram_size);
 //static int sbromsw_probe_fel_flag(void);
 static int sbromsw_clear_env(void);
-//static int sunxi_root_certif_pk_verify(sunxi_certif_info_t *sunxi_certif, u8 *buf, u32 len);
+static int sunxi_root_certif_pk_verify(sunxi_certif_info_t *sunxi_certif, u8 *buf, u32 len);
 #ifdef SUNXI_OTA_TEST
 static int sbromsw_print_ota_test(void);
 #endif
-sbrom_toc0_config_t *toc0_config = (sbrom_toc0_config_t *)CONFIG_TOC0_CONFIG_ADDR;
+extern __s32 boot_set_gpio(void  *user_gpio_list, __u32 group_count_max, __s32 set_gpio);
+static int sboot_check_uart_input(void);
+sbrom_toc0_config_t *toc0_config = (sbrom_toc0_config_t *)(CONFIG_TOC0_CONFIG_ADDR);
 extern char sbromsw_hash_value[64];
+
+int mmc_config_addr = (int)(((sbrom_toc0_config_t *)CONFIG_TOC0_CONFIG_ADDR)->storage_data + 160);
+
+void __attribute__((weak)) set_gpio_gate(void)
+{
+	return;
+}
 
 void sbromsw_entry(void)
 {
@@ -69,18 +80,32 @@ void sbromsw_entry(void)
 
 	timer_init();
 	sunxi_serial_init(toc0_config->uart_port, toc0_config->uart_ctrl, 2);
-    set_debugmode_flag();
-    print_commit_log();
 
+	if( toc0_config->enable_jtag )
 	{
-		volatile int a=12;
-		while(a==1);
+		boot_set_gpio((normal_gpio_cfg *)toc0_config->jtag_gpio, 5, 1);
 	}
 
-    set_pll();
+	print_commit_log();
+	set_debugmode_flag();
+
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	pmu_type = pmu_init(toc0_config->power_mode);
+	set_pll_voltage(CONFIG_SUNXI_CORE_VOL);
+#elif defined(CONFIG_SUNXI_MULTI_POWER_MODE)
+	pmu_type = pmu_init(toc0_config->power_mdoe);
+#endif
+
+	set_pll_in_secure_mode();
+	set_gpio_gate();
+	sboot_check_uart_input();
 	printf("try to probe rtc region\n");
+#ifdef SUNXI_OTA_TEST
+	sbromsw_print_ota_test();
+#endif
 	flag = rtc_region_probe_fel_flag();
 	printf("flag=0x%x\n", flag);
+
 	if(flag == SUNXI_RUN_EFEX_FLAG)
 	{
 		printf("sbromsw_entry sbromsw_probe_fel_flag\n");
@@ -88,15 +113,17 @@ void sbromsw_entry(void)
 
 		goto __sbromsw_entry_err0;
 	}
-	printf("try to setup mmu\n");
-	//mmu init
-	mmu_setup();
-	printf("mmu setup ok\n");
 	//dram init
 	printf("try to init dram\n");
+#ifdef FPGA_PLATFORM
+	dram_size = mctl_init((void *)toc0_config->dram_para);
+#else
 	dram_size = init_DRAM(0, (void *)toc0_config->dram_para);
+#endif
 	if (dram_size)
 	{
+		//toc0_config->dram_para[4] &= 0xffff0000;
+		//toc0_config->dram_para[4] |= (dram_size & 0xffff);
 		printf("init dram ok, size=%dM\n", dram_size);
 	}
 	else
@@ -105,12 +132,18 @@ void sbromsw_entry(void)
 
 		goto __sbromsw_entry_err;
 	}
-	printf("mmu resetup\n");
+	printf("try to setup mmu\n");
+	//mmu init
+	mmu_setup();
+	printf("mmu setup ok\n");
+	//printf("mmu resetup\n");
 	//mmu_resetup(dram_size, toc0_config->secure_dram_mbytes);
 	printf("init heap\n");
 	create_heap(CONFIG_HEAP_BASE, CONFIG_HEAP_SIZE);
 	printf("init gic\n");
 //	gic_init();
+	if(toc0->platform[0] & 0xf0)
+		printf("read toc0 from emmc backup\n");
 	printf("init flash\n");
 	ret = sunxi_flash_init(toc0->platform[0] & 0x0f);		//初始化外部介质，准备读取TOC1数据
 	if(ret)
@@ -126,7 +159,7 @@ void sbromsw_entry(void)
 
 		goto __sbromsw_entry_err;
 	}
-	ret = sbromsw_toc1_traverse();
+	ret = sbromsw_toc1_traverse(dram_size);
 	if(ret)
 	{
 		printf("sbromsw_entry sbromsw_toc1_traverse failed\n");
@@ -149,26 +182,22 @@ static void print_commit_log(void)
 
 #define  SUNXI_X509_CERTIFF_MAX_LEN   (4096)
 
-static int sbromsw_toc1_traverse(void)
+static int sbromsw_toc1_traverse(u32 dram_size)
 {
 	sbrom_toc1_item_group item_group;
 	int ret;
 	uint len, i;
 	u8 buffer[SUNXI_X509_CERTIFF_MAX_LEN];
+	__maybe_unused struct spare_boot_head_t  *bfh = NULL;
 
 	sunxi_certif_info_t  root_certif;
 	sunxi_certif_info_t  sub_certif;
 	u8  hash_of_file[256];
-	//u8  hash_in_certif[256];
+    uint optee_entry=0;
+	uint monitor_entry=0, uboot_entry=0;
 
-	//u8  key_certif_extension[260];
-	//u8  content_certif_key[520];
-	//int out_to_ns;
-    //int ready_out_to_ns = 0;
-    //uint optee_entry=0, uboot_entry=0;
-    uint monitor_entry=0;
-
-	toc1_item_traverse();
+	if (toc1_item_traverse())
+		return -1;
 
 	printf("probe root certif\n");
 	sunxi_ss_open();
@@ -181,9 +210,15 @@ static int sbromsw_toc1_traverse(void)
 
 		return -1;
 	}
+	if(sunxi_root_certif_pk_verify(&root_certif, buffer, len))
 	{
-		volatile int a=2;
-		while(a==1);
+		printf("certif invalid: root certif verify itself failed\n");
+
+		return -1;
+	}
+	else
+	{
+		printf("certif valid: the root key is valid\n");
 	}
 	if(sunxi_certif_verify_itself(&root_certif, buffer, len))
 	{
@@ -206,12 +241,22 @@ static int sbromsw_toc1_traverse(void)
 			printf("sbromsw_toc1_traverse find out all items\n");
 
 			printf("monitor entry=0x%x\n", monitor_entry);
-			//printf("uboot entry=0x%x\n", uboot_entry);
+			printf("uboot entry=0x%x\n", uboot_entry);
 
 			//if(optee_entry && uboot_entry)
 				//go_exec(optee_entry, uboot_entry, SECURE_SWITCH_NORMAL);
 			if(monitor_entry)
-				go_exec(monitor_entry, 0, 0);
+			{
+				struct spare_monitor_head *monitor_head;
+
+	            monitor_head  = (struct spare_monitor_head *)monitor_entry;
+				monitor_head->secureos_base = optee_entry;
+
+				bfh = (struct spare_boot_head_t *) CONFIG_SYS_TEXT_BASE;
+				bfh->boot_ext[0].data[0] = pmu_type;
+
+				go_exec(monitor_entry, uboot_entry, 0, dram_size);
+			}
 
 			return 0;
 		}
@@ -276,67 +321,57 @@ static int sbromsw_toc1_traverse(void)
 
 		if(item_group.binfile)
 		{
-			//读出bin文件内容到内存
-			len = sunxi_flash_read(item_group.binfile->data_offset/512, (item_group.binfile->data_len+511)/512, (void *)item_group.binfile->run_addr);
-			//len = sunxi_flash_read(item_group.binfile->data_offset/512, (item_group.binfile->data_len+511)/512, (void *)0x2a000000);
-			if(!len)
+			if(!strcmp(item_group.binfile->name, ITEM_SCP_NAME))
 			{
-				printf("%s error: cant read bin file\n", __func__);
-
-				return -1;
+				sunxi_flash_read(item_group.binfile->data_offset/512, (CONFIG_SYS_SRAMA2_SIZE+511)/512, (void *)SCP_SRAM_BASE);
+				sunxi_flash_read((item_group.binfile->data_offset+0x18000)/512, (SCP_DRAM_SIZE+511)/512, (void *)SCP_DRAM_BASE);
+				sunxi_deassert_arisc();
 			}
-			//计算文件hash
-			memset(hash_of_file, 0, sizeof(hash_of_file));
-			ret = sunxi_sha_calc(hash_of_file, sizeof(hash_of_file), (u8 *)item_group.binfile->run_addr, item_group.binfile->data_len);
-			//ret = sunxi_sha_calc(hash_of_file, sizeof(hash_of_file), (u8 *)0x2a000000, item_group.binfile->data_len);
-			if(ret)
+			else if(!strcmp(item_group.binfile->name, ITEM_PARAMETER_NAME))
 			{
-				printf("sunxi_sha_calc: calc sha256 with hardware err\n");
-
-				return -1;
+				//sunxi_flash_read(item_group.binfile->data_offset/512, (BOOT_PARAMETER_SIZE+511)/512, (void *)CONFIG_SUNXI_PARAMETER_ADDR);
+				;
 			}
-			//使用内容证书的扩展项，和文件hash进行比较
-			//开始比较文件hash(小机端阶段计算得到)和证书hash(PC端计算得到)
-			if(memcmp(hash_of_file, sub_certif.extension.value[0], 32))
-			{
-				printf("hash compare is not correct\n");
-				printf(">>>>>>>hash of file<<<<<<<<<<\n");
-				ndump((u8 *)hash_of_file, 32);
-				printf(">>>>>>>hash in certif<<<<<<<<<<\n");
-				ndump((u8 *)sub_certif.extension.value[0], 32);
-
-				return -1;
-			}
-
-			printf("ready to run %s\n", item_group.binfile->name);
-            if(!toc0_config->secure_without_OS)
-            {
-                ;//ready_out_to_ns = 1;
-            }
-            else
-            {
-                printf("secure_without_OS mode  \n");
-                ;//ready_out_to_ns = 0;
-            }
-
-            if(!strcmp(item_group.binfile->name, "monitor"))
-            {
-            	monitor_entry = item_group.binfile->run_addr;
-            }
-			//else if(strcmp(item_group.binfile->name, "u-boot"))
-			//{
-			//	;//out_to_ns = SECURE_SWITCH_OTHER;
-			//}
 			else
-			{
-//                if(!ready_out_to_ns)
-//					out_to_ns = SECURE_NON_SECUREOS;
-//                else
-//                    out_to_ns = SECURE_SWITCH_NORMAL;
-//                uboot_entry = item_group.binfile->run_addr;
+			{//读出bin文件内容到内存
+				len = sunxi_flash_read(item_group.binfile->data_offset/512, (item_group.binfile->data_len+511)/512, (void *)item_group.binfile->run_addr);
+				if(!len)
+				{
+					printf("%s error: cant read bin file\n", __func__);
+
+					return -1;
+				}
+				//计算文件hash
+				memset(hash_of_file, 0, sizeof(hash_of_file));
+				ret = sunxi_sha_calc(hash_of_file, sizeof(hash_of_file), (u8 *)item_group.binfile->run_addr, item_group.binfile->data_len);
+				//ret = sunxi_sha_calc(hash_of_file, sizeof(hash_of_file), (u8 *)0x2a000000, item_group.binfile->data_len);
+				if(ret)
+				{
+					printf("sunxi_sha_calc: calc sha256 with hardware err\n");
+
+					return -1;
+				}
+				//使用内容证书的扩展项，和文件hash进行比较
+				//开始比较文件hash(小机端阶段计算得到)和证书hash(PC端计算得到)
+				if(memcmp(hash_of_file, sub_certif.extension.value[0], 32))
+				{
+					printf("hash compare is not correct\n");
+					printf(">>>>>>>hash of file<<<<<<<<<<\n");
+					ndump((u8 *)hash_of_file, 32);
+					printf(">>>>>>>hash in certif<<<<<<<<<<\n");
+					ndump((u8 *)sub_certif.extension.value[0], 32);
+
+					return -1;
+				}
+
+				printf("ready to run %s\n", item_group.binfile->name);
+	            if(!strcmp(item_group.binfile->name, "monitor"))
+	            	monitor_entry = item_group.binfile->run_addr;
+				else if(!strcmp(item_group.binfile->name, "u-boot"))
+					uboot_entry = item_group.binfile->run_addr;
+				else if(!strcmp(item_group.binfile->name, "optee"))
+					optee_entry = item_group.binfile->run_addr;
 			}
-			//toc0_config->next_exe_pa   = va2pa(item_group.binfile->run_addr);
-			//go_exec(item_group.binfile->run_addr, CONFIG_TOC0_CONFIG_ADDR, out_to_ns);
 		}
 	}
 	while(1);
@@ -373,8 +408,8 @@ static int sbromsw_print_ota_test(void)
 static int sbromsw_clear_env(void)
 {
 //	gic_exit();
-//	reset_pll();
-//	mmu_turn_off();
+	reset_pll();
+	mmu_turn_off();
 
 	return 0;
 }
@@ -396,51 +431,51 @@ static int sbromsw_clear_env(void)
 ************************************************************************************************************
 */
 #define RSA_BIT_WITDH 2048
-//static int sunxi_certif_pubkey_check( sunxi_key_t  *pubkey )
-//{
-//	char efuse_hash[256] , rotpk_hash[256];
-//	char all_zero[32];
-//
-//	char pk[RSA_BIT_WITDH/8 * 2 + 256]; /*For the stupid sha padding */
-//
-//	sid_read_rotpk(efuse_hash);
-//	memset(all_zero, 0, 32);
-//	if( ! memcmp(all_zero, efuse_hash,32 ) )
-//		return 0 ; /*Don't check if rotpk efuse is empty*/
-//	else{
-//		memset(pk, 0x91, sizeof(pk));
-//		char *align = (char *)(((u32)pk+31)&(~31));
-//		if( *(pubkey->n) ){
-//			memcpy(align, pubkey->n, pubkey->n_len);
-//			memcpy(align+pubkey->n_len, pubkey->e, pubkey->e_len);
-//		}else{
-//			memcpy(align, pubkey->n+1, pubkey->n_len-1);
-//			memcpy(align+pubkey->n_len-1, pubkey->e, pubkey->e_len);
-//		}
-//
-//		if(sunxi_sha_calc( (u8 *)rotpk_hash, 32, (u8 *)align, RSA_BIT_WITDH/8*2 ))
-//		{
-//			printf("sunxi_sha_calc: calc  pubkey sha256 with hardware err\n");
-//			return -1;
-//		}
-//
-//		if(memcmp(rotpk_hash, efuse_hash, 32)){
-//			printf("certif pk dump\n");
-//			ndump((u8 *)align , RSA_BIT_WITDH/8*2 );
-//
-//			printf("calc certif pk hash dump\n");
-//			ndump((u8 *)rotpk_hash,32);
-//
-//			printf("efuse pk dump\n");
-//			ndump((u8 *)efuse_hash,32);
-//
-//			printf("sunxi_certif_pubkey_check: pubkey hash check err\n");
-//			return -1;
-//		}
-//		return 0 ;
-//	}
-//
-//}
+static int sunxi_certif_pubkey_check( sunxi_key_t  *pubkey )
+{
+	char efuse_hash[256] , rotpk_hash[256];
+	char all_zero[32];
+
+	char pk[RSA_BIT_WITDH/8 * 2 + 256]; /*For the stupid sha padding */
+
+	sid_read_rotpk(efuse_hash);
+	memset(all_zero, 0, 32);
+	if( ! memcmp(all_zero, efuse_hash,32 ) )
+		return 0 ; /*Don't check if rotpk efuse is empty*/
+	else{
+		memset(pk, 0x91, sizeof(pk));
+		char *align = (char *)(((u32)pk+31)&(~31));
+		if( *(pubkey->n) ){
+			memcpy(align, pubkey->n, pubkey->n_len);
+			memcpy(align+pubkey->n_len, pubkey->e, pubkey->e_len);
+		}else{
+			memcpy(align, pubkey->n+1, pubkey->n_len-1);
+			memcpy(align+pubkey->n_len-1, pubkey->e, pubkey->e_len);
+		}
+
+		if(sunxi_sha_calc( (u8 *)rotpk_hash, 32, (u8 *)align, RSA_BIT_WITDH/8*2 ))
+		{
+			printf("sunxi_sha_calc: calc  pubkey sha256 with hardware err\n");
+			return -1;
+		}
+
+		if(memcmp(rotpk_hash, efuse_hash, 32)){
+			printf("certif pk dump\n");
+			ndump((u8 *)align , RSA_BIT_WITDH/8*2 );
+
+			printf("calc certif pk hash dump\n");
+			ndump((u8 *)rotpk_hash,32);
+
+			printf("efuse pk dump\n");
+			ndump((u8 *)efuse_hash,32);
+
+			printf("sunxi_certif_pubkey_check: pubkey hash check err\n");
+			return -1;
+		}
+		return 0 ;
+	}
+
+}
 /*
 ************************************************************************************************************
 *
@@ -457,37 +492,60 @@ static int sbromsw_clear_env(void)
 *
 ************************************************************************************************************
 */
-//static int sunxi_root_certif_pk_verify(sunxi_certif_info_t *sunxi_certif, u8 *buf, u32 len)
-//{
-//	X509 *certif;
-//	int  ret;
-//
-//	//内存初始化
-//	sunxi_certif_mem_reset();
-//	//创建证书
-//	ret = sunxi_certif_create(&certif, buf, len);
-//	if(ret < 0)
-//	{
-//		printf("fail to create a certif\n");
-//
-//		return -1;
-//	}
-//	//获取证书公钥
-//	ret = sunxi_certif_probe_pubkey(certif, &sunxi_certif->pubkey);
-//	if(ret)
-//	{
-//		printf("fail to probe the public key\n");
-//
-//		return -1;
-//	}
-//	ret = sunxi_certif_pubkey_check(&sunxi_certif->pubkey);
-//	if(ret){
-//		printf("fail to check the public key hash against efuse\n");
-//
-//		return -1;
-//	}
-//
-//	sunxi_certif_free(certif);
-//
-//	return 0;
-//}
+static int sunxi_root_certif_pk_verify(sunxi_certif_info_t *sunxi_certif, u8 *buf, u32 len)
+{
+	X509 *certif;
+	int  ret;
+
+	//内存初始化
+	sunxi_certif_mem_reset();
+	//创建证书
+	ret = sunxi_certif_create(&certif, buf, len);
+	if(ret < 0)
+	{
+		printf("fail to create a certif\n");
+
+		return -1;
+	}
+	//获取证书公钥
+	ret = sunxi_certif_probe_pubkey(certif, &sunxi_certif->pubkey);
+	if(ret)
+	{
+		printf("fail to probe the public key\n");
+
+		return -1;
+	}
+	ret = sunxi_certif_pubkey_check(&sunxi_certif->pubkey);
+	if(ret){
+		printf("fail to check the public key hash against efuse\n");
+
+		return -1;
+	}
+
+	sunxi_certif_free(certif);
+
+	return 0;
+}
+
+static int sboot_check_uart_input(void)
+{
+	int c = 0;
+	int i = 0;
+	for(i = 0;i < 3;i++)
+	{
+		__msdelay(10);
+		if(sunxi_serial_tstc())
+		{
+			c = sunxi_serial_getc();
+			break;
+		}
+	}
+
+	if(c == '2')
+	{
+		printf("enter 0x%x,ready jump to fes\n", c-0x30); // ASCII to decimal digit
+		sbromsw_clear_env();
+		boot0_jump(SUNXI_FEL_ADDR_IN_SECURE);
+	}
+	return 0;
+}

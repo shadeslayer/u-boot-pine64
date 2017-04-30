@@ -58,6 +58,7 @@ int load_toc1_from_nand( void )
 		return -1;
 	}
 
+	printf("block from %d to %d\n", BOOT1_START_BLK_NUM, BOOT1_LAST_BLK_NUM);
     for( i = BOOT1_START_BLK_NUM;  i <= BOOT1_LAST_BLK_NUM;  i++ )
     {
     	if( NF_read_status( i ) == NF_BAD_BLOCK )		// 如果当前块是坏块，则进入下一块
@@ -66,7 +67,7 @@ int load_toc1_from_nand( void )
             continue;
 			}
         /* 载入当前块最前面512字节的数据到SRAM中，目的是获取文件头 */
-        if( NF_read( i << ( NF_BLK_SZ_WIDTH - NF_SCT_SZ_WIDTH ), (void *)CONFIG_TOC1_STORE_IN_DRAM_BASE, 1 )  == NF_OVERTIME_ERR )
+        if( NF_read(i * ( NF_BLOCK_SIZE >> NF_SCT_SZ_WIDTH ), (void *)CONFIG_TOC1_STORE_IN_DRAM_BASE, 1 )  == NF_OVERTIME_ERR )
         {
 		    printf("the first data is error\n");
 			continue;

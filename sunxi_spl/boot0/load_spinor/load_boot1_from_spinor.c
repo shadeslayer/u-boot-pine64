@@ -21,7 +21,18 @@
 #include "spare_head.h"
 #include "private_boot0.h"
 #include "private_uboot.h"
+#include <private_toc.h>
+#include <asm/arch/spinor.h>
+
+
+
 extern const boot0_file_head_t  BT0_head;
+
+void update_flash_para(void)
+{
+	struct spare_boot_head_t  *bfh = (struct spare_boot_head_t *) CONFIG_SYS_TEXT_BASE;
+	bfh->boot_data.storage_type = STORAGE_NOR;
+}
 
 /*
 ************************************************************************************************************
@@ -41,49 +52,38 @@ extern const boot0_file_head_t  BT0_head;
 */
 int load_boot1_from_spinor(void)
 {
-	__u32 length;
-	struct spare_boot_head_t  *bfh;
+	sbrom_toc1_head_info_t	*toc1_head;
+	u8  *tmp_buff = (u8 *)CONFIG_BOOTPKG_STORE_IN_DRAM_BASE;
+	int start_sector = UBOOT_START_SECTOR_IN_SPINOR;
+	uint total_size = 0;
 
-	if(spinor_init())
+	if(spinor_init(0))
 	{
 		printf("spinor init fail\n");
-
 		return -1;
 	}
-	/* 载入当前块最前面512字节的数据到SRAM中，目的是获取文件头 */
-	if(spinor_read(UBOOT_START_SECTOR_IN_SPINOR, 1, (void *)CONFIG_SYS_TEXT_BASE ) )
+
+	if(spinor_read(start_sector, 1, (void *)tmp_buff ) )
 	{
 		printf("the first data is error\n");
-
 		goto __load_boot1_from_spinor_fail;
 	}
-	printf("Succeed in reading Boot1 file head.\n");
+	printf("Succeed in reading toc file head.\n");
 
-	/* 察看是否是文件头 */
-	if( check_magic( (__u32 *)CONFIG_SYS_TEXT_BASE, UBOOT_MAGIC ) != 0 )
+	toc1_head = (struct sbrom_toc1_head_info *)tmp_buff;
+	if(toc1_head->magic != TOC_MAIN_INFO_MAGIC)
 	{
-		printf("ERROR! Add %u doesn't store head of Boot1 copy.\n", UBOOT_START_SECTOR_IN_SPINOR );
-
+		printf("toc1 magic error\n");
 		goto __load_boot1_from_spinor_fail;
 	}
+	total_size = toc1_head->valid_len;
+	printf("The size of toc is %x.\n", total_size );
 
-	bfh = (struct spare_boot_head_t *)CONFIG_SYS_TEXT_BASE;
-	length =  bfh->boot_head.length;
-	printf("The size of uboot is %x.\n", length );
-	if( ( length & ( 512 - 1 ) ) != 0 ) 	// length必须是NF_SECTOR_SIZE对齐的
+	if(spinor_read(start_sector, total_size/512, (void *)tmp_buff ))
 	{
-		printf("the boot1 is not aligned by %x\n", bfh->boot_head.align_size);
-
+		printf("spinor read data error\n");
 		goto __load_boot1_from_spinor_fail;
 	}
-
-	if(spinor_read(UBOOT_START_SECTOR_IN_SPINOR, length/512, (void *)CONFIG_SYS_TEXT_BASE ))
-	{
-		printf("spinor read data	error\n");
-
-		goto __load_boot1_from_spinor_fail;
-	}
-	bfh->boot_data.storage_type = 3;
 
 	return 0;
 
@@ -94,8 +94,8 @@ __load_boot1_from_spinor_fail:
 
 int load_boot1(void)
 {
-	//memcpy((void *)DRAM_PARA_STORE_ADDR, (void *)BT0_head.prvt_head.dram_para, SUNXI_DRAM_PARA_MAX * 4);
-
+	memcpy((void *)DRAM_PARA_STORE_ADDR, (void *)BT0_head.prvt_head.dram_para,
+		SUNXI_DRAM_PARA_MAX * 4);
 	return load_boot1_from_spinor();
 }
 

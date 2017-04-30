@@ -26,6 +26,8 @@
 
 extern int sunxi_mmc_init(int sdc_no, unsigned bus_width, normal_gpio_cfg *gpio_info, int offset);
 extern int load_toc1_from_nand( void );
+extern int verify_addsum( void *mem_base, __u32 size );
+
 
 extern sbrom_toc0_config_t *toc0_config;
 /*
@@ -54,6 +56,8 @@ int sunxi_flash_init(int boot_type)
 		uint head_size;
 		sbrom_toc1_head_info_t  *toc1_head;
 		int  sunxi_flash_mmc_card_no;
+		int start_sector,i;
+		int start_sectors[4] = {UBOOT_START_SECTOR_IN_SDMMC,UBOOT_BACKUP_START_SECTOR_IN_SDMMC,0,0};
 
 		if(boot_type == BOOT_FROM_SD0)
 		{
@@ -70,30 +74,48 @@ int sunxi_flash_init(int boot_type)
 
 			return -1;
 		}
-		//一次读取64k数据
-		ret = mmc_bread(sunxi_flash_mmc_card_no, UBOOT_START_SECTOR_IN_SDMMC, 64, tmp_buff);
-		if(!ret)
-		{
-			printf("PANIC : sunxi_flash_init() error --1--\n");
-			return -1;
-		}
-		toc1_head = (struct sbrom_toc1_head_info *)tmp_buff;
-		if(toc1_head->magic != TOC_MAIN_INFO_MAGIC)
-		{
-			printf("PANIC : sunxi_flash_init() error --2--,toc1 magic error\n");
-			return -1;
-		}
-		head_size = toc1_head->valid_len;
-		if(head_size > 64 * 512)
-		{
-			tmp_buff += 64*512;
-			ret = mmc_bread(sunxi_flash_mmc_card_no, UBOOT_START_SECTOR_IN_SDMMC + 64, (head_size - 64*512 + 511)/512, tmp_buff);
-			if(!ret)
-			{
-				printf("PANIC : sunxi_flash_init() error --3--\n");
 
+		for(i = 0; i<4; i++)
+		{
+			start_sector = start_sectors[i];
+			tmp_buff = (u8 *)CONFIG_TOC1_STORE_IN_DRAM_BASE;
+			if(start_sector == 0)
+			{
+				printf("read all u-boot blk failed\n");
 				return -1;
 			}
+
+			//一次读取64k数据
+			ret = mmc_bread(sunxi_flash_mmc_card_no, start_sector, 64, tmp_buff);
+			if(!ret)
+			{
+				printf("PANIC : sunxi_flash_init() error --1--\n");
+				continue;
+			}
+			toc1_head = (struct sbrom_toc1_head_info *)tmp_buff;
+			if(toc1_head->magic != TOC_MAIN_INFO_MAGIC)
+			{
+				printf("PANIC : sunxi_flash_init() error --2--,toc1 magic error\n");
+				continue;
+			}
+			head_size = toc1_head->valid_len;
+			if(head_size > 64 * 512)
+			{
+				tmp_buff += 64*512;
+				ret = mmc_bread(sunxi_flash_mmc_card_no, start_sector + 64, (head_size - 64*512 + 511)/512, tmp_buff);
+				if(!ret)
+				{
+					printf("PANIC : sunxi_flash_init() error --3--\n");
+					continue;
+				}
+			}
+			if( verify_addsum( (__u32 *)CONFIG_TOC1_STORE_IN_DRAM_BASE, head_size) != 0 )
+			{
+				printf("Fail in checking toc1.\n");
+				continue;
+			}
+			printf("read toc1 from emmc %d sector\n",start_sector);
+			break;
 		}
 
 		return 0;

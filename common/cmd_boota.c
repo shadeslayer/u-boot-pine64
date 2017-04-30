@@ -161,34 +161,6 @@ uint get_arch_type(struct andr_img_hdr *hdr)
 		return ARCH_ARM;
 }
 
-#ifdef CONFIG_SUNXI_SECURE_SYSTEM
-static int android_image_get_signature(const struct andr_img_hdr *hdr, 
-									ulong *sign_data, ulong *sign_len)
-{
-	struct boot_img_hdr_ex  *hdr_ex;
-	ulong addr=0;
-
-	hdr_ex = (struct boot_img_hdr_ex *)hdr;
-	if(strncmp((void *)(hdr_ex->cert_magic),AW_CERT_MAGIC,strlen(AW_CERT_MAGIC))){
-		printf("No cert image embeded, image %s\n",hdr_ex->cert_magic);
-		return 0;
-	}
-
-	addr = (unsigned long)hdr;
-
-	addr += hdr->page_size;
-	addr += ALIGN(hdr->kernel_size, hdr->page_size);
-	addr += ALIGN(hdr->ramdisk_size, hdr->page_size);
-	if(hdr->second_size)
-		addr += ALIGN(hdr->second_size, hdr->page_size);
-
-	*sign_data = (ulong)addr;
-	*sign_len = hdr_ex->cert_size;
-	memset(hdr_ex->cert_magic,0,ANDR_BOOT_MAGIC_SIZE+sizeof(unsigned));
-	return 1;
-}
-#endif
-
 int do_boota_linux (void *kernel_addr, void *dtb_base, uint arch_type)
 {
 	int fake = 0;
@@ -327,7 +299,6 @@ int do_boota (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	void *kernel_addr = NULL;
 	struct  andr_img_hdr *fb_hdr = NULL;
 	void *dtb_base  = (void*)getenv_hex("fdtaddr", 0);
-	char efuse_hash[32] , all_zero[32];
 
 	if (argc < 2)
 		return cmd_usage(cmdtp);
@@ -349,14 +320,6 @@ int do_boota (cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	puts("4\n");
 	memcpy2((void*) (long)fb_hdr->ramdisk_addr, (const void *)rd_data, rd_len);
 	puts("5\n");
-
-	debug("moving sysconfig.bin from %lx to: %lx, size 0x%lx\n", 
-		(ulong)get_script_reloc_buf(SOC_SCRIPT),
-		(ulong)(SYS_CONFIG_MEMBASE),
-		get_script_reloc_size(SOC_SCRIPT);
-	debug("moving platform.dtb from %lx to: %lx, size 0x%lx\n", 
-		(ulong)dtb_base,
-		(ulong)(gd->fdt_blob),gd->fdt_size);
 
 	memcpy((void*)SYS_CONFIG_MEMBASE, (void*)get_script_reloc_buf(SOC_SCRIPT),
 			get_script_reloc_size(SOC_SCRIPT));

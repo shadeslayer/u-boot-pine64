@@ -25,22 +25,24 @@ include $(SPLDIR)/config.mk
 
 LIB	=  $(obj)libsource_spl.o
 
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rtc_region.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/timer_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/gpio_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/serial_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/clock_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/ss_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/spc_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/smc_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/gic_spl.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/debug.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/ctype.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/eabi_compat.o
-COBJS	+= $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rsb_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rtc_region.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/timer_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/gpio_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/serial_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/clock_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/ss_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/spc_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/smc_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/gic_spl.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/debug.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/ctype.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/eabi_compat.o
+COBJS-y  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/efuse_spl.o
+COBJS-$(CONFIG_AXP_USE_RSB)  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/rsb_spl.o
+COBJS-$(CONFIG_AXP_USE_I2C)  += $(TOPDIR)/arch/$(ARCH)/cpu/$(CPU)/$(SOC)/spl/sunxi_i2c_spl.o
 
 #COBJS-$(CONFIG_XXXX)	+= xxxx.o
-
+COBJS 	:= $(COBJS-y)
 SRCS	:= $(COBJS:.o=.c)
 OBJS	:= $(addprefix $(obj),$(COBJS))
 

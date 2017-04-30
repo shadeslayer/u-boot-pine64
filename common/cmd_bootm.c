@@ -21,6 +21,7 @@
 #include <linux/ctype.h>
 #include <linux/err.h>
 #include <u-boot/zlib.h>
+#include <sys_config_old.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -731,12 +732,8 @@ int do_booti(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	if (booti_start(cmdtp, flag, argc, argv, &images))
 		return 1;
 
-	debug("moving sysconfig.bin from %lx to: %lx, size 0x%lx\n",
-		(ulong)gd->script_reloc_buf,
-		(ulong)(SYS_CONFIG_MEMBASE),
-		gd->script_reloc_size);
-
-	memcpy((void*)SYS_CONFIG_MEMBASE, (void*)gd->script_reloc_buf,gd->script_reloc_size);
+	memcpy((void*)SYS_CONFIG_MEMBASE, (void*)get_script_reloc_buf(SOC_SCRIPT),
+			get_script_reloc_size(SOC_SCRIPT));
 
 	/*
 	 * We are doing the BOOTM_STATE_LOADOS state ourselves, so must

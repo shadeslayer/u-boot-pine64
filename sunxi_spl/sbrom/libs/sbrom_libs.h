@@ -28,11 +28,13 @@ extern void mmu_turn_off(void);
 
 extern int create_heap(unsigned int pHeapHead, unsigned int nHeapSize);
 
-extern unsigned int go_exec (unsigned int run_addr, unsigned int para_addr, int out_secure);
+extern unsigned int go_exec (unsigned int run_addr, unsigned int para_addr, int out_secure, unsigned int dram_size);
 
 void boot0_jump(unsigned int addr);
 
 extern void set_debugmode_flag(void);
+
+extern int sunxi_deassert_arisc(void);
 
 #endif
 

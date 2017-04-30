@@ -16,7 +16,7 @@ COBJS += eabi_compat.o
 #COBJS += jmp.o
 COBJS += common.o
 
-SOBJS += jmpto64.o
+SOBJS += jmpto64.o memcpy_align16.o
 
 SOBJS   := $(SOBJS)
 COBJS	:= $(COBJS)

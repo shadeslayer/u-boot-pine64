@@ -26,32 +26,53 @@
 #include <asm/arch/uart.h>
 #include <asm/arch/dram.h>
 #include <asm/arch/rtc_region.h>
+#include <private_toc.h>
+#include <boot0_helper.h>
+#include <asm/arch/base_pmu.h>
 
 
 extern const boot0_file_head_t  BT0_head;
 
 static void print_version(void);
 static int boot0_clear_env(void);
+static void update_uboot_info(__u32 dram_size);
+static int boot0_check_uart_input(void);
+#ifdef	SUNXI_OTA_TEST
+static void print_ota_test(void);
+#endif
 
-extern __s32 boot_set_gpio(void  *user_gpio_list, __u32 group_count_max, __s32 set_gpio);
-extern void mmu_setup(u32 dram_size);
-extern void  mmu_turn_off( void );
-extern int load_boot1(void);
-extern void set_dram_para(void *dram_addr , __u32 dram_size, __u32 boot_cpu);
-extern void boot0_jump(unsigned int addr);
-extern void boot0_jmp_boot1(unsigned int addr);
-extern void boot0_jmp_other(unsigned int addr);
-extern void boot0_jmp_monitor(void);
-extern void reset_pll( void );
-extern int load_fip(int *use_monitor);
-extern void set_debugmode_flag(void);
-extern void set_pll( void );
+
 extern char boot0_hash_value[64];
 
-void __attribute__((weak)) bias_calibration(void)
+int mmc_config_addr = (int)(BT0_head.prvt_head.storage_data);
+
+//phoenixcard will set this bit
+#define BOOT0_BURN_SECURE_BIT (1<<31)
+
+/*******************************************************
+we should implement below interfaces if platform support
+handler standby flag in boot0
+*******************************************************/
+void __attribute__((weak)) handler_super_standby(void)
 {
 	return;
 }
+
+void __attribute__((weak)) sid_set_security_mode(void)
+{
+	return;
+}
+
+void __attribute__((weak)) reboot(void)
+{
+	return;
+}
+
+void __attribute__((weak)) set_gpio_gate(void)
+{
+	return;
+}
+
 
 /*******************************************************************************
 main:   body for c runtime 
@@ -63,9 +84,8 @@ void main( void )
 	__u32 fel_flag;
 	__u32 boot_cpu=0;
 	int use_monitor = 0;
-	//struct spare_boot_head_t* uboot_head=NULL;
-
-	bias_calibration();
+	__maybe_unused int pmu_type = 0;
+	__maybe_unused struct spare_boot_head_t  *bfh = NULL;
 
 	timer_init();
 	sunxi_serial_init( BT0_head.prvt_head.uart_port, (void *)BT0_head.prvt_head.uart_ctrl, 6 );
@@ -73,14 +93,31 @@ void main( void )
 	printf("HELLO! BOOT0 is starting!\n");
 	printf("boot0 commit : %s \n",boot0_hash_value);
 	print_version();
+#ifdef	SUNXI_OTA_TEST
+	print_ota_test();
+#endif
 
 	set_pll();
+	set_gpio_gate();
+	boot0_check_uart_input();
 
-	//sunxi_serial_init( BT0_head.prvt_head.uart_port, (void *)BT0_head.prvt_head.uart_ctrl, 6 );
+	if (BT0_head.prvt_head.enable_jtag&BOOT0_BURN_SECURE_BIT)
+	{
+		printf("ready to burn secure bit\n");
+		sid_set_security_mode();
+		reboot();
+	}
+
 	if( BT0_head.prvt_head.enable_jtag )
 	{
 		boot_set_gpio((normal_gpio_cfg *)BT0_head.prvt_head.jtag_gpio, 6, 1);
 	}
+#if defined(CONFIG_SUNXI_MULITCORE_BOOT)
+	pmu_type = pmu_init(BT0_head.prvt_head.power_mode);
+	set_pll_voltage(CONFIG_SUNXI_CORE_VOL);
+#elif defined(CONFIG_SUNXI_MULTI_POWER_MODE)
+	pmu_type = pmu_init(BT0_head.prvt_head.power_mode);
+#endif
 
 	fel_flag = rtc_region_probe_fel_flag();
 	if(fel_flag == SUNXI_RUN_EFEX_FLAG)
@@ -89,8 +126,6 @@ void main( void )
 		printf("eraly jump fel\n");
 		goto __boot0_entry_err0;
 	}
-	//mmu_setup();
-
 
 #ifdef FPGA_PLATFORM
 	dram_size = mctl_init((void *)BT0_head.prvt_head.dram_para);
@@ -106,7 +141,10 @@ void main( void )
 		printf("initializing SDRAM Fail.\n");
 		goto  __boot0_entry_err0;
 	}
-	mmu_setup(dram_size );
+	//on some platform, boot0 should handler standby flag.
+	handler_super_standby();
+
+	mmu_setup(dram_size);
 	status = load_boot1();
 	if(status == 0 )
 	{
@@ -117,12 +155,20 @@ void main( void )
 	printf("Ready to disable icache.\n");
 
     // disable instruction cache
-	mmu_turn_off( ); 
+	mmu_turn_off( );
 
 	if( status == 0 )
 	{
+		//update bootpackage size for uboot
+		update_uboot_info(dram_size);
+		//update flash para
+		update_flash_para();
 		//update dram para before jmp to boot1
 		set_dram_para((void *)&BT0_head.prvt_head.dram_para, dram_size, boot_cpu);
+
+		bfh = (struct spare_boot_head_t *) CONFIG_SYS_TEXT_BASE;
+		bfh->boot_ext[0].data[0] = pmu_type;
+
 		printf("Jump to secend Boot.\n");
                 if(use_monitor)
 		{
@@ -157,7 +203,8 @@ __boot0_entry_err0:
 */
 static void print_version()
 {
-	printf("boot0 version : %s\n", BT0_head.boot_head.platform + 2);
+	//brom modify: nand-4bytes, sdmmc-2bytes
+	printf("boot0 version : %s\n", BT0_head.boot_head.platform + 4);
 
 	return;
 }
@@ -187,3 +234,52 @@ static int boot0_clear_env(void)
     
 	return 0;
 }
+
+//
+static void update_uboot_info(__u32 dram_size)
+{
+	struct spare_boot_head_t  *bfh = (struct spare_boot_head_t *) CONFIG_SYS_TEXT_BASE;
+	struct sbrom_toc1_head_info *toc1_head = (struct sbrom_toc1_head_info *)CONFIG_BOOTPKG_STORE_IN_DRAM_BASE;
+	bfh->boot_data.boot_package_size = toc1_head->valid_len;
+	bfh->boot_data.dram_scan_size = dram_size;
+	//printf("boot package size: 0x%x\n",bfh->boot_data.boot_package_size);
+}
+
+static int boot0_check_uart_input(void)
+{
+	int c = 0;
+	int i = 0;
+	for(i = 0;i < 3;i++)
+	{
+		__msdelay(10);
+		if(sunxi_serial_tstc())
+		{
+			c = sunxi_serial_getc();
+			break;
+		}
+	}
+
+	if(c == '2')
+	{
+		printf("enter 0x%x,ready jump to fes\n", c-0x30);  // ASCII to decimal digit
+		boot0_clear_env();
+		boot0_jmp_other(FEL_BASE);
+	}
+	return 0;
+}
+
+#ifdef	SUNXI_OTA_TEST
+static void print_ota_test(void)
+{
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	printf("********[OTA TEST]:update boot0 sucess*******\n");
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	printf("*********************************************\n");
+	return;
+}
+#endif

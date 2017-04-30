@@ -31,6 +31,7 @@
 #include "boot_type.h"
 #include "private_toc.h"
 #include "sbrom_toc.h"
+#include <asm/arch/efuse.h>
 /*
 ************************************************************************************************************
 *
@@ -49,6 +50,58 @@
 */
 static struct sbrom_toc1_head_info  *toc1_head = NULL;
 static struct sbrom_toc1_item_info  *toc1_item = NULL;
+
+
+static int sboot_verify_version(int main_v, int sub_v)
+{
+	int nv1, nv2;
+	int efuse_nv1_format;
+	int efuse_nv2_format;
+
+	nv1 = sid_read_key(EFUSE_NV1) & 0xff;
+	nv2 = sid_read_key(EFUSE_NV2) & 0xffff;
+
+	main_v &= 0xff;
+	sub_v  &= 0xffff;
+
+	if(main_v > 31)
+	{
+		printf("main version is too big, %d>31", main_v);
+
+		return -1;
+	}
+
+	if(sub_v > 63)
+	{
+		printf("main version is too big, %d>63", main_v);
+
+		return -1;
+	}
+
+	printf("OLD version: %d.%d\n", nv1, nv2);
+	printf("NEW version: %d.%d\n", main_v, sub_v);
+
+	if ((main_v < nv1) || (sub_v < nv2)) {
+		printf("the version of this image(%d.%d) is older than the previous version (%d.%d)\n", main_v, sub_v, nv1, nv2);
+
+		return -1;
+	}
+
+	if (main_v > nv1) {
+		printf("main verions need update\n");
+		efuse_nv1_format = (1<<main_v);
+		sid_program_key(EFUSE_NV1, efuse_nv1_format);
+	}
+
+	if (sub_v > nv2) {
+		printf("sub verions need update\n");
+		efuse_nv2_format = (1<<sub_v);
+		sid_program_key(EFUSE_NV2, efuse_nv2_format);
+	}
+
+	return 0;
+
+}
 /*
 ************************************************************************************************************
 *
@@ -105,7 +158,12 @@ int toc1_item_traverse(void)
 	printf("Toc_items_nr      = 0x%x\n", p_head->items_nr);
 	printf("Toc_valid_len     = 0x%x\n", p_head->valid_len);
 	printf("TOC_MAIN_END      = 0x%x\n", p_head->end);
+	printf("TOC_MAIN_VERSION  = 0x%x\n", p_head->version_main);
+	printf("TOC_SUB_VERSION   = 0x%x\n", p_head->version_sub);
 	printf("***************************************************************\n\n");
+
+	if (sboot_verify_version(p_head->version_main, p_head->version_sub))
+		return -1;
 
 	for(i=0;i<p_head->items_nr;i++,item_head++)
 	{
