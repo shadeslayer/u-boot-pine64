@@ -388,7 +388,7 @@
 			"run mmcboot; " \
 		"fi\0"
 
-#define CONFIG_BOOTDELAY	3
+#define CONFIG_BOOTDELAY	1
 #define CONFIG_BOOTCOMMAND	"run mmcbootcmd"
 #define CONFIG_SYS_BOOT_GET_CMDLINE
 #define CONFIG_AUTO_COMPLETE
