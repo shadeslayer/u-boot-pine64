@@ -1,6 +1,10 @@
 
 #include <common.h>
 
+#ifdef CONFIG_PINE64_MODEL_PINEBOOK_DETECTION
+int has_anx9807_chip(void);
+#endif
+
 DECLARE_GLOBAL_DATA_PTR;
 
 #ifdef CONFIG_PINEBOOK_MODEL
@@ -9,17 +13,18 @@ int has_anx9807_chip(void);
 
 int get_model_from_dram_size(char* model)
 {
-	phys_size_t l = 512 * 1024 * 1024;
-	puts("get Pine64 model from DRAM size and used storage\n");
-
-#ifdef CONFIG_PINEBOOK_MODEL
+#ifdef CONFIG_PINE64_MODEL_PINEBOOK_DETECTION
+	puts("check for ANX9807\n");
 	if (has_anx9807_chip()) {
-		puts("Pinebook: has ANX9807 chip\n");
+		puts("found ANX9807 chip\n");
 		sprintf(model, "pine64-pinebook");
-	} else
+		return 0;
+	}
 #endif
 
-  if (gd->ram_size > l) {
+	phys_size_t l = 512 * 1024 * 1024;
+	puts("get Pine64 model from DRAM size\n");
+	if (gd->ram_size > l) {
 		puts("DRAM >512M\n");
 		sprintf(model, "pine64-plus");
 	} else {

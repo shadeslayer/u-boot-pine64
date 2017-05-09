@@ -598,7 +598,7 @@ static void lcd_get_sys_config(u32 disp, __disp_lcd_cfg_t *lcd_cfg)
                          "lcdd23", "lcdclk", "lcdde", "lcdhsync", "lcdvsync"};
     disp_gpio_set_t  *gpio_info;
     int  value = 1;
-    char primary_key[30], sub_name[40];
+    char primary_key[32], sub_name[40];
     int i = 0;
     int  ret;
 
