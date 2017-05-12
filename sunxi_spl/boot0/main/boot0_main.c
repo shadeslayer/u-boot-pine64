@@ -97,15 +97,30 @@ void main( void )
 #else
 	dram_size = init_DRAM(0, (void *)BT0_head.prvt_head.dram_para);
 #endif
-	if(dram_size)
+	if(!dram_size)
 	{
-		printf("dram size =%d\n", dram_size);
+		__dram_para_t *dram_para = BT0_head.prvt_head.dram_para;
+
+		if (dram_para->dram_type == 3) {
+			printf("Currently DDR3 is used, trying LPDDR3\n");
+			dram_para->dram_clk = 552;
+			dram_para->dram_type = 7;
+		} else if (dram_para->dram_type == 7) {
+			printf("Currently LPDDR3 is used, trying DDR3\n");
+			dram_para->dram_clk = 672;
+			dram_para->dram_type = 3;
+		}
+
+		dram_size = init_DRAM(0, (void *)BT0_head.prvt_head.dram_para);
 	}
-	else
+
+	if(!dram_size)
 	{
 		printf("initializing SDRAM Fail.\n");
 		goto  __boot0_entry_err0;
 	}
+
+	printf("dram size = %d\n", dram_size);
 	mmu_setup(dram_size );
 	status = load_boot1();
 	if(status == 0 )
@@ -124,7 +139,7 @@ void main( void )
 		//update dram para before jmp to boot1
 		set_dram_para((void *)&BT0_head.prvt_head.dram_para, dram_size, boot_cpu);
 		printf("Jump to secend Boot.\n");
-                if(use_monitor)
+        if(use_monitor)
 		{
 			boot0_jmp_monitor();
 		}

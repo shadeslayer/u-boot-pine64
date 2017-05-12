@@ -47,7 +47,7 @@
 #define mmcdbg(fmt...)	printf("[mmc]: "fmt)
 #define mmcmsg(fmt...)	printf(fmt)
 #else
-#define mmcinfo(fmt...)	printf("[mmc]: "fmt)
+#define mmcinfo(fmt...)
 #define mmcdbg(fmt...)
 #define mmcmsg(fmt...)
 #endif
