@@ -1,5 +1,6 @@
 
 #include <common.h>
+#include <asm/arch-sun50iw1p1/dram.h>
 
 #ifdef CONFIG_PINE64_MODEL_PINEBOOK_DETECTION
 int has_anx9807_chip(void);
@@ -22,9 +23,14 @@ int get_model_from_dram_size(char* model)
 	}
 #endif
 
+	__dram_para_t *dram_para = (__dram_para_t*)uboot_spare_head.boot_data.dram_para;
+
 	phys_size_t l = 512 * 1024 * 1024;
 	puts("get Pine64 model from DRAM size\n");
-	if (gd->ram_size > l) {
+	if (dram_para->dram_type == 7) {
+		puts("LPDDR3 -> SoPine\n");
+		sprintf(model, "pine64-sopine");
+	} else if (gd->ram_size > l) {
 		puts("DRAM >512M\n");
 		sprintf(model, "pine64-plus");
 	} else {
