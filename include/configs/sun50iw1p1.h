@@ -352,7 +352,7 @@
 	"initrd_filename=initrd.img\0" \
 	"bootenv_filename=uEnv.txt\0" \
 	"load_bootenv=" \
-		"load mmc ${boot_part} ${load_addr} ${bootenv_filename}\0" \
+		"for prefix in / /boot/; do if test -e mmc ${boot_part} ${prefix}${bootenv_filename}; then load mmc ${boot_part} ${load_addr} ${prefix}${bootenv_filename}; fi; done\0" \
 	"import_bootenv=" \
 		"env import -t ${load_addr} ${filesize}\0" \
 	"load_dtb=" \
@@ -368,7 +368,7 @@
 		"load mmc ${boot_part} ${initrd_addr} ${initrd_filename}; "\
 		"setenv initrd_size ${filesize}\0" \
 	"load_bootscript=" \
-		"load mmc ${boot_part} ${load_addr} ${script}\0" \
+		"for prefix in / /boot/; do if test -e mmc ${boot_part} ${prefix}${script}; then load mmc ${boot_part} ${load_addr} ${prefix}${script}; fi; done\0" \
 	"scriptboot=source ${load_addr}\0" \
 	"set_cmdline=" \
 		"setenv bootargs console=${console} ${optargs} " \
